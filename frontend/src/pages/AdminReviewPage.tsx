@@ -18,6 +18,7 @@ export function AdminReviewPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState('');
+  const [feedbackType, setFeedbackType] = useState<'success' | 'error'>('success');
 
   const token = localStorage.getItem('anfaal-token') ?? '';
 
@@ -35,9 +36,12 @@ export function AdminReviewPage() {
     try {
       await updateCallReview(token, callId, status);
       setFeedback(`Call ${status.toLowerCase()} successfully.`);
+      setFeedbackType('success');
+      setExpandedId(null);
       loadData();
     } catch (err) {
       setFeedback(err instanceof Error ? err.message : 'Unable to update review.');
+      setFeedbackType('error');
     }
   };
 
@@ -56,8 +60,9 @@ export function AdminReviewPage() {
       </div>
 
       {feedback && (
-        <div className="summary-card" style={{ marginBottom: 16, borderLeftWidth: 3, borderLeftStyle: 'solid', borderLeftColor: feedback.includes('success') ? 'var(--success)' : 'var(--danger)' }}>
-          <strong style={{ color: feedback.includes('success') ? 'var(--success)' : 'var(--danger)' }}>{feedback}</strong>
+        <div className="summary-card" style={{ marginBottom: 16, borderLeftWidth: 3, borderLeftStyle: 'solid', borderLeftColor: feedbackType === 'success' ? 'var(--success)' : 'var(--danger)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <strong style={{ color: feedbackType === 'success' ? 'var(--success)' : 'var(--danger)' }}>{feedback}</strong>
+          <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 8px', borderRadius: 8, fontSize: '1rem' }} onClick={() => setFeedback('')}>✕</button>
         </div>
       )}
 

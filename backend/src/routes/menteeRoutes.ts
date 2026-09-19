@@ -251,4 +251,32 @@ router.patch('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest,
   }
 });
 
+
+// DELETE /api/mentees/:id — permanently remove a mentee and all linked data (admin only)
+router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const mentee = await Mentee.findById(req.params.id);
+    if (!mentee) {
+      return res.status(404).json({ message: 'Mentee not found.' });
+    }
+
+    const menteeId = String(mentee._id);
+
+    // Cascade: remove all mentorship assignments for this mentee
+    await Mentorship.deleteMany({ menteeId });
+
+    // Cascade: remove all call records for this mentee
+    await Call.deleteMany({ menteeId });
+
+    // Remove the mentee profile
+    await Mentee.findByIdAndDelete(req.params.id);
+
+    return res.json({ message: 'Mentee and all associated data removed successfully.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to delete mentee';
+    return res.status(500).json({ message });
+  }
+});
+
 export default router;
+

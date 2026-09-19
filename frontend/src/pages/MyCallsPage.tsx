@@ -128,8 +128,8 @@ export function MyCallsPage() {
 
       {/* Call Detail Modal */}
       {selectedCall && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 1000, padding: 20 }}>
-          <div className="form-card" style={{ width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto', background: '#fff', borderRadius: 20, padding: 28, position: 'relative' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 1000, padding: 20 }} onClick={() => setSelectedCall(null)}>
+          <div className="form-card" style={{ width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto', background: '#fff', borderRadius: 20, padding: 28, position: 'relative' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <div className="eyebrow">Call Session Details</div>

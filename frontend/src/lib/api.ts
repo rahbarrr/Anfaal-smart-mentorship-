@@ -1,12 +1,15 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5000/api';
+// Use the same origin by default. Vite proxies this path in development and
+// Nginx proxies it in Docker, so phones never try to call their own localhost.
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api';
 
-export type UserRole = 'ADMIN' | 'MENTOR';
+export type UserRole = 'ADMIN' | 'MENTOR' | 'MENTEE';
 
 export type AuthUser = {
   id: string;
   name: string;
   email: string;
   role: UserRole;
+  menteeId?: string;
 };
 
 export type LoginResponse = {
@@ -218,6 +221,18 @@ export async function updateMentorStatus(token: string, mentorId: string, status
   return response.json();
 }
 
+export async function deleteMentor(token: string, mentorId: string) {
+  const response = await fetch(`${API_BASE_URL}/mentors/${mentorId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to delete mentor');
+  }
+  return response.json().catch(() => ({ message: 'Deleted' }));
+}
+
 // ─── Mentees ──────────────────────────────────────────────────────────────────
 
 export async function getMentees(token: string) {
@@ -268,6 +283,18 @@ export async function updateMentee(token: string, menteeId: string, payload: { n
     throw new Error(errorPayload.message ?? 'Unable to update mentee');
   }
   return response.json();
+}
+
+export async function deleteMentee(token: string, menteeId: string) {
+  const response = await fetch(`${API_BASE_URL}/mentees/${menteeId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to delete mentee');
+  }
+  return response.json().catch(() => ({ message: 'Deleted' }));
 }
 
 // ─── Admin Review ─────────────────────────────────────────────────────────────
@@ -337,3 +364,161 @@ export async function exportCallsReport(token: string, filters: {
   link.remove();
   URL.revokeObjectURL(objectUrl);
 }
+
+// ─── Daily Performance ─────────────────────────────────────────────────────────
+
+export async function submitDailyPerformance(payload: {
+  date: string;
+  studyMinutes: number;
+  quran?: { ruku?: number; ayat?: number; pages?: number };
+  readingMinutes: number;
+  dayRating: number;
+  dailyReflection?: string;
+  facedDifficulty?: boolean;
+  difficultyNote?: string;
+  needsMentorHelp?: boolean;
+  mentorHelpNote?: string;
+  menteeId?: string;
+}) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/daily-performance`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const resData = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const err = new Error(resData.message ?? 'Unable to record daily performance');
+    (err as any).status = response.status;
+    (err as any).existingId = resData.existingId;
+    (err as any).existing = resData.existing;
+    throw err;
+  }
+  return resData;
+}
+
+export async function getTodayPerformance(date?: string) {
+  const token = getToken();
+  const query = date ? `?date=${date}` : '';
+  const response = await fetch(`${API_BASE_URL}/daily-performance/today${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load today performance');
+  return response.json();
+}
+
+export async function getPerformanceHistory(params?: { from?: string; to?: string; limit?: number; skip?: number; menteeId?: string }) {
+  const token = getToken();
+  const searchParams = new URLSearchParams();
+  if (params?.from) searchParams.set('from', params.from);
+  if (params?.to) searchParams.set('to', params.to);
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.skip) searchParams.set('skip', String(params.skip));
+  if (params?.menteeId) searchParams.set('menteeId', params.menteeId);
+
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+  const response = await fetch(`${API_BASE_URL}/daily-performance/history${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load performance history');
+  return response.json();
+}
+
+export async function getWeeklyPerformance(menteeId?: string) {
+  const token = getToken();
+  const query = menteeId ? `?menteeId=${menteeId}` : '';
+  const response = await fetch(`${API_BASE_URL}/daily-performance/weekly${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load weekly performance');
+  return response.json();
+}
+
+export async function getMonthlyPerformance(menteeId?: string) {
+  const token = getToken();
+  const query = menteeId ? `?menteeId=${menteeId}` : '';
+  const response = await fetch(`${API_BASE_URL}/daily-performance/monthly${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load monthly performance');
+  return response.json();
+}
+
+export async function updateDailyPerformance(id: string, payload: any) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/daily-performance/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to update performance');
+  }
+  return response.json();
+}
+
+export async function getMenteePerformance(menteeId: string) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/daily-performance/mentor-view/${menteeId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load mentee performance');
+  return response.json();
+}
+
+export async function getMenteePerformanceAnalytics(menteeId: string) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/daily-performance/mentor-view/${menteeId}/analytics`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load performance analytics');
+  return response.json();
+}
+
+export async function getMenteeAiInsights(menteeId: string) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/daily-performance/mentor-view/${menteeId}/ai-insights`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to generate AI insights');
+  }
+  return response.json();
+}
+
+export async function getAdminPerformanceAnalytics(filters?: {
+  mentorId?: string;
+  menteeId?: string;
+  standard?: string;
+  from?: string;
+  to?: string;
+}) {
+  const token = getToken();
+  const params = new URLSearchParams();
+  if (filters?.mentorId) params.set('mentorId', filters.mentorId);
+  if (filters?.menteeId) params.set('menteeId', filters.menteeId);
+  if (filters?.standard) params.set('standard', filters.standard);
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const response = await fetch(`${API_BASE_URL}/daily-performance/admin/analytics${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load admin performance analytics');
+  return response.json();
+}
+

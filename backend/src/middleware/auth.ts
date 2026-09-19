@@ -4,7 +4,8 @@ import jwt from 'jsonwebtoken';
 export type AuthenticatedUser = {
   id: string;
   email: string;
-  role: 'ADMIN' | 'MENTOR';
+  role: 'ADMIN' | 'MENTOR' | 'MENTEE';
+  menteeId?: string;
 };
 
 export interface AuthRequest extends Request {
@@ -27,6 +28,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
       id: payload.id,
       email: payload.email,
       role: payload.role,
+      menteeId: payload.menteeId,
     };
 
     return next();
@@ -35,13 +37,13 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   }
 }
 
-export function requireRole(role: 'ADMIN' | 'MENTOR') {
+export function requireRole(...roles: ('ADMIN' | 'MENTOR' | 'MENTEE')[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Authentication required.' });
     }
 
-    if (req.user.role !== role) {
+    if (!roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'You do not have access to this resource.' });
     }
 

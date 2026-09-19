@@ -1,4 +1,4 @@
-export type UserRole = 'ADMIN' | 'MENTOR';
+export type UserRole = 'ADMIN' | 'MENTOR' | 'MENTEE';
 
 export type CallStatus =
   | 'Completed'
@@ -16,6 +16,7 @@ export interface UserDocument {
   passwordHash: string;
   role: UserRole;
   status: 'active' | 'disabled';
+  menteeId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,7 +35,29 @@ export interface MenteeDocument {
   standard: string;
   contactInformation?: Record<string, unknown>;
   status: 'active' | 'inactive';
+  userId?: string;
   createdAt: Date;
+}
+
+export interface DailyPerformanceDocument {
+  _id: string;
+  menteeId: string;
+  date: string; // YYYY-MM-DD format
+  studyMinutes: number;
+  quran: {
+    ruku: number;
+    ayat: number;
+    pages: number;
+  };
+  readingMinutes: number;
+  dayRating: number; // 1 to 5
+  dailyReflection?: string;
+  facedDifficulty?: boolean;
+  difficultyNote?: string;
+  needsMentorHelp?: boolean;
+  mentorHelpNote?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface MentorshipDocument {

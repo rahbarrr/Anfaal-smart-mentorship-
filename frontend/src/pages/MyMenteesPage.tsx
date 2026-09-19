@@ -14,11 +14,6 @@ type Mentee = {
   lastCallDate: string;
 };
 
-const FALLBACK_MENTEES: Mentee[] = [
-  { id: 'm1', name: 'Aisha Khan', standard: 'Class 8', guardian: 'Fatima Khan', phone: '+91-7700000001', status: 'active', totalCalls: 8, lastCallDate: 'Sep 12, 2026' },
-  { id: 'm2', name: 'Nadia Hussain', standard: 'Class 9', guardian: 'Zara Hussain', phone: '+91-7700000002', status: 'active', totalCalls: 6, lastCallDate: 'Sep 11, 2026' },
-  { id: 'm3', name: 'Hassan Ali', standard: 'Class 7', guardian: 'Imran Ali', phone: '+91-7700000003', status: 'active', totalCalls: 11, lastCallDate: 'Sep 9, 2026' },
-];
 
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
@@ -41,8 +36,8 @@ export function MyMenteesPage() {
     if (!token) { setIsLoading(false); return; }
 
     getMyMentees(token)
-      .then((res) => setMentees(res.mentees?.length ? res.mentees : FALLBACK_MENTEES))
-      .catch(() => setMentees(FALLBACK_MENTEES))
+      .then((res) => setMentees(res.mentees ?? []))
+      .catch(() => setMentees([]))
       .finally(() => setIsLoading(false));
   }, []);
 

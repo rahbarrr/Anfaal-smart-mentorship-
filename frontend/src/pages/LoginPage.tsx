@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import { loginWithEmail } from '../lib/api';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('admin@anfaalfoundation.com');
   const [password, setPassword] = useState('Admin@123');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -18,7 +20,13 @@ export function LoginPage() {
       const response = await loginWithEmail(email, password);
       localStorage.setItem('anfaal-token', response.token);
       localStorage.setItem('anfaal-user', JSON.stringify(response.user));
-      navigate(response.user.role === 'ADMIN' ? '/admin' : '/mentor');
+      if (response.user.role === 'ADMIN') {
+        navigate('/admin');
+      } else if (response.user.role === 'MENTEE') {
+        navigate('/mentee');
+      } else {
+        navigate('/mentor');
+      }
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : 'Unable to sign in.');
     } finally {
@@ -28,6 +36,7 @@ export function LoginPage() {
 
   return (
     <div
+      className="login-page"
       style={{
         minHeight: '100vh',
         display: 'grid',
@@ -37,6 +46,7 @@ export function LoginPage() {
       }}
     >
       <div
+        className="login-shell"
         style={{
           width: '100%',
           maxWidth: 980,
@@ -50,6 +60,7 @@ export function LoginPage() {
         }}
       >
         <div
+          className="login-intro"
           style={{
             background: 'linear-gradient(180deg, rgba(143,63,102,0.12), rgba(111,42,77,0.02))',
             padding: '42px 36px',
@@ -85,7 +96,7 @@ export function LoginPage() {
           </div>
         </div>
 
-        <form className="form-card" onSubmit={handleSubmit} style={{ border: 'none', background: 'transparent', boxShadow: 'none', borderRadius: 0, padding: '42px 34px' }}>
+        <form className="form-card login-form" onSubmit={handleSubmit} style={{ border: 'none', background: 'transparent', boxShadow: 'none', borderRadius: 0, padding: '42px 34px' }}>
           <div style={{ marginBottom: 18 }}>
             <div className="eyebrow" style={{ marginBottom: 8 }}>Sign in</div>
             <div style={{ fontWeight: 800, letterSpacing: '-0.06em', fontSize: '2.2rem', color: '#2f2b2f' }}>Welcome back</div>
@@ -100,6 +111,7 @@ export function LoginPage() {
               <label style={{ fontSize: '0.95rem', fontWeight: 700 }}>Email</label>
               <input
                 className="input"
+                type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
@@ -109,15 +121,30 @@ export function LoginPage() {
             <div className="field">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <label style={{ fontSize: '0.95rem', fontWeight: 700 }}>Password</label>
-                <a href="/forgot-password" style={{ color: '#8f3f66', fontWeight: 700, textDecoration: 'none' }}>Forgot password?</a>
+                <a
+                  href="#forgot"
+                  style={{ color: '#8f3f66', fontWeight: 700, textDecoration: 'none' }}
+                  onClick={(e) => { e.preventDefault(); alert('Please contact your Anfaal administrator to reset your password.'); }}
+                >Forgot password?</a>
               </div>
-              <input
-                className="input"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
-              />
+              <div className="password-input-wrap">
+                <input
+                  className="input"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </div>
             </div>
 
             {error ? (
@@ -130,8 +157,32 @@ export function LoginPage() {
               </button>
             </div>
 
-            <div style={{ textAlign: 'center', marginTop: 24, fontSize: '0.86rem', color: '#6a6568', background: 'rgba(143,63,102,0.06)', padding: '12px 16px', borderRadius: 12, border: '1px solid rgba(143,63,102,0.12)' }}>
-              🔒 <strong>Mentor Accounts:</strong> Account creation is managed strictly by Anfaal Administrators. Please contact your administrator for access.
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12 }}>
+              <button
+                type="button"
+                onClick={() => { setEmail('admin@anfaalfoundation.com'); setPassword('Admin@123'); }}
+                style={{ fontSize: '0.78rem', background: '#f0eaed', border: '1px solid #d8d0d3', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+              >
+                Demo Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail('mentor@anfaalfoundation.com'); setPassword('Mentor@123'); }}
+                style={{ fontSize: '0.78rem', background: '#f0eaed', border: '1px solid #d8d0d3', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
+              >
+                Demo Mentor
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail('mentee@anfaalfoundation.com'); setPassword('Mentee@123'); }}
+                style={{ fontSize: '0.78rem', background: 'rgba(143,63,102,0.12)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}
+              >
+                Demo Mentee
+              </button>
+            </div>
+
+            <div style={{ textAlign: 'center', marginTop: 16, fontSize: '0.84rem', color: '#6a6568', background: 'rgba(143,63,102,0.06)', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(143,63,102,0.12)' }}>
+              🔒 <strong>Anfaal Mentorship Platform:</strong> Supports Admins, Mentors, and Mentees. Select a demo account above for testing.
             </div>
           </div>
         </form>

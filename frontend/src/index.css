@@ -13,6 +13,8 @@
 body {
   min-height: 100vh;
   background: var(--background);
+  /* prevent horizontal scroll on mobile */
+  overflow-x: hidden;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -21,20 +23,18 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 1.2;
 }
 
-p {
-  margin: 0;
-}
+p { margin: 0; }
 
-button, input, textarea, select {
-  font: inherit;
-}
+button, input, textarea, select { font: inherit; }
 
+/* ── Layout shell ────────────────────────────────────────────────────────── */
 .layout-shell {
   display: flex;
   min-height: 100vh;
   background: var(--background);
 }
 
+/* ── Sidebar (desktop) ──────────────────────────────────────────────────── */
 .sidebar {
   width: 260px;
   background: var(--surface);
@@ -43,13 +43,19 @@ button, input, textarea, select {
   position: sticky;
   top: 0;
   height: 100vh;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
 }
 
 .main-panel {
   flex: 1;
   padding: 26px 28px 32px;
+  min-width: 0;
 }
 
+/* ── Topbar ─────────────────────────────────────────────────────────────── */
 .topbar {
   display: flex;
   justify-content: space-between;
@@ -61,6 +67,7 @@ button, input, textarea, select {
   margin-bottom: 22px;
 }
 
+/* ── Brand ──────────────────────────────────────────────────────────────── */
 .brand-block {
   display: flex;
   align-items: center;
@@ -77,6 +84,7 @@ button, input, textarea, select {
   background: linear-gradient(180deg, #8f3f66 0%, #7f315c 100%);
   color: white;
   font-weight: 800;
+  flex-shrink: 0;
 }
 
 .brand {
@@ -94,10 +102,11 @@ button, input, textarea, select {
   text-transform: uppercase;
 }
 
+/* ── Nav ────────────────────────────────────────────────────────────────── */
 .nav-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
   margin-top: 22px;
 }
 
@@ -110,13 +119,17 @@ button, input, textarea, select {
   color: var(--text-secondary);
   font-weight: 600;
   transition: all 0.2s ease;
+  text-decoration: none;
 }
+
+.nav-item:hover { background: rgba(143, 63, 102, 0.05); color: var(--primary); }
 
 .nav-item.active {
   background: rgba(143, 63, 102, 0.08);
   color: var(--primary);
 }
 
+/* ── Page header ────────────────────────────────────────────────────────── */
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -134,7 +147,7 @@ button, input, textarea, select {
 }
 
 .page-title {
-  font-size: clamp(1.5rem, 2vw, 2.1rem);
+  font-size: clamp(1.4rem, 2vw, 2.1rem);
   font-weight: 800;
   letter-spacing: -0.04em;
 }
@@ -144,6 +157,7 @@ button, input, textarea, select {
   margin-top: 6px;
 }
 
+/* ── Cards ──────────────────────────────────────────────────────────────── */
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -156,7 +170,6 @@ button, input, textarea, select {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 18px 18px 16px;
-  box-shadow: none;
 }
 
 .label {
@@ -179,6 +192,7 @@ button, input, textarea, select {
   font-size: 0.82rem;
 }
 
+/* ── Buttons ────────────────────────────────────────────────────────────── */
 button, .button {
   border: none;
   border-radius: 10px;
@@ -191,12 +205,11 @@ button, .button {
 .btn-primary {
   background: linear-gradient(180deg, #8f3f66 0%, #7f315c 100%);
   color: white;
-  box-shadow: 0 6px 18px rgba(143, 63, 102, 0.18);
+  box-shadow: 0 4px 14px rgba(143, 63, 102, 0.2);
 }
 
-.btn-primary:hover {
-  background: linear-gradient(180deg, #7f315c 0%, #6f2a4d 100%);
-}
+.btn-primary:hover { background: linear-gradient(180deg, #7f315c 0%, #6f2a4d 100%); }
+.btn-primary:active { transform: scale(0.98); }
 
 .btn-secondary {
   background: var(--surface-muted);
@@ -204,20 +217,25 @@ button, .button {
   border: 1px solid var(--border);
 }
 
+.btn-secondary:active { transform: scale(0.97); }
+
+/* ── Table ──────────────────────────────────────────────────────────────── */
 .table-wrap {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
 }
 
 th, td {
-  padding: 16px 18px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: middle;
@@ -229,16 +247,21 @@ th {
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
+tr:last-child td { border-bottom: none; }
+
+/* ── Status badges ──────────────────────────────────────────────────────── */
 .status-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   border-radius: 999px;
   font-size: 0.73rem;
-  padding: 6px 10px;
+  padding: 5px 10px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .status-completed { background: rgba(46, 139, 87, 0.12); color: var(--success); }
@@ -247,12 +270,12 @@ th {
 .status-submitted { background: rgba(45, 95, 93, 0.10); color: var(--primary); }
 .status-failed { background: rgba(199, 92, 92, 0.12); color: var(--danger); }
 
+/* ── Forms ──────────────────────────────────────────────────────────────── */
 .form-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 22px 20px;
-  box-shadow: none;
 }
 
 .field-row {
@@ -273,22 +296,49 @@ th {
   color: var(--text-secondary);
 }
 
-.input,
-.select,
-.textarea {
+.input, .select, .textarea {
   width: 100%;
   border: 1px solid var(--border);
   background: white;
   border-radius: 10px;
   padding: 12px 14px;
   color: var(--text-primary);
+  box-sizing: border-box;
 }
+
+.input:focus, .select:focus, .textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(143, 63, 102, 0.12);
+}
+
+.password-input-wrap { position: relative; }
+.password-input-wrap .input { padding-right: 52px; }
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  min-height: 0;
+  padding: 0;
+  transform: translateY(-50%);
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+}
+
+.password-toggle:hover, .password-toggle:focus-visible { color: var(--primary); }
 
 .textarea {
   min-height: 120px;
   resize: vertical;
 }
 
+/* ── Upload box ─────────────────────────────────────────────────────────── */
 .upload-box {
   border: 1.5px dashed var(--border);
   border-radius: 16px;
@@ -298,6 +348,7 @@ th {
   color: var(--text-secondary);
 }
 
+/* ── Summary grid ───────────────────────────────────────────────────────── */
 .summary-grid {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
@@ -318,6 +369,7 @@ th {
   gap: 12px;
 }
 
+/* ── Sidebar footer ─────────────────────────────────────────────────────── */
 .sidebar-footer {
   margin-top: auto;
   padding-top: 24px;
@@ -325,10 +377,17 @@ th {
 
 .muted { color: var(--text-secondary); }
 
+/* ── Mobile menu toggle (hidden on desktop) ─────────────────────────────── */
+.mobile-menu-toggle { display: none; }
+
+/* ── Bottom tab bar (mobile only) ───────────────────────────────────────── */
+.bottom-nav { display: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABLET  ≤ 900px
+═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  .layout-shell {
-    flex-direction: column;
-  }
+  .layout-shell { flex-direction: column; }
 
   .sidebar {
     width: 100%;
@@ -336,10 +395,254 @@ th {
     position: relative;
     border-right: none;
     border-bottom: 1px solid var(--border);
+    padding: 14px 16px;
   }
 
+  .main-panel { padding: 20px; }
+
   .field-row,
-  .summary-grid {
-    grid-template-columns: 1fr;
+  .summary-grid { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE  ≤ 640px  — full mobile-first redesign
+═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* ── Layout: sidebar becomes a top header ──────────────────────────────── */
+  .layout-shell {
+    flex-direction: column;
+    padding-bottom: 72px; /* room for bottom nav */
   }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: sticky;
+    top: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.96);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 100;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+
+  /* brand row — just logo + title, no hamburger needed since we use bottom nav */
+  .brand-block {
+    justify-content: flex-start;
+    padding: 0;
+    gap: 10px;
+  }
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    font-size: 0.9rem;
+  }
+
+  .brand { font-size: 1.05rem; }
+
+  /* Hide the desktop nav and sidebar footer on mobile — replaced by bottom nav */
+  .nav-list,
+  .sidebar-footer,
+  .mobile-menu-toggle { display: none !important; }
+
+  /* ── Bottom navigation bar ─────────────────────────────────────────────── */
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 200;
+    background: rgba(255,255,255,0.97);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border);
+    padding: 6px 8px env(safe-area-inset-bottom, 6px);
+    gap: 0;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.07);
+  }
+
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 4px;
+    border-radius: 12px;
+    color: var(--text-secondary);
+    font-size: 0.62rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+    background: none;
+    border: none;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    min-height: 54px;
+  }
+
+  .bottom-nav-item.active {
+    color: var(--primary);
+    background: rgba(143, 63, 102, 0.07);
+  }
+
+  .bottom-nav-item svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  /* ── Main panel ────────────────────────────────────────────────────────── */
+  .main-panel {
+    padding: 14px 14px 20px;
+    min-width: 0;
+  }
+
+  /* ── Topbar ────────────────────────────────────────────────────────────── */
+  .topbar {
+    display: none; /* hidden on mobile — redundant with sticky header */
+  }
+
+  /* ── Page header ───────────────────────────────────────────────────────── */
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .page-header > .btn-primary {
+    width: 100%;
+    padding: 13px;
+    font-size: 0.95rem;
+  }
+
+  .page-title,
+  .page-header .page-title {
+    font-size: 1.4rem !important;
+  }
+
+  .page-subtitle { font-size: 0.88rem; }
+
+  /* ── Stats cards — 2 col grid ──────────────────────────────────────────── */
+  .card-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .dashboard-card {
+    padding: 14px 14px 12px;
+    border-radius: 16px;
+  }
+
+  .value { font-size: 1.6rem !important; }
+  .label { font-size: 0.72rem; }
+  .change { font-size: 0.78rem; margin-top: 4px; }
+
+  /* ── Form cards ────────────────────────────────────────────────────────── */
+  .form-card {
+    padding: 16px 14px;
+    border-radius: 18px;
+  }
+
+  .summary-card {
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  /* ── Field row goes single column ──────────────────────────────────────── */
+  .field-row { grid-template-columns: 1fr; gap: 14px; }
+
+  /* ── Inputs — big enough for mobile fingers, prevent iOS zoom ──────────── */
+  .input, .select, .textarea {
+    font-size: 16px; /* prevents iOS auto-zoom */
+    padding: 13px 14px;
+    border-radius: 12px;
+  }
+
+  /* ── Buttons — always at least 48px tall (tap target) ─────────────────── */
+  button, .button { min-height: 44px; }
+  .btn-primary { border-radius: 12px; }
+  .btn-secondary { border-radius: 12px; }
+
+  /* ── Table: scrollable with clear affordance ───────────────────────────── */
+  .table-wrap {
+    border-radius: 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* slightly smaller padding in cells */
+  th, td { padding: 11px 12px; font-size: 0.83rem; }
+  th { font-size: 0.68rem; }
+
+  /* ── Summary grid → single column ─────────────────────────────────────── */
+  .summary-grid { grid-template-columns: 1fr; gap: 12px; }
+
+  .summary-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* ── Modals: slide up from bottom on mobile ────────────────────────────── */
+  div[style*="position: fixed"] {
+    align-items: flex-end !important;
+    overflow-y: auto;
+    padding: 0 !important;
+  }
+
+  div[style*="position: fixed"] > .form-card {
+    max-height: 92dvh;
+    overflow-y: auto;
+    border-radius: 24px 24px 0 0 !important;
+    padding: 20px 18px 32px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* ── Upload box ────────────────────────────────────────────────────────── */
+  .upload-box { padding: 24px 14px; border-radius: 16px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOGIN PAGE  ≤ 700px
+═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 700px) {
+  .login-page {
+    place-items: start !important;
+    padding: 16px !important;
+    min-height: 100dvh;
+  }
+
+  .login-shell {
+    grid-template-columns: 1fr !important;
+    border-radius: 24px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .login-intro {
+    padding: 28px 22px !important;
+    border-right: none !important;
+    border-bottom: 1px solid #e2d9dc;
+  }
+
+  .login-intro > div:nth-of-type(2) {
+    font-size: 2rem !important;
+    letter-spacing: -0.06em !important;
+  }
+
+  .login-intro > div:last-child { display: none !important; }
+
+  .login-form { padding: 28px 22px !important; }
 }

@@ -99,10 +99,43 @@ Default admin login:
 
 ## Deployment
 
-For production deployment:
+The repository includes a production Docker Compose configuration. Before the
+first deployment, create the production environment file and replace every
+placeholder with a unique, private value:
 
-1. Set environment variables securely.
-2. Use a managed MongoDB instance.
-3. Host the frontend with Vercel/Netlify or a static hosting provider.
-4. Host the API on a Node-compatible environment such as Render, Railway, or AWS.
-5. Configure object storage for recordings and signed URL access controls.
+```bash
+cp backend/.env.production.example backend/.env.production
+```
+
+Set `CLIENT_URL` to the final HTTPS domain and use a long random `JWT_SECRET`.
+Set the one-time bootstrap administrator email and password, then start the
+stack:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+The application will be available at `http://YOUR_SERVER_IP:8080` by default.
+For a public deployment, place a TLS reverse proxy (such as Caddy or Nginx) in
+front of port 8080 and use HTTPS. MongoDB and the API are intentionally not
+exposed to the public internet. After signing in for the first time, remove
+`BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD` from
+`backend/.env.production` and restart the backend.
+
+For managed hosting, use MongoDB Atlas for the database and set its connection
+string as `MONGODB_URI`. Configure an authenticated object-storage provider
+before storing real call recordings.
+
+### Vercel deployment
+
+Deploy `backend` and `frontend` as two separate Vercel projects from this
+repository. Create the backend project first and set these Vercel environment
+variables: `MONGODB_URI`, `JWT_SECRET`, `NODE_ENV=production`,
+`CLIENT_URL`, `BOOTSTRAP_ADMIN_EMAIL`, and `BOOTSTRAP_ADMIN_PASSWORD`.
+Use MongoDB Atlas for `MONGODB_URI`; Vercel does not provide a persistent
+MongoDB service.
+
+After Vercel provides the backend URL, set the frontend project environment
+variable `VITE_API_URL` to `https://YOUR-BACKEND.vercel.app/api` and set the
+backend `CLIENT_URL` to the frontend's Vercel URL. Redeploy the frontend after
+adding that value.

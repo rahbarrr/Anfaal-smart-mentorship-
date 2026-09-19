@@ -7,11 +7,13 @@ const menteeSchema = new Schema<MenteeDocument>(
     standard: { type: String, required: true },
     contactInformation: { type: Schema.Types.Mixed },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+    userId: { type: String },
   },
   { timestamps: true },
 );
 
 menteeSchema.index({ status: 1 });
 menteeSchema.index({ standard: 1 });
+menteeSchema.index({ userId: 1 });
 
 export const Mentee = mongoose.model<MenteeDocument>('Mentee', menteeSchema);

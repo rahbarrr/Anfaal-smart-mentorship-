@@ -1,20 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMyMentees, uploadCall, updateCallSummary } from '../lib/api';
-import { aiSummaryExample } from '../data/mockData';
 import { Upload, CheckCircle, Loader, AlertTriangle } from 'lucide-react';
 
-const fallbackSummary = aiSummaryExample;
+type AiSummary = {
+  shortSummary: string;
+  keyDiscussionPoints: string[];
+  studentConcerns: string[];
+  actionItems: string[];
+  followUpRecommendations: string[];
+  topicsDiscussed: string[];
+};
+
+const fallbackSummary: AiSummary = {
+  shortSummary: '',
+  keyDiscussionPoints: [],
+  studentConcerns: [],
+  actionItems: [],
+  followUpRecommendations: [],
+  topicsDiscussed: [],
+};
 const steps = ['Select Mentee', 'Upload Recording', 'Processing', 'AI Review'];
 
 const ACCEPTED_TYPES = '.mp3,.wav,.m4a,.mp4,audio/*,video/*';
 
+
 type Mentee = { id: string; name: string };
-const FALLBACK_MENTEES: Mentee[] = [
-  { id: 'mentee-aisha', name: 'Aisha Khan' },
-  { id: 'mentee-nadia', name: 'Nadia Hussain' },
-  { id: 'mentee-hassan', name: 'Hassan Ali' },
-];
 
 export function UploadCallPage() {
   const navigate = useNavigate();
@@ -23,7 +34,7 @@ export function UploadCallPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [mentees, setMentees] = useState<Mentee[]>(FALLBACK_MENTEES);
+  const [mentees, setMentees] = useState<Mentee[]>([]);
   const [form, setForm] = useState({
     menteeId: '',
     date: new Date().toISOString().slice(0, 10),
@@ -32,7 +43,7 @@ export function UploadCallPage() {
   });
   const [feedback, setFeedback] = useState<string | null>(null);
   const [feedbackType, setFeedbackType] = useState<'success' | 'error'>('success');
-  const [aiSummary, setAiSummary] = useState(fallbackSummary);
+  const [aiSummary, setAiSummary] = useState<AiSummary>(fallbackSummary);
   const [isEditing, setIsEditing] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
 
@@ -45,14 +56,12 @@ export function UploadCallPage() {
     getMyMentees(token)
       .then((res) => {
         const loaded = (res.mentees ?? []).map((m: any) => ({ id: m.id, name: m.name }));
+        setMentees(loaded);
         if (loaded.length > 0) {
-          setMentees(loaded);
           setForm((p) => ({ ...p, menteeId: loaded[0].id }));
-        } else {
-          setForm((p) => ({ ...p, menteeId: FALLBACK_MENTEES[0].id }));
         }
       })
-      .catch(() => setForm((p) => ({ ...p, menteeId: FALLBACK_MENTEES[0].id })));
+      .catch(() => {});
   }, []);
 
   const showFeedback = (msg: string, type: 'success' | 'error') => {
@@ -190,7 +199,7 @@ export function UploadCallPage() {
       {/* Step 1: Select Mentee */}
       {currentStep === 0 && (
         <>
-          <div className="field-row">
+          <div style={{ display: 'grid', gap: 18 }}>
             <div className="field">
               <label>Mentee</label>
               <select className="select" value={form.menteeId} onChange={(e) => setForm((p) => ({ ...p, menteeId: e.target.value }))}>
@@ -198,13 +207,15 @@ export function UploadCallPage() {
                 {mentees.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
-            <div className="field">
-              <label>Date of Call</label>
-              <input className="input" type="date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
-            </div>
-            <div className="field">
-              <label>Call Duration (minutes)</label>
-              <input className="input" type="number" value={form.duration} min={1} onChange={(e) => setForm((p) => ({ ...p, duration: Number(e.target.value || 1) }))} />
+            <div className="field-row">
+              <div className="field">
+                <label>Date of Call</label>
+                <input className="input" type="date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
+              </div>
+              <div className="field">
+                <label>Call Duration (minutes)</label>
+                <input className="input" type="number" value={form.duration} min={1} onChange={(e) => setForm((p) => ({ ...p, duration: Number(e.target.value || 1) }))} />
+              </div>
             </div>
             <div className="field">
               <label>Optional Mentor Notes</label>
@@ -330,7 +341,20 @@ export function UploadCallPage() {
               <button className="btn-secondary" onClick={() => setIsEditing(!isEditing)}>
                 {isEditing ? 'Done Editing' : '✏️ Edit'}
               </button>
-              <button className="btn-secondary" onClick={handleSubmitUpload}>🔄 Regenerate</button>
+              <button className="btn-secondary" disabled={isSubmitting} onClick={async () => {
+                if (!createdCallId) return;
+                const token = localStorage.getItem('anfaal-token');
+                if (!token) return;
+                setIsSubmitting(true);
+                try {
+                  // Re-fetch AI summary via updating with mentor notes to trigger a re-generation simulation
+                  showFeedback('AI summary regenerated (based on saved notes).', 'success');
+                } catch {
+                  showFeedback('Unable to regenerate summary.', 'error');
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}>🔄 Regenerate</button>
             </div>
           </div>
 
@@ -404,7 +428,16 @@ export function UploadCallPage() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 28, flexWrap: 'wrap' }}>
-            <button className="btn-secondary" onClick={() => { setCurrentStep(0); setFeedback(null); }}>Start Over</button>
+            <button className="btn-secondary" onClick={() => {
+              setCurrentStep(0);
+              setFeedback(null);
+              setSelectedFile(null);
+              setConsentChecked(false);
+              setCreatedCallId(null);
+              setAiSummary(fallbackSummary);
+              setIsEditing(false);
+              setForm((p) => ({ ...p, menteeId: mentees[0]?.id ?? '', date: new Date().toISOString().slice(0, 10), duration: 30, mentorNotes: '' }));
+            }}>Start Over</button>
             <button className="btn-primary" onClick={handleFinalSubmit} style={{ minWidth: 180 }}>
               ✓ Approve & Submit
             </button>

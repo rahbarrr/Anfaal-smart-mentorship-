@@ -40,7 +40,7 @@ export function AdminAssignmentsPage() {
 
       setAssignments(assignmentResponse.assignments ?? []);
       setMentors((mentorResponse.mentors ?? []).map((mentor: any) => ({
-        id: mentor.id ?? mentor.userId ?? '',
+        id: mentor.id ?? '',
         name: mentor.name ?? 'Unknown mentor',
         email: mentor.email ?? 'unknown@anfaal.org',
       })));
@@ -99,8 +99,10 @@ export function AdminAssignmentsPage() {
     }
   };
 
-  const handleDeleteAssignment = async (assignmentId: string) => {
+  const handleDeleteAssignment = async (assignmentId: string, mentorName: string, menteeName: string) => {
     if (!token) return;
+    const confirmed = window.confirm(`Remove assignment between ${mentorName} and ${menteeName}? This cannot be undone.`);
+    if (!confirmed) return;
 
     try {
       await deleteAssignment(token, assignmentId);
@@ -190,7 +192,7 @@ export function AdminAssignmentsPage() {
                     <button className="btn-secondary" onClick={() => handleStatusToggle(assignment.id, assignment.status)}>
                       {assignment.status === 'active' ? 'Archive' : 'Activate'}
                     </button>
-                    <button className="btn-secondary" onClick={() => handleDeleteAssignment(assignment.id)}>
+                    <button className="btn-secondary" style={{ color: 'var(--danger)' }} onClick={() => handleDeleteAssignment(assignment.id, assignment.mentorName, assignment.menteeName)}>
                       Delete
                     </button>
                   </td>

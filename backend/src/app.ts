@@ -10,6 +10,7 @@ import callRoutes from './routes/callRoutes.js';
 import mentorRoutes from './routes/mentorRoutes.js';
 import menteeRoutes from './routes/menteeRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import dailyPerformanceRoutes from './routes/dailyPerformanceRoutes.js';
 
 dotenv.config();
 
@@ -43,6 +44,8 @@ app.use('/api/mentors', mentorRoutes);
 app.use('/api/mentees', menteeRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/daily-performance', dailyPerformanceRoutes);
+app.use('/api', dailyPerformanceRoutes);
 
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err.stack);

@@ -88,9 +88,21 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
 
     const transcriptionService = createTranscriptionService();
     const aiSummaryService = createAiSummaryService();
-    const transcriptResult = await transcriptionService.transcribe(req.file?.originalname ?? 'uploaded-session');
-    const summaryResult = await aiSummaryService.summarize({
-      transcript: transcriptResult.transcript,
+
+    let transcriptText = '';
+    let summaryResult;
+
+    if (req.file) {
+      const transcriptResult = await transcriptionService.transcribe({
+        buffer: req.file.buffer,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+      });
+      transcriptText = transcriptResult.transcript;
+    }
+
+    summaryResult = await aiSummaryService.summarize({
+      transcript: transcriptText,
       mentorNotes: parsed.data.mentorNotes,
     });
 
@@ -100,7 +112,7 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
       duration: parsed.data.duration,
       date: parsed.data.date ? new Date(parsed.data.date) : new Date(),
       recordingUrl,
-      transcript: transcriptResult.transcript,
+      transcript: transcriptText,
       summary: summaryResult.shortSummary,
       keyDiscussionPoints: summaryResult.keyDiscussionPoints,
       studentConcerns: summaryResult.studentConcerns,
@@ -109,7 +121,7 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
       topicsDiscussed: summaryResult.topicsDiscussed,
       recordingStatus: recordingUrl ? 'uploaded' : 'pending',
       reviewStatus: 'Pending Review',
-      aiStatus: 'completed',
+      aiStatus: transcriptText || parsed.data.mentorNotes ? 'completed' : 'pending',
       mentorNotes: parsed.data.mentorNotes ?? '',
     });
 
@@ -118,7 +130,7 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
       processingStatus: 'Processing',
       callId: String(call._id),
       recordingUrl,
-      transcript: transcriptResult.transcript,
+      transcript: transcriptText,
       summary: summaryResult,
     });
   } catch (error) {

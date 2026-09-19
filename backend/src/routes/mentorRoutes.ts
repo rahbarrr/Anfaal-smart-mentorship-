@@ -139,4 +139,35 @@ router.patch('/:id/status', requireAuth, requireRole('ADMIN'), async (req: AuthR
   }
 });
 
+
+// DELETE /api/mentors/:id — permanently remove a mentor and all linked data (admin only)
+router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const mentor = await Mentor.findById(req.params.id);
+    if (!mentor) {
+      return res.status(404).json({ message: 'Mentor not found.' });
+    }
+
+    const mentorId = String(mentor._id);
+
+    // Cascade: remove all mentorship assignments for this mentor
+    await Mentorship.deleteMany({ mentorId });
+
+    // Cascade: remove all call records by this mentor
+    await Call.deleteMany({ mentorId });
+
+    // Remove the mentor profile
+    await Mentor.findByIdAndDelete(req.params.id);
+
+    // Remove the linked user account
+    await User.findByIdAndDelete(mentor.userId);
+
+    return res.json({ message: 'Mentor and all associated data removed successfully.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to delete mentor';
+    return res.status(500).json({ message });
+  }
+});
+
 export default router;
+

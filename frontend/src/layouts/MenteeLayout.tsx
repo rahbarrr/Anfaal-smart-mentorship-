@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Upload, FileText, UserCircle2, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, CalendarCheck, History, LogOut, Menu, X, Sparkles } from 'lucide-react';
 
 const links = [
-  { to: '/mentor', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/mentor/mentees', label: 'Mentees', icon: Users, end: false },
-  { to: '/mentor/upload', label: 'Upload', icon: Upload, end: false },
-  { to: '/mentor/calls', label: 'Calls', icon: FileText, end: false },
-  { to: '/mentor/profile', label: 'Profile', icon: UserCircle2, end: false },
+  { to: '/mentee', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/mentee/daily', label: 'Daily Progress', icon: CalendarCheck, end: false },
+  { to: '/mentee/history', label: 'History', icon: History, end: false },
 ];
 
 function getStoredUser() {
@@ -19,7 +17,7 @@ function getStoredUser() {
   }
 }
 
-export function MentorLayout() {
+export function MenteeLayout() {
   const navigate = useNavigate();
   const user = getStoredUser();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -32,15 +30,14 @@ export function MentorLayout() {
 
   return (
     <div className="layout-shell">
-      {/* ── Sidebar / top header ─────────────────────────────────────────── */}
+      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
       <aside className={`sidebar ${menuOpen ? 'mobile-menu-open' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
         <div className="brand-block">
           <div className="brand-mark">A</div>
           <div>
             <div className="brand">Anfaal</div>
-            <small>Mentor Portal</small>
+            <small>Mentee Portal</small>
           </div>
-          {/* Desktop hamburger (tablet) */}
           <button
             className="mobile-menu-toggle"
             type="button"
@@ -52,7 +49,6 @@ export function MentorLayout() {
           </button>
         </div>
 
-        {/* Desktop nav */}
         <nav className="nav-list" style={{ flex: 1 }}>
           {links.map(({ to, label, icon: Icon, end }) => (
             <NavLink
@@ -74,8 +70,8 @@ export function MentorLayout() {
               {user?.name?.charAt(0) ?? 'M'}
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name ?? 'Mentor'}</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email ?? ''}</div>
+              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name ?? 'Mentee'}</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Learner</div>
             </div>
           </div>
           <button className="btn-secondary" style={{ width: '100%' }} onClick={handleSignOut}>
@@ -91,10 +87,14 @@ export function MentorLayout() {
       <main className="main-panel">
         <header className="topbar">
           <div>
-            <div className="eyebrow">Welcome back, {user?.name ?? 'Mentor'}</div>
-            <h2 style={{ fontSize: '1.5rem', marginTop: '4px' }}>Mentor dashboard</h2>
+            <div className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Sparkles size={14} color="var(--primary)" /> Assalamu Alaikum, {user?.name?.split(' ')[0] ?? 'Learner'}
+            </div>
+            <h2 style={{ fontSize: '1.5rem', marginTop: '4px' }}>Daily Mentee Portal</h2>
           </div>
-          <button className="btn-primary" onClick={() => navigate('/mentor/upload')}>+ Upload Call</button>
+          <button className="btn-primary" onClick={() => navigate('/mentee/daily')}>
+            + Record Today's Progress
+          </button>
         </header>
 
         <Outlet />
