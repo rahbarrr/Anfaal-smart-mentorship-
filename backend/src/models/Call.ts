@@ -14,10 +14,11 @@ const callSchema = new Schema<CallDocument>(
       default: 'pending',
     },
     recording: {
-      url: { type: String },
+      storageKey: { type: String },
       fileName: { type: String },
       fileSize: { type: Number },
       mimeType: { type: String },
+      url: { type: String },
     },
     transcript: { type: String },
     transcription: {
@@ -90,6 +91,9 @@ callSchema.index({ mentorId: 1 });
 callSchema.index({ menteeId: 1 });
 callSchema.index({ date: 1 });
 callSchema.index({ reviewStatus: 1 });
+callSchema.index({ recordingStatus: 1 });
+callSchema.index({ aiStatus: 1 });
+callSchema.index({ 'recording.storageKey': 1 });
 callSchema.index({ mentorId: 1, date: -1 });
 // Full-text search index across transcripts and summaries
 callSchema.index({

@@ -137,6 +137,112 @@ export async function getMentorCalls(token: string) {
   return response.json();
 }
 
+export async function getPresignedUploadUrl(
+  token: string,
+  payload: { fileName: string; fileSize: number; mimeType: string; menteeId: string },
+): Promise<{
+  uploadUrl: string;
+  storageKey: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  expiresIn: number;
+}> {
+  const response = await fetch(`${API_BASE_URL}/calls/presign-upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to obtain presigned upload URL');
+  }
+  return response.json();
+}
+
+export function uploadFileDirectToS3(
+  uploadUrl: string,
+  file: File,
+  mimeType: string,
+  onProgress?: (percent: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', mimeType || file.type || 'application/octet-stream');
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          onProgress(percent);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Direct S3 upload failed with status ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error occurred during direct S3 recording upload.'));
+    xhr.ontimeout = () => reject(new Error('Direct S3 upload timed out.'));
+
+    xhr.send(file);
+  });
+}
+
+export async function completeCallUpload(
+  token: string,
+  payload: {
+    storageKey?: string;
+    fileName?: string;
+    fileSize?: number;
+    mimeType?: string;
+    menteeId: string;
+    duration: number;
+    date?: string;
+    mentorNotes?: string;
+  },
+): Promise<{ callId: string; jobId: string; message: string; status: string }> {
+  const response = await fetch(`${API_BASE_URL}/calls/complete-upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to complete call session upload');
+  }
+  return response.json();
+}
+
+export async function getCallAudioUrl(token: string, callId: string): Promise<{ audioUrl: string; expiresIn: number }> {
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}/audio-url`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to load playback audio URL');
+  }
+  return response.json();
+}
+
+export async function retryCallProcessing(token: string, callId: string): Promise<{ message: string; jobId: string }> {
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}/retry`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to retry processing');
+  }
+  return response.json();
+}
+
 export async function uploadCall(
   token: string,
   payload: { menteeId: string; duration: number; date?: string; mentorNotes?: string },

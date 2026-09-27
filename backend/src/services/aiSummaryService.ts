@@ -106,9 +106,14 @@ export class MockAiSummaryService implements AiSummaryService {
 export class RealAiSummaryService implements AiSummaryService {
   async summarize({ transcript, mentorNotes, metadata }: AiSummaryInput): Promise<AiSummaryResult> {
     const apiKey = process.env.AI_API_KEY || process.env.OPENAI_API_KEY;
+    const allowMock = process.env.ALLOW_MOCK_AI === 'true';
 
     if (!apiKey) {
-      return new MockAiSummaryService().summarize({ transcript, mentorNotes, metadata });
+      if (allowMock) {
+        console.warn('[AISummary] No AI API key found. Falling back to mock summary because ALLOW_MOCK_AI=true');
+        return new MockAiSummaryService().summarize({ transcript, mentorNotes, metadata });
+      }
+      throw new Error('AI API key is not configured. Real AI summary required in production.');
     }
 
     const systemPrompt = `You are an expert educational mentorship documentation assistant for the Anfaal Foundation.
@@ -205,13 +210,22 @@ Please produce the structured JSON summary strictly from the transcript above.`;
         followUpRecommendations: Array.isArray(parsed.followUpRecommendations) ? parsed.followUpRecommendations : [],
       };
     } catch (err) {
-      console.error('[AISummary] Error calling AI API, falling back to mock:', err instanceof Error ? err.message : err);
-      return new MockAiSummaryService().summarize({ transcript, mentorNotes, metadata });
+      if (allowMock) {
+        console.warn('[AISummary] Error calling AI API, falling back to mock because ALLOW_MOCK_AI=true:', err instanceof Error ? err.message : err);
+        return new MockAiSummaryService().summarize({ transcript, mentorNotes, metadata });
+      }
+      throw new Error(`AI summary failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }
 
 export function createAiSummaryService(): AiSummaryService {
   const hasKey = Boolean(process.env.OPENAI_API_KEY || process.env.AI_API_KEY);
-  return hasKey ? new RealAiSummaryService() : new MockAiSummaryService();
+  const allowMock = process.env.ALLOW_MOCK_AI === 'true';
+
+  if (!hasKey && allowMock) {
+    return new MockAiSummaryService();
+  }
+
+  return new RealAiSummaryService();
 }

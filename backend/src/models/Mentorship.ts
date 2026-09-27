@@ -12,6 +12,8 @@ const mentorshipSchema = new Schema<MentorshipDocument>(
 );
 
 mentorshipSchema.index({ mentorId: 1, menteeId: 1 });
+mentorshipSchema.index({ mentorId: 1, status: 1 });
+mentorshipSchema.index({ menteeId: 1, status: 1 });
 mentorshipSchema.index({ assignedAt: 1 });
 
 export const Mentorship = mongoose.model<MentorshipDocument>('Mentorship', mentorshipSchema);

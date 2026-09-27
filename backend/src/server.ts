@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import app from './app.js';
 import { connectDatabase } from './config/db.js';
+import { validateEnvironment } from './config/env.js';
 import { ensureDefaultAdmin, ensureDefaultMentor, ensureDefaultMenteeUser } from './services/seedService.js';
 
 dotenv.config();
@@ -9,6 +10,7 @@ const port = Number(process.env.PORT ?? 5000);
 
 async function startServer() {
   try {
+    validateEnvironment();
     await connectDatabase();
     const isProduction = process.env.NODE_ENV === 'production';
 

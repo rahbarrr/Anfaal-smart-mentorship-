@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMentorCalls } from '../lib/api';
+import { getMentorCalls, getCallAudioUrl } from '../lib/api';
 import {
   Search,
   Play,
@@ -91,13 +91,23 @@ export function AdminCallsPage() {
     });
   }, [calls, search, statusFilter]);
 
-  const handlePlayAudio = (callId: string) => {
+  const [signedAudioUrl, setSignedAudioUrl] = useState<string | null>(null);
+
+  const handlePlayAudio = async (callId: string) => {
     if (playingCallId === callId) {
       setPlayingCallId(null);
+      setSignedAudioUrl(null);
       return;
     }
     setAudioError(null);
     setPlayingCallId(callId);
+    try {
+      const res = await getCallAudioUrl(token, callId);
+      setSignedAudioUrl(res.audioUrl);
+    } catch (err) {
+      setSignedAudioUrl(null);
+      setAudioError(err instanceof Error ? err.message : 'Unable to load audio playback URL');
+    }
   };
 
   return (
@@ -160,7 +170,7 @@ export function AdminCallsPage() {
             <audio
               controls
               autoPlay
-              src={`/api/calls/${playingCallId}/audio`}
+              src={signedAudioUrl || `/api/calls/${playingCallId}/audio`}
               style={{ width: '100%', maxWidth: 380, height: 38 }}
               onError={() => setAudioError('Audio recording file is unavailable or missing on server.')}
             />

@@ -4,6 +4,8 @@ import {
   getCallDetail,
   getCallJobStatus,
   getCallTranscript,
+  getCallAudioUrl,
+  retryCallProcessing,
   approveCallSummary,
   updateCallSummary,
 } from '../lib/api';
@@ -72,6 +74,7 @@ type CallData = {
   aiStatus: string;
   recordingUrl?: string;
   recording?: {
+    storageKey?: string;
     url?: string;
     fileName?: string;
     fileSize?: number;
@@ -184,6 +187,8 @@ export function CallIntelligencePage() {
   const [feedback, setFeedback] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<'summary' | 'transcript' | 'history'>('summary');
   const [transcriptOpen, setTranscriptOpen] = useState(true);
+  const [signedAudioUrl, setSignedAudioUrl] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const token = localStorage.getItem('anfaal-token') ?? '';
 
@@ -197,6 +202,18 @@ export function CallIntelligencePage() {
       setCall(detailRes.call);
       setJob(detailRes.processingJob);
       setTranscript({ text: transcriptRes.transcript ?? '', segments: transcriptRes.segments ?? [] });
+
+      // Fetch short-lived presigned audio URL
+      if (
+        detailRes.call?.recording?.storageKey ||
+        detailRes.call?.recordingUrl ||
+        detailRes.call?.recording?.url
+      ) {
+        getCallAudioUrl(token, callId)
+          .then((res) => setSignedAudioUrl(res.audioUrl))
+          .catch(() => setSignedAudioUrl(null));
+      }
+
       const summary = detailRes.call?.aiSummary ?? {};
       setEditedSummary({
         shortSummary: summary.shortSummary ?? detailRes.call?.summary ?? '',
@@ -217,6 +234,26 @@ export function CallIntelligencePage() {
       setLoading(false);
     }
   }, [callId, token]);
+
+  const handleRetry = async () => {
+    if (!callId) return;
+    setIsRetrying(true);
+    setFeedback(null);
+    try {
+      await retryCallProcessing(token, callId);
+      setFeedback({ msg: 'Processing retried. Background pipeline has restarted.', type: 'success' });
+      setJob((prev) =>
+        prev
+          ? { ...prev, status: 'PROCESSING', error: undefined }
+          : { stage: 'UPLOAD', status: 'PROCESSING', progress: 10, stageStatus: {} },
+      );
+      startPolling();
+    } catch (err) {
+      setFeedback({ msg: err instanceof Error ? err.message : 'Retry failed', type: 'error' });
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   // Poll if still processing
   const startPolling = useCallback(() => {
@@ -341,6 +378,43 @@ export function CallIntelligencePage() {
         </div>
       )}
 
+      {/* Failed state with Retry button */}
+      {job?.status === 'FAILED' && (
+        <div className="wizard-card" style={{ marginBottom: '1.5rem', borderLeft: '4px solid var(--danger)', background: 'rgba(239,68,68,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+              <AlertTriangle size={24} color="var(--danger)" style={{ marginTop: 2, flexShrink: 0 }} />
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--danger)', fontWeight: 700 }}>
+                  Call Processing Failed
+                </h3>
+                <p style={{ margin: '6px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+                  {job.error || 'An error occurred during audio transcription or AI summary generation.'}
+                </p>
+                <div style={{ marginTop: 6, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                  {transcript.text ? 'Transcript is preserved. You can retry AI summarization.' : 'You can retry the processing pipeline.'}
+                </div>
+              </div>
+            </div>
+            <button
+              className="btn btn-primary"
+              disabled={isRetrying}
+              onClick={handleRetry}
+            >
+              {isRetrying ? (
+                <>
+                  <Loader size={16} className="spin" /> Retrying…
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} /> Retry Processing
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Call Overview & Audio Player Card (Section 1 & 15) ─────────────── */}
       <div className="summary-card" style={{ marginBottom: '1.5rem', padding: '18px 22px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
@@ -374,12 +448,12 @@ export function CallIntelligencePage() {
 
           {/* Secure Audio Player */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 280, justifyContent: 'flex-end' }}>
-            {Boolean(call.recordingUrl || call.recording?.url) ? (
+            {Boolean(signedAudioUrl || call.recording?.storageKey || call.recordingUrl || call.recording?.url) ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 420 }}>
                 <Volume2 size={20} color="var(--primary)" style={{ flexShrink: 0 }} />
                 <audio
                   controls
-                  src={`/api/calls/${call._id}/audio`}
+                  src={signedAudioUrl || `/api/calls/${call._id}/audio`}
                   style={{ width: '100%', height: 38 }}
                   preload="metadata"
                 />

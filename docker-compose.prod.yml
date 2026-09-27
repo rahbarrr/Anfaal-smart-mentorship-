@@ -10,6 +10,12 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
   backend:
     build:
       context: ./backend
@@ -21,6 +27,21 @@ services:
     depends_on:
       mongo:
         condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build:
+      context: ./backend
+    command: ["node", "dist/worker.js"]
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.production
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   frontend:
     build:

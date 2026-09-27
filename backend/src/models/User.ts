@@ -13,6 +13,9 @@ const userSchema = new Schema<UserDocument>(
   { timestamps: true },
 );
 
+userSchema.index({ role: 1 });
+userSchema.index({ menteeId: 1 });
+
 export const User = mongoose.model<UserDocument>('User', userSchema);
 
 export type UserRoleType = UserRole;

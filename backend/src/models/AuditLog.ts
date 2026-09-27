@@ -6,13 +6,21 @@ export interface AuditLogDocument {
   userName: string;
   userRole: 'ADMIN' | 'MENTOR' | 'MENTEE';
   action:
+    | 'CALL_CREATED'
+    | 'RECORDING_UPLOADED'
     | 'UPLOAD_RECORDING'
     | 'PLAY_RECORDING'
     | 'VIEW_TRANSCRIPT'
+    | 'SUMMARY_EDITED'
     | 'EDIT_SUMMARY'
+    | 'SUMMARY_APPROVED'
     | 'APPROVE_SUMMARY'
-    | 'CHANGE_ASSIGNMENT'
-    | 'DELETE_RECORD';
+    | 'PROCESSING_FAILED'
+    | 'PROCESSING_RETRIED'
+    | 'CALL_DELETED'
+    | 'DELETE_RECORD'
+    | 'ASSIGNMENT_CHANGED'
+    | 'CHANGE_ASSIGNMENT';
   targetType: 'CALL' | 'MENTORSHIP' | 'MENTEE' | 'MENTOR' | 'DAILY_PERFORMANCE';
   targetId: string;
   menteeName?: string;
@@ -30,13 +38,21 @@ const auditLogSchema = new Schema<AuditLogDocument>(
     action: {
       type: String,
       enum: [
+        'CALL_CREATED',
+        'RECORDING_UPLOADED',
         'UPLOAD_RECORDING',
         'PLAY_RECORDING',
         'VIEW_TRANSCRIPT',
+        'SUMMARY_EDITED',
         'EDIT_SUMMARY',
+        'SUMMARY_APPROVED',
         'APPROVE_SUMMARY',
-        'CHANGE_ASSIGNMENT',
+        'PROCESSING_FAILED',
+        'PROCESSING_RETRIED',
+        'CALL_DELETED',
         'DELETE_RECORD',
+        'ASSIGNMENT_CHANGED',
+        'CHANGE_ASSIGNMENT',
       ],
       required: true,
     },

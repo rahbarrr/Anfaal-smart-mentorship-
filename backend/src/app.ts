@@ -17,9 +17,27 @@ dotenv.config();
 
 const app = express();
 
+const isProduction = process.env.NODE_ENV === 'production';
+const allowedOrigins = process.env.CLIENT_URL
+  ? process.env.CLIENT_URL.split(',').map((u) => u.trim())
+  : [];
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL ?? '*',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, tests)
+      if (!origin) return callback(null, true);
+
+      if (!isProduction) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS policy violation: origin ${origin} is not allowed.`));
+    },
     credentials: true,
   }),
 );

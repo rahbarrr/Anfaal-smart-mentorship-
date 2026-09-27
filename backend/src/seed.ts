@@ -7,7 +7,7 @@ dotenv.config();
 async function seed() {
   await connectDatabase();
   const admin = await ensureDefaultAdmin();
-  console.log(`Seed admin ready: ${admin.email}`);
+  if (admin) console.log(`Seed admin ready: ${admin.email}`);
   const mentor = await ensureDefaultMentor();
   console.log(`Seed mentor ready: ${mentor.email}`);
   const mentee = await ensureDefaultMenteeUser();

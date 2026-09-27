@@ -12,4 +12,6 @@ const mentorSchema = new Schema<MentorDocument>(
   { timestamps: true },
 );
 
+mentorSchema.index({ status: 1 });
+
 export const Mentor = mongoose.model<MentorDocument>('Mentor', mentorSchema);

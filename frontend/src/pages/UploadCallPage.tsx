@@ -2,7 +2,10 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   getMyMentees,
-  uploadCall,
+  getPresignedUploadUrl,
+  uploadFileDirectToS3,
+  completeCallUpload,
+  retryCallProcessing,
   getCallJobStatus,
   getCallDetail,
   approveCallSummary,
@@ -204,6 +207,9 @@ export function UploadCallPage() {
   const [editedSummary, setEditedSummary] = useState<AiSummary | null>(null);
   const [isApproving, setIsApproving] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadStatusText, setUploadStatusText] = useState<string>('');
+  const [isRetrying, setIsRetrying] = useState<boolean>(false);
 
   // Load mentees
   useEffect(() => {
@@ -271,6 +277,26 @@ export function UploadCallPage() {
     handleFileSelect(file);
   };
 
+  const handleRetry = async () => {
+    if (!createdCallId) return;
+    const token = localStorage.getItem('anfaal-token') ?? '';
+    setIsRetrying(true);
+    setFeedback(null);
+    try {
+      await retryCallProcessing(token, createdCallId);
+      setJobStatus((prev) =>
+        prev
+          ? { ...prev, status: 'PROCESSING', error: undefined }
+          : { stage: 'UPLOAD', status: 'PROCESSING', progress: 10, stageStatus: { upload: 'COMPLETED', audioProcessing: 'PROCESSING', transcription: 'PENDING', summary: 'PENDING', mentorReview: 'PENDING' } },
+      );
+      startPolling(createdCallId);
+    } catch (err) {
+      setFeedback({ msg: err instanceof Error ? err.message : 'Retry failed', type: 'error' });
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   const handleSubmit = async () => {
     const token = localStorage.getItem('anfaal-token') ?? '';
     if (!form.menteeId) {
@@ -287,9 +313,56 @@ export function UploadCallPage() {
     setCurrentStep(2);
 
     try {
-      const result = await uploadCall(token, form, selectedFile);
+      let storageKey: string | undefined;
+      let fileName: string | undefined;
+      let fileSize: number | undefined;
+      let mimeType: string | undefined;
+
+      if (selectedFile) {
+        setUploadStatusText('Requesting secure direct S3 upload credentials…');
+        const presignRes = await getPresignedUploadUrl(token, {
+          fileName: selectedFile.name,
+          fileSize: selectedFile.size,
+          mimeType: selectedFile.type || 'audio/mpeg',
+          menteeId: form.menteeId,
+        });
+
+        storageKey = presignRes.storageKey;
+        fileName = presignRes.fileName;
+        fileSize = presignRes.fileSize;
+        mimeType = presignRes.mimeType;
+
+        setUploadStatusText('Uploading recording directly to private S3 bucket…');
+        await uploadFileDirectToS3(presignRes.uploadUrl, selectedFile, mimeType, (pct) => {
+          setUploadProgress(pct);
+        });
+      }
+
+      setUploadStatusText('Finalizing call session & queueing background AI pipeline…');
+      const result = await completeCallUpload(token, {
+        storageKey,
+        fileName,
+        fileSize,
+        mimeType,
+        menteeId: form.menteeId,
+        duration: form.duration,
+        date: form.date,
+        mentorNotes: form.mentorNotes,
+      });
+
       setCreatedCallId(result.callId);
-      setJobStatus({ stage: 'UPLOAD', status: 'PROCESSING', progress: 5, stageStatus: { upload: 'COMPLETED', audioProcessing: 'PENDING', transcription: 'PENDING', summary: 'PENDING', mentorReview: 'PENDING' } });
+      setJobStatus({
+        stage: 'UPLOAD',
+        status: 'PROCESSING',
+        progress: 5,
+        stageStatus: {
+          upload: 'COMPLETED',
+          audioProcessing: 'PENDING',
+          transcription: 'PENDING',
+          summary: 'PENDING',
+          mentorReview: 'PENDING',
+        },
+      });
       startPolling(result.callId);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Upload failed.';
@@ -297,6 +370,7 @@ export function UploadCallPage() {
       setCurrentStep(1);
     } finally {
       setIsSubmitting(false);
+      setUploadProgress(null);
     }
   };
 
@@ -551,14 +625,50 @@ export function UploadCallPage() {
               <Brain size={22} /> AI is processing your call…
             </h2>
           </div>
+          {uploadStatusText && (
+            <p style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.9rem', marginBottom: 12 }}>
+              {uploadStatusText}
+            </p>
+          )}
+          {uploadProgress !== null && uploadProgress < 100 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                <span>Direct S3 Upload</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="pipeline-bar-outer">
+                <div className="pipeline-bar-fill" style={{ width: `${uploadProgress}%` }} />
+              </div>
+            </div>
+          )}
           <p className="processing-subtitle">
             This typically takes 1–5 minutes depending on recording length. You can stay on this page or come back later.
           </p>
           {jobStatus && <PipelineProgress job={jobStatus} />}
           {jobStatus?.status === 'FAILED' && (
-            <div className="alert-banner alert-error">
-              <AlertTriangle size={16} />
-              Processing failed. {jobStatus.error ?? 'Please try again.'}
+            <div style={{ marginTop: '1.5rem' }}>
+              <div className="alert-banner alert-error" style={{ marginBottom: '1rem' }}>
+                <AlertTriangle size={18} />
+                <div>
+                  <strong>Call Processing Failed</strong>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem' }}>{jobStatus.error ?? 'An unexpected error occurred during processing.'}</p>
+                </div>
+              </div>
+              <button
+                className="btn btn-primary"
+                disabled={isRetrying}
+                onClick={handleRetry}
+              >
+                {isRetrying ? (
+                  <>
+                    <Loader size={16} className="spin" /> Retrying…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} /> Retry Processing
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>

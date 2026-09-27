@@ -9,6 +9,15 @@ export async function ensureDefaultAdmin(
   email = 'admin@anfaalfoundation.com',
   password = process.env.ADMIN_PASSWORD ?? 'Admin@123',
 ) {
+  if (process.env.DISABLE_BOOTSTRAP_ADMIN === 'true') {
+    return null;
+  }
+
+  const isProd = process.env.NODE_ENV === 'production';
+  if (isProd && password.length < 8) {
+    throw new Error('[Bootstrap] BOOTSTRAP_ADMIN_PASSWORD must be at least 8 characters long in production.');
+  }
+
   const existing = await User.findOne({ email });
   if (existing) return existing;
 

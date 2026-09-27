@@ -21,6 +21,9 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
   }
 
   try {
+    if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+      return res.status(500).json({ message: 'Authentication configuration error.' });
+    }
     const secret = process.env.JWT_SECRET ?? 'development-secret';
     const payload = jwt.verify(token, secret) as AuthenticatedUser & { iat?: number; exp?: number };
 

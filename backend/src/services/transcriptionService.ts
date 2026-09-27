@@ -111,9 +111,18 @@ export class MockTranscriptionService implements TranscriptionService {
 export class RealTranscriptionService implements TranscriptionService {
   async transcribe({ buffer, originalname, mimetype }: TranscriptInput): Promise<TranscriptionResult> {
     const apiKey = process.env.TRANSCRIPTION_API_KEY || process.env.OPENAI_API_KEY;
+    const allowMock = process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
 
-    if (!apiKey || !buffer) {
-      return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype });
+    if (!buffer) {
+      throw new Error('No audio recording buffer available for transcription.');
+    }
+
+    if (!apiKey) {
+      if (allowMock) {
+        console.warn('[Transcription] No API key found. Falling back to mock transcription because ALLOW_MOCK_TRANSCRIPTION=true');
+        return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype });
+      }
+      throw new Error('Transcription API key is not configured. Real transcription required in production.');
     }
 
     try {
@@ -194,13 +203,22 @@ export class RealTranscriptionService implements TranscriptionService {
         confidenceWarning: rawText.length < 50,
       };
     } catch (err) {
-      console.error('[Transcription] Whisper error, falling back to mock:', err instanceof Error ? err.message : err);
-      return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype });
+      if (allowMock) {
+        console.warn('[Transcription] Whisper error, falling back to mock because ALLOW_MOCK_TRANSCRIPTION=true:', err instanceof Error ? err.message : err);
+        return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype });
+      }
+      throw new Error(`Transcription failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 }
 
 export function createTranscriptionService(): TranscriptionService {
   const hasKey = Boolean(process.env.OPENAI_API_KEY || process.env.TRANSCRIPTION_API_KEY);
-  return hasKey ? new RealTranscriptionService() : new MockTranscriptionService();
+  const allowMock = process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
+
+  if (!hasKey && allowMock) {
+    return new MockTranscriptionService();
+  }
+
+  return new RealTranscriptionService();
 }

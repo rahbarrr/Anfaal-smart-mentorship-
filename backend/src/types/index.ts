@@ -77,10 +77,11 @@ export interface TranscriptSegment {
 }
 
 export interface CallRecordingData {
+  storageKey: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
   url?: string;
-  fileName?: string;
-  fileSize?: number;
-  mimeType?: string;
 }
 
 export interface CallTranscriptionData {
