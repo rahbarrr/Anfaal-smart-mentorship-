@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, UserRound, FileText, BarChart3, FileSpreadsheet, Link2, ClipboardCheck, LogOut, Menu, X, CalendarCheck } from 'lucide-react';
+import { LayoutDashboard, Users, UserRound, FileText, BarChart3, FileSpreadsheet, Link2, ClipboardCheck, LogOut, Menu, X, CalendarCheck, UploadCloud } from 'lucide-react';
 
 const links = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/mentors', label: 'Mentors', icon: Users, end: false },
   { to: '/admin/mentees', label: 'Mentees', icon: UserRound, end: false },
   { to: '/admin/assignments', label: 'Assign', icon: Link2, end: false },
+  { to: '/admin/bulk-import', label: 'Bulk Import', icon: UploadCloud, end: false },
   { to: '/admin/performance', label: 'Performance', icon: CalendarCheck, end: false },
   { to: '/admin/reviews', label: 'Reviews', icon: ClipboardCheck, end: false },
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3, end: false },

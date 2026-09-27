@@ -122,3 +122,74 @@ export interface SummaryResult {
   followUpRecommendations: string[];
   topicsDiscussed: string[];
 }
+
+export type ImportType = 'MENTORS' | 'MENTEES' | 'ASSIGNMENTS';
+export type ImportStatus = 'UPLOADED' | 'VALIDATING' | 'READY' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+export type DuplicateStrategy = 'skip' | 'update' | 'ask';
+
+export interface ImportErrorItem {
+  row: number;
+  name?: string;
+  email?: string;
+  error: string;
+  warning?: boolean;
+}
+
+export interface ParsedRowItem {
+  row: number;
+  status: 'valid' | 'warning' | 'error';
+  data: Record<string, any>;
+  message?: string;
+  isExisting?: boolean;
+}
+
+export interface ImportPreview {
+  id: string;
+  type: ImportType;
+  fileName: string;
+  status?: ImportStatus;
+  totalRows: number;
+  validRows: number;
+  warningRows: number;
+  invalidRows: number;
+  previewRows: ParsedRowItem[];
+  errors: ImportErrorItem[];
+  totalErrors?: number;
+}
+
+export interface ImportProgress {
+  id: string;
+  status: ImportStatus;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  warningRows: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  errorCount: number;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+export interface ImportHistoryItem {
+  id: string;
+  type: ImportType;
+  fileName: string;
+  fileSize: number;
+  uploadedBy: string;
+  status: ImportStatus;
+  totalRows: number;
+  validRows: number;
+  warningRows: number;
+  invalidRows: number;
+  createdCount: number;
+  updatedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  errorCount: number;
+  createdAt: string;
+  completedAt?: string;
+}
+

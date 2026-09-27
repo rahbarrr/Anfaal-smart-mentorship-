@@ -6,6 +6,7 @@ const mentorSchema = new Schema<MentorDocument>(
     userId: { type: String, required: true, unique: true },
     phone: { type: String },
     bio: { type: String },
+    gender: { type: String },
     status: { type: String, enum: ['active', 'disabled'], default: 'active' },
   },
   { timestamps: true },

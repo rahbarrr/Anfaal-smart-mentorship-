@@ -22,6 +22,7 @@ import { MenteeDashboardPage } from './pages/MenteeDashboardPage';
 import { DailyPerformanceFormPage } from './pages/DailyPerformanceFormPage';
 import { MenteePerformanceHistoryPage } from './pages/MenteePerformanceHistoryPage';
 import { AdminPerformanceAnalyticsPage } from './pages/AdminPerformanceAnalyticsPage';
+import { BulkImportPage } from './pages/BulkImportPage';
 
 function getStoredUser() {
   const rawUser = localStorage.getItem('anfaal-user');
@@ -64,6 +65,7 @@ function App() {
           <Route index element={<AdminDashboardPage />} />
           <Route path="mentorships" element={<AdminMentorshipPage />} />
           <Route path="assignments" element={<AdminAssignmentsPage />} />
+          <Route path="bulk-import" element={<BulkImportPage />} />
           <Route path="analytics" element={<AdminAnalyticsPage />} />
           <Route path="reviews" element={<AdminReviewPage />} />
           <Route path="mentors" element={<MentorManagementPage />} />

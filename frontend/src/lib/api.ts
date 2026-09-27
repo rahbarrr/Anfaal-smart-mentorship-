@@ -522,3 +522,126 @@ export async function getAdminPerformanceAnalytics(filters?: {
   return response.json();
 }
 
+// ─── Bulk Import & Export ───────────────────────────────────────────────────
+
+export async function downloadImportTemplate(type: 'mentors' | 'mentees' | 'assignments'): Promise<Blob> {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/import/templates/${type}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Failed to download template.');
+  return response.blob();
+}
+
+export async function uploadImportFile(
+  type: 'mentors' | 'mentees' | 'assignments',
+  file: File,
+): Promise<{ importJobId: string; preview: any }> {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE_URL}/import/upload/${type}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'CSV upload and validation failed.');
+  }
+  return response.json();
+}
+
+export async function getImportPreview(importJobId: string) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/import/${importJobId}/preview`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load import preview.');
+  return response.json();
+}
+
+export async function confirmImport(
+  importJobId: string,
+  duplicateAction: 'skip' | 'update' | 'ask',
+  reassignMentees = true,
+) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/import/${importJobId}/confirm`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ duplicateAction, reassignMentees }),
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to confirm import.');
+  }
+  return response.json();
+}
+
+export async function getImportStatus(importJobId: string) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/import/${importJobId}/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to check import status.');
+  return response.json();
+}
+
+export async function downloadImportErrors(importJobId: string): Promise<Blob> {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/import/${importJobId}/errors`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Failed to download error report.');
+  return response.blob();
+}
+
+export async function getImportHistory() {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/import/history`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load import history.');
+  return response.json();
+}
+
+export async function getImportJobDetails(importJobId: string) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/import/${importJobId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load import details.');
+  return response.json();
+}
+
+export async function exportBulkData(
+  category: 'mentors' | 'mentees' | 'assignments' | 'calls' | 'performance',
+  filters: Record<string, string> = {},
+): Promise<Blob> {
+  const token = getToken();
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value && value !== 'All') {
+      params.set(key, value);
+    }
+  }
+
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const response = await fetch(`${API_BASE_URL}/export/${category}${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Failed to export data.');
+  }
+  return response.blob();
+}
+
+

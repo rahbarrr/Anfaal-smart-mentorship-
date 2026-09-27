@@ -26,6 +26,7 @@ export interface MentorDocument {
   userId: string;
   phone?: string;
   bio?: string;
+  gender?: string;
   status: 'active' | 'disabled';
 }
 
