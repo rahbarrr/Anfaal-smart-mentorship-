@@ -7,6 +7,8 @@ import { Mentorship } from '../models/Mentorship.js';
 import { Mentor } from '../models/Mentor.js';
 import { Call } from '../models/Call.js';
 import { User } from '../models/User.js';
+import { DailyPerformance } from '../models/DailyPerformance.js';
+import { logAuditEvent } from '../services/auditService.js';
 
 const router = Router();
 
@@ -94,6 +96,8 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
     const menteeIds = assignments.map((a) => a.menteeId);
     const mentees = await Mentee.find({ _id: { $in: menteeIds } }).lean();
 
+    const todayStr = new Date().toISOString().split('T')[0];
+
     const payload = await Promise.all(
       mentees.map(async (mentee) => {
         const menteeId = String(mentee._id);
@@ -103,6 +107,7 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
           ? new Date(lastCallDoc.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
           : 'No calls yet';
 
+        const todayPerf = await DailyPerformance.findOne({ menteeId, date: todayStr }).lean();
         const contactInfo = mentee.contactInformation as Record<string, string> | undefined;
 
         return {
@@ -114,6 +119,22 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
           status: mentee.status,
           totalCalls,
           lastCallDate,
+          lastCallSummary: lastCallDoc?.aiSummary?.shortSummary || lastCallDoc?.summary || null,
+          todayProgress: todayPerf
+            ? {
+                studyMinutes: todayPerf.studyMinutes,
+                studyFormatted: `${Math.floor(todayPerf.studyMinutes / 60)}h ${todayPerf.studyMinutes % 60}m`,
+                quranRuku: todayPerf.quran?.ruku || 0,
+                quranAyat: todayPerf.quran?.ayat || 0,
+                quranPages: todayPerf.quran?.pages || 0,
+                readingMinutes: todayPerf.readingMinutes || 0,
+                dayRating: todayPerf.dayRating,
+                submitted: true,
+                needsMentorHelp: Boolean(todayPerf.needsMentorHelp),
+                mentorHelpNote: todayPerf.mentorHelpNote || '',
+                dailyReflection: todayPerf.dailyReflection || '',
+              }
+            : null,
         };
       }),
     );
@@ -150,10 +171,26 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       if (!assignment) {
         return res.status(403).json({ message: 'You do not have access to this mentee.' });
       }
+    } else if (req.user?.role === 'MENTEE') {
+      const allowedIds = [req.user.id, ...(req.user.menteeId ? [req.user.menteeId] : [])];
+      if (!allowedIds.includes(menteeId)) {
+        return res.status(403).json({ message: 'Access denied: You can only view your own profile.' });
+      }
     }
 
     const calls = await Call.find({ menteeId }).sort({ date: -1 }).lean();
     const contactInfo = mentee.contactInformation as Record<string, string> | undefined;
+
+    // Resolve assigned mentor name
+    const activeAssignment = await Mentorship.findOne({ menteeId, status: 'active' }).lean();
+    let assignedMentorName = '';
+    if (activeAssignment) {
+      const mentorDoc = await Mentor.findById(activeAssignment.mentorId).lean();
+      if (mentorDoc) {
+        const userDoc = await User.findById(mentorDoc.userId).lean();
+        assignedMentorName = userDoc?.name ?? 'Assigned Mentor';
+      }
+    }
 
     return res.json({
       mentee: {
@@ -163,6 +200,7 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
         guardian: contactInfo?.guardian ?? '',
         phone: contactInfo?.phone ?? '',
         status: mentee.status,
+        assignedMentor: assignedMentorName || 'Unassigned',
         createdAt: mentee.createdAt,
       },
       calls: calls.map((call) => ({
@@ -270,6 +308,18 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest
 
     // Remove the mentee profile
     await Mentee.findByIdAndDelete(req.params.id);
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'MENTEE',
+      targetId: menteeId,
+      menteeName: mentee.name,
+      details: `Permanently deleted mentee profile ${mentee.name} and linked records`,
+      ipAddress: req.ip,
+    });
 
     return res.json({ message: 'Mentee and all associated data removed successfully.' });
   } catch (error) {

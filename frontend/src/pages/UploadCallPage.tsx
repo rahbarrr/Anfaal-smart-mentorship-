@@ -1,38 +1,192 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMyMentees, uploadCall, updateCallSummary } from '../lib/api';
-import { Upload, CheckCircle, Loader, AlertTriangle } from 'lucide-react';
+import {
+  getMyMentees,
+  uploadCall,
+  getCallJobStatus,
+  getCallDetail,
+  approveCallSummary,
+  updateCallSummary,
+} from '../lib/api';
+import {
+  Upload,
+  CheckCircle,
+  Loader,
+  AlertTriangle,
+  Mic,
+  Brain,
+  FileText,
+  Clock,
+  ChevronRight,
+  Sparkles,
+  User,
+  Calendar,
+  ThumbsUp,
+  Edit3,
+  X,
+  Plus,
+} from 'lucide-react';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+type Mentee = { id: string; name: string };
 
 type AiSummary = {
   shortSummary: string;
   keyDiscussionPoints: string[];
-  studentConcerns: string[];
+  academicProgress: string;
+  personalDevelopment: string;
+  challenges: string[];
+  achievements: string[];
   actionItems: string[];
-  followUpRecommendations: string[];
+  mentorCommitments: string[];
+  menteeCommitments: string[];
+  followUpTopics: string[];
   topicsDiscussed: string[];
 };
 
-const fallbackSummary: AiSummary = {
-  shortSummary: '',
-  keyDiscussionPoints: [],
-  studentConcerns: [],
-  actionItems: [],
-  followUpRecommendations: [],
-  topicsDiscussed: [],
+type JobStatus = {
+  stage: 'UPLOAD' | 'TRANSCRIPTION' | 'SUMMARY' | 'COMPLETE';
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  progress: number;
+  stageStatus: {
+    upload: string;
+    audioProcessing: string;
+    transcription: string;
+    summary: string;
+    mentorReview: string;
+  };
+  error?: string;
 };
-const steps = ['Select Mentee', 'Upload Recording', 'Processing', 'AI Review'];
 
+const WIZARD_STEPS = ['Record Details', 'Upload Audio', 'AI Processing', 'Review & Approve'];
 const ACCEPTED_TYPES = '.mp3,.wav,.m4a,.mp4,audio/*,video/*';
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
-type Mentee = { id: string; name: string };
+function EditableList({
+  label,
+  items,
+  onChange,
+}: {
+  label: string;
+  items: string[];
+  onChange: (items: string[]) => void;
+}) {
+  const [newItem, setNewItem] = useState('');
 
+  const addItem = () => {
+    if (newItem.trim()) {
+      onChange([...items, newItem.trim()]);
+      setNewItem('');
+    }
+  };
+
+  const removeItem = (index: number) => onChange(items.filter((_, i) => i !== index));
+
+  const updateItem = (index: number, value: string) =>
+    onChange(items.map((item, i) => (i === index ? value : item)));
+
+  return (
+    <div className="editable-list">
+      <label className="field-label">{label}</label>
+      <div className="editable-list-items">
+        {items.map((item, i) => (
+          <div key={i} className="editable-list-row">
+            <input
+              className="editable-list-input"
+              value={item}
+              onChange={(e) => updateItem(i, e.target.value)}
+            />
+            <button
+              className="editable-list-remove"
+              onClick={() => removeItem(i)}
+              title="Remove"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ))}
+        <div className="editable-list-add-row">
+          <input
+            className="editable-list-input"
+            placeholder={`Add ${label.toLowerCase()}…`}
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addItem();
+              }
+            }}
+          />
+          <button className="btn btn-ghost btn-sm" onClick={addItem}>
+            <Plus size={14} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Pipeline progress bar ────────────────────────────────────────────────────
+function PipelineProgress({ job }: { job: JobStatus }) {
+  const stages = [
+    { key: 'upload', label: 'Upload', icon: Upload },
+    { key: 'audioProcessing', label: 'Audio Processing', icon: Mic },
+    { key: 'transcription', label: 'Transcription', icon: FileText },
+    { key: 'summary', label: 'AI Summary', icon: Brain },
+  ];
+
+  return (
+    <div className="pipeline-wrapper">
+      <div className="pipeline-bar-outer">
+        <div
+          className="pipeline-bar-fill"
+          style={{ width: `${job.progress}%` }}
+        />
+      </div>
+      <p className="pipeline-percent">{job.progress}%</p>
+      <div className="pipeline-stages">
+        {stages.map(({ key, label, icon: Icon }) => {
+          const status = job.stageStatus[key as keyof JobStatus['stageStatus']];
+          const isCompleted = status === 'COMPLETED';
+          const isProcessing = status === 'PROCESSING';
+          const isFailed = status === 'FAILED';
+          return (
+            <div
+              key={key}
+              className={`pipeline-stage ${isCompleted ? 'stage-done' : isProcessing ? 'stage-active' : isFailed ? 'stage-failed' : 'stage-pending'}`}
+            >
+              {isProcessing ? (
+                <Loader size={18} className="spin" />
+              ) : isCompleted ? (
+                <CheckCircle size={18} />
+              ) : isFailed ? (
+                <AlertTriangle size={18} />
+              ) : (
+                <Icon size={18} />
+              )}
+              <span>{label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export function UploadCallPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [mentees, setMentees] = useState<Mentee[]>([]);
   const [form, setForm] = useState({
@@ -41,15 +195,17 @@ export function UploadCallPage() {
     duration: 30,
     mentorNotes: '',
   });
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [feedbackType, setFeedbackType] = useState<'success' | 'error'>('success');
-  const [aiSummary, setAiSummary] = useState<AiSummary>(fallbackSummary);
+  const [feedback, setFeedback] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdCallId, setCreatedCallId] = useState<string | null>(null);
+  const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
+  const [callDetail, setCallDetail] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [editedSummary, setEditedSummary] = useState<AiSummary | null>(null);
+  const [isApproving, setIsApproving] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
 
-  const [createdCallId, setCreatedCallId] = useState<string | null>(null);
-
-  // Load assigned mentees from API
+  // Load mentees
   useEffect(() => {
     const token = localStorage.getItem('anfaal-token');
     if (!token) return;
@@ -57,393 +213,552 @@ export function UploadCallPage() {
       .then((res) => {
         const loaded = (res.mentees ?? []).map((m: any) => ({ id: m.id, name: m.name }));
         setMentees(loaded);
-        if (loaded.length > 0) {
-          setForm((p) => ({ ...p, menteeId: loaded[0].id }));
-        }
+        if (loaded.length > 0) setForm((p) => ({ ...p, menteeId: loaded[0].id }));
       })
       .catch(() => {});
   }, []);
 
-  const showFeedback = (msg: string, type: 'success' | 'error') => {
-    setFeedback(msg);
-    setFeedbackType(type);
-  };
+  // Poll job status
+  const startPolling = useCallback(
+    (callId: string) => {
+      const token = localStorage.getItem('anfaal-token') ?? '';
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+
+      pollTimerRef.current = setInterval(async () => {
+        try {
+          const job = await getCallJobStatus(token, callId);
+          setJobStatus(job);
+
+          if (job.status === 'COMPLETED') {
+            clearInterval(pollTimerRef.current!);
+            // Load full call detail for review
+            const detail = await getCallDetail(token, callId);
+            setCallDetail(detail.call);
+            setEditedSummary(detail.call?.aiSummary ?? null);
+            setCurrentStep(3);
+          } else if (job.status === 'FAILED') {
+            clearInterval(pollTimerRef.current!);
+            setFeedback({ msg: `Processing failed: ${job.error ?? 'Unknown error'}`, type: 'error' });
+          }
+        } catch (_) {
+          // Silently retry
+        }
+      }, 2500);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
 
   const handleFileSelect = (file: File | null) => {
     if (!file) return;
-    const maxSize = 25 * 1024 * 1024; // 25MB
-    if (file.size > maxSize) {
-      showFeedback('File is too large. Maximum size is 25 MB.', 'error');
+    if (file.size > MAX_FILE_SIZE) {
+      setFeedback({ msg: 'File is too large. Maximum size is 100 MB.', type: 'error' });
       return;
     }
     setSelectedFile(file);
     setFeedback(null);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files[0];
+    const file = e.dataTransfer.files?.[0] ?? null;
     handleFileSelect(file);
   };
 
-  const handleSubmitUpload = async () => {
-    const token = localStorage.getItem('anfaal-token');
-    if (!token) {
-      showFeedback('You must be signed in to upload a call.', 'error');
+  const handleSubmit = async () => {
+    const token = localStorage.getItem('anfaal-token') ?? '';
+    if (!form.menteeId) {
+      setFeedback({ msg: 'Please select a mentee.', type: 'error' });
+      return;
+    }
+    if (!consentChecked) {
+      setFeedback({ msg: 'Please confirm the mentee consented to this recording.', type: 'error' });
       return;
     }
 
     setIsSubmitting(true);
     setFeedback(null);
-    setCurrentStep(2); // processing
+    setCurrentStep(2);
 
     try {
-      const response = await uploadCall(
-        token,
-        { menteeId: form.menteeId, duration: Number(form.duration), date: form.date, mentorNotes: form.mentorNotes },
-        selectedFile,
-      );
-
-      if (response.callId) {
-        setCreatedCallId(response.callId);
-      }
-
-      if (response.summary) {
-        setAiSummary({
-          shortSummary: response.summary.shortSummary ?? fallbackSummary.shortSummary,
-          keyDiscussionPoints: response.summary.keyDiscussionPoints ?? fallbackSummary.keyDiscussionPoints,
-          studentConcerns: response.summary.studentConcerns ?? fallbackSummary.studentConcerns,
-          actionItems: response.summary.actionItems ?? fallbackSummary.actionItems,
-          followUpRecommendations: response.summary.followUpRecommendations ?? fallbackSummary.followUpRecommendations,
-          topicsDiscussed: response.summary.topicsDiscussed ?? fallbackSummary.topicsDiscussed,
-        });
-      }
-
-      showFeedback(response.message ?? 'Upload accepted. AI processing completed.', 'success');
-      setCurrentStep(3);
+      const result = await uploadCall(token, form, selectedFile);
+      setCreatedCallId(result.callId);
+      setJobStatus({ stage: 'UPLOAD', status: 'PROCESSING', progress: 5, stageStatus: { upload: 'COMPLETED', audioProcessing: 'PENDING', transcription: 'PENDING', summary: 'PENDING', mentorReview: 'PENDING' } });
+      startPolling(result.callId);
     } catch (error) {
-      showFeedback(error instanceof Error ? error.message : 'Unable to upload your call.', 'error');
+      const msg = error instanceof Error ? error.message : 'Upload failed.';
+      setFeedback({ msg, type: 'error' });
       setCurrentStep(1);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleFinalSubmit = async () => {
-    const token = localStorage.getItem('anfaal-token');
-    if (token && createdCallId) {
-      await updateCallSummary(token, createdCallId, {
-        summary: aiSummary.shortSummary,
-        keyDiscussionPoints: aiSummary.keyDiscussionPoints,
-        studentConcerns: aiSummary.studentConcerns,
-        actionItems: aiSummary.actionItems,
-        followUpRecommendations: aiSummary.followUpRecommendations,
-        topicsDiscussed: aiSummary.topicsDiscussed,
-      }).catch(() => {});
+  const handleApprove = async () => {
+    if (!createdCallId) return;
+    const token = localStorage.getItem('anfaal-token') ?? '';
+    setIsApproving(true);
+    try {
+      await approveCallSummary(token, createdCallId, editedSummary as any);
+      setFeedback({ msg: 'Summary approved and saved as the official record!', type: 'success' });
+      setTimeout(() => navigate('/mentor/calls'), 2000);
+    } catch (err) {
+      setFeedback({ msg: err instanceof Error ? err.message : 'Approval failed.', type: 'error' });
+    } finally {
+      setIsApproving(false);
     }
-    showFeedback('Call submitted successfully! Redirecting to your calls…', 'success');
-    setTimeout(() => navigate('/mentor/calls'), 1500);
   };
 
-  const canGoNext = () => {
-    if (currentStep === 0) return !!form.menteeId && !!form.date && form.duration > 0;
-    if (currentStep === 1) return !!selectedFile && consentChecked;
-    return false;
+  const handleSaveDraft = async () => {
+    if (!createdCallId || !editedSummary) return;
+    const token = localStorage.getItem('anfaal-token') ?? '';
+    try {
+      await updateCallSummary(token, createdCallId, {
+        summary: editedSummary.shortSummary,
+        keyDiscussionPoints: editedSummary.keyDiscussionPoints,
+        actionItems: editedSummary.actionItems,
+        followUpRecommendations: editedSummary.followUpTopics,
+        topicsDiscussed: editedSummary.topicsDiscussed,
+      });
+      setFeedback({ msg: 'Draft saved.', type: 'success' });
+      setIsEditing(false);
+    } catch (err) {
+      setFeedback({ msg: err instanceof Error ? err.message : 'Save failed.', type: 'error' });
+    }
   };
 
-  const menteeName = mentees.find((m) => m.id === form.menteeId)?.name ?? 'Student';
+  const selectedMenteeName = mentees.find((m) => m.id === form.menteeId)?.name ?? 'Unknown Mentee';
 
   return (
-    <div className="form-card">
-      <div className="page-header" style={{ marginBottom: 24 }}>
+    <div className="upload-call-page">
+      {/* Header */}
+      <div className="upload-header">
+        <div className="upload-header-icon">
+          <Mic size={28} />
+        </div>
         <div>
-          <div className="label">Upload Call</div>
-          <h3 className="page-title" style={{ fontSize: '1.8rem' }}>Mentorship session record</h3>
+          <h1 className="upload-title">Upload Mentorship Call</h1>
+          <p className="upload-subtitle">AI will transcribe and summarise the call for your review</p>
         </div>
       </div>
 
-      {/* Step indicator */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 28 }}>
-        {steps.map((step, index) => {
-          const isActive = currentStep === index;
-          const isDone = currentStep > index;
-          return (
-            <div
-              key={step}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '8px 14px', borderRadius: 999, fontWeight: 700, fontSize: '0.84rem',
-                background: isActive ? 'rgba(143,63,102,0.10)' : isDone ? 'rgba(43,138,91,0.08)' : 'var(--surface-muted)',
-                color: isActive ? 'var(--primary)' : isDone ? 'var(--success)' : 'var(--text-secondary)',
-                transition: 'all 0.2s',
-              }}
-            >
-              {isDone ? <CheckCircle size={14} /> : <span style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${isActive ? 'var(--primary)' : 'var(--border)'}`, display: 'grid', placeItems: 'center', fontSize: '0.7rem' }}>{index + 1}</span>}
-              <span>{step}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Feedback bar */}
-      {feedback && (
-        <div className="summary-card" style={{ marginBottom: 20, borderLeftWidth: 3, borderLeftStyle: 'solid', borderLeftColor: feedbackType === 'error' ? 'var(--danger)' : 'var(--success)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {feedbackType === 'error' ? <AlertTriangle size={16} color="var(--danger)" /> : <CheckCircle size={16} color="var(--success)" />}
-            <strong style={{ color: feedbackType === 'error' ? 'var(--danger)' : 'var(--success)' }}>{feedback}</strong>
-          </div>
-        </div>
-      )}
-
-      {/* Step 1: Select Mentee */}
-      {currentStep === 0 && (
-        <>
-          <div style={{ display: 'grid', gap: 18 }}>
-            <div className="field">
-              <label>Mentee</label>
-              <select className="select" value={form.menteeId} onChange={(e) => setForm((p) => ({ ...p, menteeId: e.target.value }))}>
-                <option value="">Select a mentee…</option>
-                {mentees.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-            </div>
-            <div className="field-row">
-              <div className="field">
-                <label>Date of Call</label>
-                <input className="input" type="date" value={form.date} onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))} />
-              </div>
-              <div className="field">
-                <label>Call Duration (minutes)</label>
-                <input className="input" type="number" value={form.duration} min={1} onChange={(e) => setForm((p) => ({ ...p, duration: Number(e.target.value || 1) }))} />
-              </div>
-            </div>
-            <div className="field">
-              <label>Optional Mentor Notes</label>
-              <textarea className="textarea" value={form.mentorNotes} onChange={(e) => setForm((p) => ({ ...p, mentorNotes: e.target.value }))} placeholder="Any observations about the session…" />
-            </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 24 }}>
-            <button className="btn-primary" disabled={!canGoNext()} onClick={() => setCurrentStep(1)}>
-              Continue → Upload Recording
-            </button>
-          </div>
-        </>
-      )}
-
-      {/* Step 2: Upload Recording */}
-      {currentStep === 1 && (
-        <div>
-          {/* Consent notice */}
-          <div style={{ padding: '16px 18px', background: 'rgba(207,159,75,0.06)', borderRadius: 14, border: '1px solid rgba(207,159,75,0.2)', marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <AlertTriangle size={18} color="var(--warning)" style={{ marginTop: 2, flexShrink: 0 }} />
-              <div>
-                <div style={{ fontWeight: 700, fontSize: '0.92rem', marginBottom: 4 }}>Privacy & Consent Notice</div>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-                  Please ensure that the participants have provided the required consent before recording and uploading this mentorship conversation. All recordings are stored securely and accessible only to authorized Anfaal Foundation staff.
-                </p>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, cursor: 'pointer', fontWeight: 600, fontSize: '0.88rem' }}>
-                  <input type="checkbox" checked={consentChecked} onChange={(e) => setConsentChecked(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--primary)' }} />
-                  I confirm that proper consent has been obtained for this recording
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Drag-and-drop area */}
+      {/* Wizard Steps */}
+      <div className="wizard-steps">
+        {WIZARD_STEPS.map((step, index) => (
           <div
-            className="upload-box"
+            key={index}
+            className={`wizard-step ${index === currentStep ? 'wizard-step-active' : index < currentStep ? 'wizard-step-done' : 'wizard-step-pending'}`}
+          >
+            <div className="wizard-step-circle">
+              {index < currentStep ? <CheckCircle size={16} /> : <span>{index + 1}</span>}
+            </div>
+            <span className="wizard-step-label">{step}</span>
+            {index < WIZARD_STEPS.length - 1 && <ChevronRight size={16} className="wizard-step-arrow" />}
+          </div>
+        ))}
+      </div>
+
+      {/* Feedback banner */}
+      {feedback && (
+        <div className={`alert-banner ${feedback.type === 'error' ? 'alert-error' : 'alert-success'}`}>
+          {feedback.type === 'error' ? <AlertTriangle size={16} /> : <CheckCircle size={16} />}
+          {feedback.msg}
+        </div>
+      )}
+
+      {/* ── STEP 0: Record Details ───────────────────────────────────────── */}
+      {currentStep === 0 && (
+        <div className="wizard-card">
+          <h2 className="wizard-card-title">
+            <User size={20} /> Call Details
+          </h2>
+
+          <div className="form-grid-2">
+            <div className="form-field">
+              <label className="field-label">Mentee *</label>
+              <select
+                className="field-select"
+                value={form.menteeId}
+                onChange={(e) => setForm((p) => ({ ...p, menteeId: e.target.value }))}
+              >
+                <option value="">Select a mentee…</option>
+                {mentees.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+              {mentees.length === 0 && (
+                <p className="field-hint">No mentees assigned yet. Contact your administrator.</p>
+              )}
+            </div>
+
+            <div className="form-field">
+              <label className="field-label">
+                <Calendar size={14} /> Call Date
+              </label>
+              <input
+                type="date"
+                className="field-input"
+                value={form.date}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-field">
+              <label className="field-label">
+                <Clock size={14} /> Duration (minutes) *
+              </label>
+              <input
+                type="number"
+                className="field-input"
+                value={form.duration}
+                min={1}
+                max={300}
+                onChange={(e) => setForm((p) => ({ ...p, duration: Number(e.target.value) }))}
+              />
+            </div>
+          </div>
+
+          <div className="form-field">
+            <label className="field-label">Mentor Notes (optional)</label>
+            <textarea
+              className="field-textarea"
+              rows={4}
+              placeholder="Any notes before the AI processes the call — context, focus areas, key concerns…"
+              value={form.mentorNotes}
+              onChange={(e) => setForm((p) => ({ ...p, mentorNotes: e.target.value }))}
+            />
+            <p className="field-hint">
+              These notes help the AI generate a more accurate summary. They will NOT appear verbatim in the final record.
+            </p>
+          </div>
+
+          <button
+            id="upload-call-next-btn"
+            className="btn btn-primary"
+            disabled={!form.menteeId || !form.duration}
+            onClick={() => setCurrentStep(1)}
+          >
+            Next: Upload Recording <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* ── STEP 1: Upload Audio ─────────────────────────────────────────── */}
+      {currentStep === 1 && (
+        <div className="wizard-card">
+          <h2 className="wizard-card-title">
+            <Upload size={20} /> Upload Recording
+          </h2>
+
+          {/* Dropzone */}
+          <div
+            id="dropzone"
+            className={`dropzone ${isDragging ? 'dropzone-dragging' : ''} ${selectedFile ? 'dropzone-has-file' : ''}`}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            style={{
-              cursor: 'pointer',
-              borderColor: isDragging ? 'var(--primary)' : selectedFile ? 'var(--success)' : 'var(--border)',
-              background: isDragging ? 'rgba(143,63,102,0.04)' : selectedFile ? 'rgba(43,138,91,0.04)' : 'rgba(45,95,93,0.02)',
-              transition: 'all 0.2s',
-              padding: '36px 16px',
-            }}
           >
-            <div style={{ display: 'inline-flex', width: 56, height: 56, borderRadius: '50%', background: selectedFile ? 'rgba(43,138,91,0.1)' : 'rgba(143,63,102,0.08)', placeItems: 'center', marginBottom: 14 }}>
-              {selectedFile ? <CheckCircle size={26} color="var(--success)" /> : <Upload size={26} color="var(--primary)" />}
-            </div>
-            <h4 style={{ color: 'var(--text-primary)', marginBottom: 8 }}>
-              {selectedFile ? selectedFile.name : 'Upload your mentorship call recording'}
-            </h4>
-            <p>{selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB` : 'Drag & drop or click to select an audio/video file'}</p>
-            <p style={{ marginTop: 10, fontSize: '0.78rem' }}>Supported: MP3, WAV, M4A, MP4 · Max 25 MB</p>
             <input
               ref={fileInputRef}
               type="file"
               accept={ACCEPTED_TYPES}
-              onChange={(e) => handleFileSelect(e.target.files?.[0] ?? null)}
               style={{ display: 'none' }}
+              onChange={(e) => handleFileSelect(e.target.files?.[0] ?? null)}
             />
+            {selectedFile ? (
+              <div className="dropzone-file-info">
+                <div className="dropzone-file-icon">
+                  <Mic size={32} />
+                </div>
+                <div>
+                  <p className="dropzone-file-name">{selectedFile.name}</p>
+                  <p className="dropzone-file-size">{formatFileSize(selectedFile.size)}</p>
+                </div>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <>
+                <Upload size={40} className="dropzone-icon" />
+                <p className="dropzone-heading">Drag & drop your recording here</p>
+                <p className="dropzone-hint">MP3, WAV, M4A, MP4, WebM — up to 100 MB</p>
+                <span className="btn btn-outline btn-sm">Browse Files</span>
+              </>
+            )}
           </div>
 
-          {selectedFile && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14 }}>
-              <button className="btn-secondary" onClick={() => { setSelectedFile(null); setConsentChecked(false); }} style={{ fontSize: '0.82rem' }}>
-                Remove file
-              </button>
-              <button className="btn-secondary" onClick={() => fileInputRef.current?.click()} style={{ fontSize: '0.82rem' }}>
-                Replace file
-              </button>
+          <p className="field-hint" style={{ marginTop: '0.5rem' }}>
+            No recording? You can still submit with mentor notes only — the AI will use your notes to generate a summary.
+          </p>
+
+          {/* Consent checkbox */}
+          <div className="consent-box">
+            <input
+              type="checkbox"
+              id="consent-check"
+              checked={consentChecked}
+              onChange={(e) => setConsentChecked(e.target.checked)}
+            />
+            <label htmlFor="consent-check">
+              I confirm the mentee has given consent for this call recording to be processed by AI for the purposes of mentorship reporting.
+            </label>
+          </div>
+
+          <div className="wizard-nav">
+            <button className="btn btn-ghost" onClick={() => setCurrentStep(0)}>
+              ← Back
+            </button>
+            <button
+              id="upload-call-submit-btn"
+              className="btn btn-primary"
+              disabled={isSubmitting || !consentChecked}
+              onClick={handleSubmit}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader size={16} className="spin" /> Uploading…
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} /> Submit & Process
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── STEP 2: AI Processing (progress polling) ─────────────────────── */}
+      {currentStep === 2 && (
+        <div className="wizard-card processing-card">
+          <div className="processing-header">
+            <div className="processing-pulse" />
+            <h2 className="wizard-card-title">
+              <Brain size={22} /> AI is processing your call…
+            </h2>
+          </div>
+          <p className="processing-subtitle">
+            This typically takes 1–5 minutes depending on recording length. You can stay on this page or come back later.
+          </p>
+          {jobStatus && <PipelineProgress job={jobStatus} />}
+          {jobStatus?.status === 'FAILED' && (
+            <div className="alert-banner alert-error">
+              <AlertTriangle size={16} />
+              Processing failed. {jobStatus.error ?? 'Please try again.'}
             </div>
           )}
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28, flexWrap: 'wrap', gap: 12 }}>
-            <button className="btn-secondary" onClick={() => setCurrentStep(0)}>← Back</button>
-            <button className="btn-primary" disabled={!canGoNext() || isSubmitting} onClick={handleSubmitUpload}>
-              {isSubmitting ? 'Uploading…' : 'Upload & Process'}
-            </button>
-          </div>
         </div>
       )}
 
-      {/* Step 3: Processing */}
-      {currentStep === 2 && (
-        <div className="summary-card" style={{ textAlign: 'center', padding: '40px 24px' }}>
-          <div style={{ display: 'inline-flex', width: 56, height: 56, borderRadius: '50%', background: 'rgba(143,63,102,0.08)', placeItems: 'center', marginBottom: 20 }}>
-            <Loader size={26} color="var(--primary)" style={{ animation: 'spin 1.2s linear infinite' }} />
-          </div>
-          <h3 style={{ marginBottom: 16, fontWeight: 800 }}>Processing your call</h3>
-          <div style={{ display: 'grid', gap: 12, maxWidth: 320, margin: '0 auto', textAlign: 'left' }}>
-            {['Uploading recording…', 'Processing audio…', 'Transcribing conversation…', 'Generating AI summary…'].map((label, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)', fontSize: '0.92rem' }}>
-                <div style={{ width: 20, height: 20, borderRadius: '50%', background: i <= 2 ? 'rgba(43,138,91,0.12)' : 'rgba(143,63,102,0.08)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-                  {i <= 2 ? <CheckCircle size={12} color="var(--success)" /> : <Loader size={10} color="var(--primary)" style={{ animation: 'spin 1s linear infinite' }} />}
-                </div>
-                {label}
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: 24, height: 8, borderRadius: 999, background: 'var(--surface-muted)', overflow: 'hidden', maxWidth: 320, margin: '24px auto 0' }}>
-            <div style={{ width: '80%', height: '100%', background: 'linear-gradient(90deg, var(--primary), #b85c8a)', borderRadius: 999, animation: 'progressPulse 1.5s ease-in-out infinite' }} />
-          </div>
-          <style>{`
-            @keyframes spin { to { transform: rotate(360deg); } }
-            @keyframes progressPulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
-          `}</style>
-        </div>
-      )}
-
-      {/* Step 4: AI Review */}
-      {currentStep === 3 && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
+      {/* ── STEP 3: Review & Approve ─────────────────────────────────────── */}
+      {currentStep === 3 && callDetail && editedSummary && (
+        <div className="review-wrapper">
+          {/* Header banner */}
+          <div className="review-ai-banner">
+            <Sparkles size={18} />
             <div>
-              <div className="label" style={{ marginBottom: 4 }}>AI Generated Summary</div>
-              <h3 style={{ fontWeight: 700, fontSize: '1.2rem' }}>Review for {menteeName}</h3>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn-secondary" onClick={() => setIsEditing(!isEditing)}>
-                {isEditing ? 'Done Editing' : '✏️ Edit'}
-              </button>
-              <button className="btn-secondary" disabled={isSubmitting} onClick={async () => {
-                if (!createdCallId) return;
-                const token = localStorage.getItem('anfaal-token');
-                if (!token) return;
-                setIsSubmitting(true);
-                try {
-                  // Re-fetch AI summary via updating with mentor notes to trigger a re-generation simulation
-                  showFeedback('AI summary regenerated (based on saved notes).', 'success');
-                } catch {
-                  showFeedback('Unable to regenerate summary.', 'error');
-                } finally {
-                  setIsSubmitting(false);
-                }
-              }}>🔄 Regenerate</button>
+              <strong>AI Summary Ready for Review</strong>
+              <p>
+                This summary was generated by AI and has not been confirmed. Review it carefully before approving — your approval makes it the official record.
+              </p>
             </div>
           </div>
 
-          <div className="summary-grid">
-            <div className="summary-card">
-              <div className="label" style={{ marginBottom: 8 }}>Short Summary</div>
-              {isEditing ? (
-                <textarea className="textarea" value={aiSummary.shortSummary} onChange={(e) => setAiSummary((p) => ({ ...p, shortSummary: e.target.value }))} style={{ minHeight: 80 }} />
-              ) : (
-                <p style={{ lineHeight: 1.7 }}>{aiSummary.shortSummary}</p>
+          <div className="review-grid">
+            {/* Left: Summary */}
+            <div className="review-col">
+              <div className="review-section">
+                <div className="review-section-header">
+                  <h3>
+                    <FileText size={16} /> Session Summary
+                  </h3>
+                  {!isEditing && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => setIsEditing(true)}>
+                      <Edit3 size={14} /> Edit
+                    </button>
+                  )}
+                </div>
+                {isEditing ? (
+                  <textarea
+                    className="field-textarea"
+                    rows={5}
+                    value={editedSummary.shortSummary}
+                    onChange={(e) =>
+                      setEditedSummary((p) => p && { ...p, shortSummary: e.target.value })
+                    }
+                  />
+                ) : (
+                  <p className="review-text">{editedSummary.shortSummary}</p>
+                )}
+              </div>
+
+              {editedSummary.academicProgress && (
+                <div className="review-section">
+                  <h3>Academic Progress</h3>
+                  {isEditing ? (
+                    <textarea
+                      className="field-textarea"
+                      rows={3}
+                      value={editedSummary.academicProgress}
+                      onChange={(e) =>
+                        setEditedSummary((p) => p && { ...p, academicProgress: e.target.value })
+                      }
+                    />
+                  ) : (
+                    <p className="review-text">{editedSummary.academicProgress}</p>
+                  )}
+                </div>
               )}
 
-              <div style={{ marginTop: 22 }}>
-                <h4>Key Discussion Points</h4>
-                {isEditing ? (
-                  <textarea className="textarea" value={aiSummary.keyDiscussionPoints.join('\n')} onChange={(e) => setAiSummary((p) => ({ ...p, keyDiscussionPoints: e.target.value.split('\n').filter(Boolean) }))} style={{ minHeight: 80 }} />
-                ) : (
-                  <ul style={{ paddingLeft: 18, marginTop: 8, display: 'grid', gap: 6 }}>
-                    {aiSummary.keyDiscussionPoints.map((item, i) => <li key={i}>{item}</li>)}
-                  </ul>
-                )}
-              </div>
+              {editedSummary.personalDevelopment && (
+                <div className="review-section">
+                  <h3>Personal Development</h3>
+                  {isEditing ? (
+                    <textarea
+                      className="field-textarea"
+                      rows={3}
+                      value={editedSummary.personalDevelopment}
+                      onChange={(e) =>
+                        setEditedSummary((p) => p && { ...p, personalDevelopment: e.target.value })
+                      }
+                    />
+                  ) : (
+                    <p className="review-text">{editedSummary.personalDevelopment}</p>
+                  )}
+                </div>
+              )}
 
-              <div style={{ marginTop: 22 }}>
-                <h4>Student Concerns</h4>
-                {isEditing ? (
-                  <textarea className="textarea" value={aiSummary.studentConcerns.join('\n')} onChange={(e) => setAiSummary((p) => ({ ...p, studentConcerns: e.target.value.split('\n').filter(Boolean) }))} style={{ minHeight: 60 }} />
-                ) : (
-                  <ul style={{ paddingLeft: 18, marginTop: 8, display: 'grid', gap: 6 }}>
-                    {aiSummary.studentConcerns.map((item, i) => <li key={i} style={{ color: 'var(--danger)' }}>{item}</li>)}
-                  </ul>
-                )}
-              </div>
+              {isEditing && (
+                <div className="edit-actions">
+                  <button className="btn btn-outline btn-sm" onClick={() => setIsEditing(false)}>
+                    Cancel
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={handleSaveDraft}>
+                    Save Draft
+                  </button>
+                </div>
+              )}
             </div>
 
-            <div className="summary-card">
-              <div className="label" style={{ marginBottom: 8 }}>Action Items & Follow-up</div>
-              <div style={{ marginTop: 8 }}>
-                <h4>Action Items</h4>
-                {isEditing ? (
-                  <textarea className="textarea" value={aiSummary.actionItems.join('\n')} onChange={(e) => setAiSummary((p) => ({ ...p, actionItems: e.target.value.split('\n').filter(Boolean) }))} style={{ minHeight: 80 }} />
-                ) : (
-                  <ul style={{ paddingLeft: 18, marginTop: 8, display: 'grid', gap: 6 }}>
-                    {aiSummary.actionItems.map((item, i) => <li key={i}>{item}</li>)}
-                  </ul>
-                )}
-              </div>
-              <div style={{ marginTop: 18 }}>
-                <h4>Follow-up Recommendations</h4>
-                {isEditing ? (
-                  <textarea className="textarea" value={aiSummary.followUpRecommendations.join('\n')} onChange={(e) => setAiSummary((p) => ({ ...p, followUpRecommendations: e.target.value.split('\n').filter(Boolean) }))} style={{ minHeight: 60 }} />
-                ) : (
-                  <ul style={{ paddingLeft: 18, marginTop: 8, display: 'grid', gap: 6 }}>
-                    {aiSummary.followUpRecommendations.map((item, i) => <li key={i}>{item}</li>)}
-                  </ul>
-                )}
-              </div>
-              <div style={{ marginTop: 18 }}>
-                <h4>Topics Discussed</h4>
-                {isEditing ? (
-                  <textarea className="textarea" value={aiSummary.topicsDiscussed.join('\n')} onChange={(e) => setAiSummary((p) => ({ ...p, topicsDiscussed: e.target.value.split('\n').filter(Boolean) }))} style={{ minHeight: 60 }} />
-                ) : (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                    {aiSummary.topicsDiscussed.map((item, i) => (
-                      <span key={i} style={{ background: 'rgba(143,63,102,0.08)', color: 'var(--primary)', borderRadius: 999, padding: '4px 12px', fontSize: '0.8rem', fontWeight: 700 }}>{item}</span>
+            {/* Right: Lists */}
+            <div className="review-col">
+              {isEditing ? (
+                <>
+                  <EditableList
+                    label="Key Discussion Points"
+                    items={editedSummary.keyDiscussionPoints}
+                    onChange={(items) => setEditedSummary((p) => p && { ...p, keyDiscussionPoints: items })}
+                  />
+                  <EditableList
+                    label="Challenges"
+                    items={editedSummary.challenges}
+                    onChange={(items) => setEditedSummary((p) => p && { ...p, challenges: items })}
+                  />
+                  <EditableList
+                    label="Achievements"
+                    items={editedSummary.achievements}
+                    onChange={(items) => setEditedSummary((p) => p && { ...p, achievements: items })}
+                  />
+                  <EditableList
+                    label="Action Items (Mentee)"
+                    items={editedSummary.actionItems}
+                    onChange={(items) => setEditedSummary((p) => p && { ...p, actionItems: items })}
+                  />
+                  <EditableList
+                    label="Mentor Commitments"
+                    items={editedSummary.mentorCommitments}
+                    onChange={(items) => setEditedSummary((p) => p && { ...p, mentorCommitments: items })}
+                  />
+                  <EditableList
+                    label="Follow-Up Topics"
+                    items={editedSummary.followUpTopics}
+                    onChange={(items) => setEditedSummary((p) => p && { ...p, followUpTopics: items })}
+                  />
+                </>
+              ) : (
+                <>
+                  <SummaryList title="Key Discussion Points" items={editedSummary.keyDiscussionPoints} color="blue" />
+                  <SummaryList title="Achievements" items={editedSummary.achievements} color="green" />
+                  <SummaryList title="Challenges" items={editedSummary.challenges} color="amber" />
+                  <SummaryList title="Action Items" items={editedSummary.actionItems} color="purple" />
+                  <SummaryList title="Mentor Commitments" items={editedSummary.mentorCommitments} color="indigo" />
+                  <SummaryList title="Follow-Up Topics" items={editedSummary.followUpTopics} color="teal" />
+                </>
+              )}
+
+              {/* Topics tags */}
+              {editedSummary.topicsDiscussed?.length > 0 && (
+                <div className="review-section">
+                  <h3>Topics Discussed</h3>
+                  <div className="tag-group">
+                    {editedSummary.topicsDiscussed.map((t, i) => (
+                      <span key={i} className="tag">{t}</span>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 28, flexWrap: 'wrap' }}>
-            <button className="btn-secondary" onClick={() => {
-              setCurrentStep(0);
-              setFeedback(null);
-              setSelectedFile(null);
-              setConsentChecked(false);
-              setCreatedCallId(null);
-              setAiSummary(fallbackSummary);
-              setIsEditing(false);
-              setForm((p) => ({ ...p, menteeId: mentees[0]?.id ?? '', date: new Date().toISOString().slice(0, 10), duration: 30, mentorNotes: '' }));
-            }}>Start Over</button>
-            <button className="btn-primary" onClick={handleFinalSubmit} style={{ minWidth: 180 }}>
-              ✓ Approve & Submit
-            </button>
+          {/* Approval bar */}
+          <div className="approval-bar">
+            <div className="approval-bar-info">
+              <strong>Ready to approve?</strong>
+              <span>Once approved, this becomes the official mentorship record for {selectedMenteeName}.</span>
+            </div>
+            <div className="approval-bar-actions">
+              <button className="btn btn-ghost" onClick={() => navigate('/mentor/calls')}>
+                Save & Exit
+              </button>
+              <button
+                id="approve-summary-btn"
+                className="btn btn-success"
+                disabled={isApproving}
+                onClick={handleApprove}
+              >
+                {isApproving ? (
+                  <>
+                    <Loader size={16} className="spin" /> Approving…
+                  </>
+                ) : (
+                  <>
+                    <ThumbsUp size={16} /> Approve Summary
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </>
+        </div>
       )}
+    </div>
+  );
+}
+
+// ─── Helper: summary list card ────────────────────────────────────────────────
+function SummaryList({ title, items, color }: { title: string; items: string[]; color: string }) {
+  if (!items?.length) return null;
+  return (
+    <div className={`review-section summary-list summary-list-${color}`}>
+      <h3>{title}</h3>
+      <ul>
+        {items.map((item, i) => (
+          <li key={i}>{item}</li>
+        ))}
+      </ul>
     </div>
   );
 }

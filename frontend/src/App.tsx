@@ -23,6 +23,8 @@ import { DailyPerformanceFormPage } from './pages/DailyPerformanceFormPage';
 import { MenteePerformanceHistoryPage } from './pages/MenteePerformanceHistoryPage';
 import { AdminPerformanceAnalyticsPage } from './pages/AdminPerformanceAnalyticsPage';
 import { BulkImportPage } from './pages/BulkImportPage';
+import { CallIntelligencePage } from './pages/CallIntelligencePage';
+import { AdminCallsPage } from './pages/AdminCallsPage';
 
 function getStoredUser() {
   const rawUser = localStorage.getItem('anfaal-user');
@@ -70,8 +72,11 @@ function App() {
           <Route path="reviews" element={<AdminReviewPage />} />
           <Route path="mentors" element={<MentorManagementPage />} />
           <Route path="mentees" element={<MenteeManagementPage />} />
+          <Route path="mentees/:menteeId" element={<MenteeProfilePage />} />
           <Route path="performance" element={<AdminPerformanceAnalyticsPage />} />
           <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="calls" element={<AdminCallsPage />} />
+          <Route path="calls/:callId" element={<CallIntelligencePage />} />
         </Route>
         <Route
           path="/mentor"
@@ -84,6 +89,7 @@ function App() {
           <Route index element={<MentorDashboardPage />} />
           <Route path="upload" element={<UploadCallPage />} />
           <Route path="calls" element={<MyCallsPage />} />
+          <Route path="calls/:callId" element={<CallIntelligencePage />} />
           <Route path="mentees" element={<MyMenteesPage />} />
           <Route path="mentees/:menteeId" element={<MenteeProfilePage />} />
           <Route path="profile" element={<MentorProfilePage />} />

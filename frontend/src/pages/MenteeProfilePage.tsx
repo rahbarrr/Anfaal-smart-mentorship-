@@ -11,6 +11,7 @@ type MenteeProfile = {
   guardian: string;
   phone: string;
   status: 'active' | 'inactive';
+  assignedMentor?: string;
   createdAt: string;
 };
 
@@ -56,6 +57,16 @@ export function MenteeProfilePage() {
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'calls' | 'summary' | 'performance'>('overview');
+
+  const user = (() => {
+    try {
+      const u = localStorage.getItem('anfaal-user');
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const isAdmin = user?.role === 'ADMIN';
 
   // Daily Performance states
   const [perfData, setPerfData] = useState<any>(null);
@@ -139,7 +150,7 @@ export function MenteeProfilePage() {
         style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20, fontSize: '0.88rem' }}
         onClick={() => navigate(-1)}
       >
-        <ArrowLeft size={15} /> Back to My Mentees
+        <ArrowLeft size={15} /> {isAdmin ? 'Back to Mentees' : 'Back to My Mentees'}
       </button>
 
       {/* Profile header */}
@@ -151,11 +162,18 @@ export function MenteeProfilePage() {
           <h2 style={{ fontWeight: 800, fontSize: '1.6rem', letterSpacing: '-0.04em', margin: 0 }}>{mentee.name}</h2>
           <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{mentee.standard}</span>
+            {mentee.assignedMentor && (
+              <span style={{ fontWeight: 700, color: 'var(--primary)', background: 'rgba(143,63,102,0.08)', padding: '3px 10px', borderRadius: 8, fontSize: '0.84rem' }}>
+                Mentor: {mentee.assignedMentor}
+              </span>
+            )}
             <span className={`status-badge ${mentee.status === 'active' ? 'status-completed' : 'status-failed'}`}>{mentee.status}</span>
             <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{calls.length} total sessions</span>
           </div>
         </div>
-        <button className="btn-primary" onClick={() => navigate('/mentor/upload')}>+ Upload Call</button>
+        <button className="btn-primary" onClick={() => navigate(isAdmin ? '/admin/calls' : '/mentor/upload')}>
+          {isAdmin ? 'View Call Library' : '+ Upload Call'}
+        </button>
       </div>
 
       {/* Quick stats */}
@@ -211,6 +229,7 @@ export function MenteeProfilePage() {
               {[
                 { label: 'Full Name', value: mentee.name },
                 { label: 'Class / Standard', value: mentee.standard },
+                { label: 'Assigned Mentor', value: mentee.assignedMentor || 'Unassigned' },
                 { label: 'Guardian', value: mentee.guardian || '—' },
                 { label: 'Phone', value: mentee.phone || '—' },
                 { label: 'Status', value: mentee.status },
@@ -262,18 +281,28 @@ export function MenteeProfilePage() {
                 <th>Status</th>
                 <th>Topics</th>
                 <th>Summary</th>
+                <th>Intelligence</th>
               </tr>
             </thead>
             <tbody>
               {calls.length === 0 ? (
-                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No calls recorded yet.</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No calls recorded yet.</td></tr>
               ) : calls.map((call) => (
                 <tr key={call.id}>
                   <td style={{ fontWeight: 600 }}>{new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                   <td>{call.duration} min</td>
                   <td><StatusBadge status={call.reviewStatus} /></td>
                   <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{call.topicsDiscussed?.slice(0, 2).join(', ') || '—'}</td>
-                  <td style={{ fontSize: '0.85rem', maxWidth: 260 }}>{call.summary ? call.summary.slice(0, 80) + (call.summary.length > 80 ? '…' : '') : '—'}</td>
+                  <td style={{ fontSize: '0.85rem', maxWidth: 240 }}>{call.summary ? call.summary.slice(0, 70) + (call.summary.length > 70 ? '…' : '') : '—'}</td>
+                  <td>
+                    <button
+                      className="btn-outline btn-sm"
+                      style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                      onClick={() => navigate(isAdmin ? `/admin/calls/${call.id}` : `/mentor/calls/${call.id}`)}
+                    >
+                      <Sparkles size={12} /> Intelligence
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -285,8 +314,17 @@ export function MenteeProfilePage() {
       {activeTab === 'summary' && lastCall && (
         <div className="summary-grid">
           <div className="summary-card">
-            <div className="label">Short Summary</div>
-            <p style={{ marginTop: 12, lineHeight: 1.7 }}>{lastCall.summary || 'No summary available.'}</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
+              <div className="label">Short Summary</div>
+              <button
+                className="btn-primary btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.82rem' }}
+                onClick={() => navigate(isAdmin ? `/admin/calls/${lastCall.id}` : `/mentor/calls/${lastCall.id}`)}
+              >
+                <Sparkles size={14} /> Full Call Intelligence Report →
+              </button>
+            </div>
+            <p style={{ marginTop: 8, lineHeight: 1.7 }}>{lastCall.summary || 'No summary available.'}</p>
 
             <div style={{ marginTop: 22 }}>
               <h4 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><MessageSquare size={16} /> Key Discussion Points</h4>

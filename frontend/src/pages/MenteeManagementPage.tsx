@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getMentees, createMentee, updateMentee, deleteMentee } from '../lib/api';
-import { X, Trash2 } from 'lucide-react';
+import { X, Trash2, ExternalLink } from 'lucide-react';
 
 type MenteeRow = {
   id: string;
@@ -15,6 +16,7 @@ type MenteeRow = {
 };
 
 export function MenteeManagementPage() {
+  const navigate = useNavigate();
   const [mentees, setMentees] = useState<MenteeRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -247,7 +249,27 @@ export function MenteeManagementPage() {
                         style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--primary)' }}
                       />
                     </td>
-                    <td style={{ fontWeight: 600 }}>{mentee.name}</td>
+                    <td style={{ fontWeight: 600 }}>
+                      <button
+                        onClick={() => navigate(`/admin/mentees/${mentee.id}`)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          fontWeight: 700,
+                          color: 'var(--primary)',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                        }}
+                        title="View Full Profile & Intelligence"
+                      >
+                        {mentee.name}
+                        <ExternalLink size={12} style={{ opacity: 0.6 }} />
+                      </button>
+                    </td>
                     <td>{mentee.standard}</td>
                     <td style={{ fontSize: '0.88rem' }}>{mentee.assignedMentor || 'Unassigned'}</td>
                     <td style={{ fontSize: '0.85rem' }}>{mentee.lastCallDate || '—'}</td>
@@ -259,7 +281,7 @@ export function MenteeManagementPage() {
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                        <button className="btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap' }} onClick={() => setSelectedMentee(mentee)}>View</button>
+                        <button className="btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap' }} onClick={() => navigate(`/admin/mentees/${mentee.id}`)}>Profile</button>
                         <button
                           className="btn-secondary"
                           style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap', color: mentee.status === 'active' ? 'var(--danger)' : 'var(--success)' }}
@@ -343,8 +365,11 @@ export function MenteeManagementPage() {
               <div><strong>Total Calls:</strong> {selectedMentee.totalCalls ?? 0}</div>
               <div><strong>Last Call Date:</strong> {selectedMentee.lastCallDate || '—'}</div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
-              <button className="btn-primary" onClick={() => setSelectedMentee(null)}>Close</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, gap: 10 }}>
+              <button className="btn-secondary" onClick={() => setSelectedMentee(null)}>Close</button>
+              <button className="btn-primary" onClick={() => { const id = selectedMentee.id; setSelectedMentee(null); navigate(`/admin/mentees/${id}`); }}>
+                View Full Profile & Performance →
+              </button>
             </div>
           </div>
         </div>

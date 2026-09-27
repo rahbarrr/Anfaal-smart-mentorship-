@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -12,22 +14,57 @@ export interface StorageProvider {
   uploadFile(file: UploadedFile): Promise<{ url: string; key: string }>;
   deleteFile(key: string): Promise<void>;
   getSignedUrl?(key: string): Promise<string>;
+  getFilePath?(key: string): string | null;
 }
 
 export class MockStorageProvider implements StorageProvider {
+  private uploadsDir: string;
+
+  constructor() {
+    this.uploadsDir = path.resolve(process.cwd(), 'uploads', 'recordings');
+    if (!fs.existsSync(this.uploadsDir)) {
+      try {
+        fs.mkdirSync(this.uploadsDir, { recursive: true });
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   async uploadFile(file: UploadedFile): Promise<{ url: string; key: string }> {
+    const filename = `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const filePath = path.join(this.uploadsDir, filename);
+
+    if (file.buffer) {
+      try {
+        await fs.promises.writeFile(filePath, file.buffer);
+      } catch (err) {
+        console.error('[MockStorage] Failed to write local recording:', err);
+      }
+    }
+
     return {
-      url: `https://mock-storage.local/${file.originalname}`,
-      key: `uploads/${Date.now()}-${file.originalname}`,
+      url: `/api/recordings/${filename}`,
+      key: filename,
     };
   }
 
-  async deleteFile(_key: string): Promise<void> {
-    return;
+  async deleteFile(key: string): Promise<void> {
+    const filePath = path.join(this.uploadsDir, key);
+    if (fs.existsSync(filePath)) {
+      await fs.promises.unlink(filePath).catch(() => {});
+    }
   }
 
   async getSignedUrl(key: string): Promise<string> {
-    return `https://mock-storage.local/${key}`;
+    return `/api/recordings/${key}`;
+  }
+
+  getFilePath(key: string): string | null {
+    if (!key) return null;
+    const cleanKey = path.basename(key);
+    const filePath = path.join(this.uploadsDir, cleanKey);
+    return fs.existsSync(filePath) ? filePath : null;
   }
 }
 

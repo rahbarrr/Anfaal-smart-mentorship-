@@ -185,6 +185,43 @@ export async function updateCallSummary(token: string, callId: string, payload: 
   return response.json();
 }
 
+export async function getCallDetail(token: string, callId: string) {
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load call detail');
+  return response.json();
+}
+
+export async function getCallJobStatus(token: string, callId: string) {
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}/job`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load job status');
+  return response.json();
+}
+
+export async function getCallTranscript(token: string, callId: string) {
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}/transcript`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load transcript');
+  return response.json();
+}
+
+export async function approveCallSummary(token: string, callId: string, editedSummary?: Record<string, unknown>) {
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ summary: editedSummary }),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to approve summary');
+  }
+  return response.json();
+}
+
 // ─── Mentors ──────────────────────────────────────────────────────────────────
 
 export async function getMentors(token: string) {
@@ -643,5 +680,39 @@ export async function exportBulkData(
   }
   return response.blob();
 }
+
+export interface AuditLogRow {
+  _id: string;
+  userId: string;
+  userName: string;
+  userRole: 'ADMIN' | 'MENTOR' | 'MENTEE';
+  action:
+    | 'UPLOAD_RECORDING'
+    | 'PLAY_RECORDING'
+    | 'VIEW_TRANSCRIPT'
+    | 'EDIT_SUMMARY'
+    | 'APPROVE_SUMMARY'
+    | 'CHANGE_ASSIGNMENT'
+    | 'DELETE_RECORD';
+  targetType: 'CALL' | 'MENTORSHIP' | 'MENTEE' | 'MENTOR' | 'DAILY_PERFORMANCE';
+  targetId: string;
+  menteeName?: string;
+  mentorName?: string;
+  details: string;
+  ipAddress?: string;
+  createdAt: string;
+}
+
+export async function getAuditLogs(token: string, action?: string, limit: number = 50): Promise<{ logs: AuditLogRow[] }> {
+  const params = new URLSearchParams();
+  if (action) params.set('action', action);
+  params.set('limit', String(limit));
+  const res = await fetch(`${API_BASE_URL}/admin/audit-logs?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch audit logs');
+  return res.json();
+}
+
 
 

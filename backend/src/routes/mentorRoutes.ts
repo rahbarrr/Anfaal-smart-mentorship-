@@ -6,6 +6,7 @@ import { Mentor } from '../models/Mentor.js';
 import { Mentorship } from '../models/Mentorship.js';
 import { Call } from '../models/Call.js';
 import { User } from '../models/User.js';
+import { logAuditEvent } from '../services/auditService.js';
 
 const router = Router();
 
@@ -161,6 +162,17 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest
 
     // Remove the linked user account
     await User.findByIdAndDelete(mentor.userId);
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'MENTOR',
+      targetId: mentorId,
+      details: `Permanently deleted mentor profile ${mentorId} and cascaded records`,
+      ipAddress: req.ip,
+    });
 
     return res.json({ message: 'Mentor and all associated data removed successfully.' });
   } catch (error) {

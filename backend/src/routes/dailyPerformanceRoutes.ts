@@ -46,6 +46,54 @@ async function verifyMentorAccess(userId: string, menteeId: string): Promise<boo
   return Boolean(assignment);
 }
 
+async function authorizeMenteeAccess(
+  req: AuthRequest,
+  requestedMenteeId?: string,
+): Promise<{ authorized: boolean; menteeId: string | null; errorStatus: number; errorMessage: string }> {
+  if (!req.user) {
+    return { authorized: false, menteeId: null, errorStatus: 401, errorMessage: 'Unauthorized' };
+  }
+
+  if (req.user.role === 'ADMIN') {
+    const id = requestedMenteeId || (await resolveMenteeId(req));
+    return { authorized: true, menteeId: id, errorStatus: 200, errorMessage: '' };
+  }
+
+  if (req.user.role === 'MENTEE') {
+    const ownMenteeId = await resolveMenteeId(req);
+    if (!ownMenteeId) {
+      return { authorized: false, menteeId: null, errorStatus: 403, errorMessage: 'Mentee profile not found' };
+    }
+    if (requestedMenteeId && requestedMenteeId !== ownMenteeId) {
+      return {
+        authorized: false,
+        menteeId: null,
+        errorStatus: 403,
+        errorMessage: 'Access denied: You can only view your own performance data',
+      };
+    }
+    return { authorized: true, menteeId: ownMenteeId, errorStatus: 200, errorMessage: '' };
+  }
+
+  if (req.user.role === 'MENTOR') {
+    if (!requestedMenteeId) {
+      return { authorized: false, menteeId: null, errorStatus: 400, errorMessage: 'Mentee ID required' };
+    }
+    const isAssigned = await verifyMentorAccess(req.user.id, requestedMenteeId);
+    if (!isAssigned) {
+      return {
+        authorized: false,
+        menteeId: null,
+        errorStatus: 403,
+        errorMessage: 'Access denied: You are not assigned to this mentee',
+      };
+    }
+    return { authorized: true, menteeId: requestedMenteeId, errorStatus: 200, errorMessage: '' };
+  }
+
+  return { authorized: false, menteeId: null, errorStatus: 403, errorMessage: 'Forbidden' };
+}
+
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const performanceSchema = z.object({
@@ -129,13 +177,11 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
 // ── 2. GET /api/daily-performance/today ────────────────────────────────────────
 router.get('/today', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let menteeId = await resolveMenteeId(req);
-    if (!menteeId && (req.user?.role === 'ADMIN' || req.user?.role === 'MENTOR') && req.query.menteeId) {
-      menteeId = String(req.query.menteeId);
+    const auth = await authorizeMenteeAccess(req, req.query.menteeId as string | undefined);
+    if (!auth.authorized || !auth.menteeId) {
+      return res.status(auth.errorStatus).json({ message: auth.errorMessage });
     }
-    if (!menteeId) {
-      return res.status(403).json({ message: 'Mentee profile not found.' });
-    }
+    const menteeId = auth.menteeId;
 
     const date = (req.query.date as string) || getTodayString();
     const record = await DailyPerformance.findOne({ menteeId, date }).lean();
@@ -150,13 +196,11 @@ router.get('/today', requireAuth, async (req: AuthRequest, res: Response) => {
 // ── 3. GET /api/daily-performance/history ──────────────────────────────────────
 router.get('/history', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let menteeId = await resolveMenteeId(req);
-    if (!menteeId && (req.user?.role === 'ADMIN' || req.user?.role === 'MENTOR') && req.query.menteeId) {
-      menteeId = String(req.query.menteeId);
+    const auth = await authorizeMenteeAccess(req, req.query.menteeId as string | undefined);
+    if (!auth.authorized || !auth.menteeId) {
+      return res.status(auth.errorStatus).json({ message: auth.errorMessage });
     }
-    if (!menteeId) {
-      return res.status(403).json({ message: 'Mentee profile not found.' });
-    }
+    const menteeId = auth.menteeId;
 
     const { from, to, limit = '50', skip = '0' } = req.query;
     const filter: Record<string, unknown> = { menteeId };
@@ -185,13 +229,11 @@ router.get('/history', requireAuth, async (req: AuthRequest, res: Response) => {
 // ── 4. GET /api/daily-performance/weekly ───────────────────────────────────────
 router.get('/weekly', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let menteeId = await resolveMenteeId(req);
-    if (!menteeId && (req.user?.role === 'ADMIN' || req.user?.role === 'MENTOR') && req.query.menteeId) {
-      menteeId = String(req.query.menteeId);
+    const auth = await authorizeMenteeAccess(req, req.query.menteeId as string | undefined);
+    if (!auth.authorized || !auth.menteeId) {
+      return res.status(auth.errorStatus).json({ message: auth.errorMessage });
     }
-    if (!menteeId) {
-      return res.status(403).json({ message: 'Mentee profile not found.' });
-    }
+    const menteeId = auth.menteeId;
 
     // Last 7 days dates
     const dates: string[] = [];
@@ -250,13 +292,11 @@ router.get('/weekly', requireAuth, async (req: AuthRequest, res: Response) => {
 // ── 5. GET /api/daily-performance/monthly ──────────────────────────────────────
 router.get('/monthly', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    let menteeId = await resolveMenteeId(req);
-    if (!menteeId && (req.user?.role === 'ADMIN' || req.user?.role === 'MENTOR') && req.query.menteeId) {
-      menteeId = String(req.query.menteeId);
+    const auth = await authorizeMenteeAccess(req, req.query.menteeId as string | undefined);
+    if (!auth.authorized || !auth.menteeId) {
+      return res.status(auth.errorStatus).json({ message: auth.errorMessage });
     }
-    if (!menteeId) {
-      return res.status(403).json({ message: 'Mentee profile not found.' });
-    }
+    const menteeId = auth.menteeId;
 
     const d = new Date();
     const year = d.getFullYear();

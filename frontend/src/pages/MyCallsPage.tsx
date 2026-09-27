@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMentorCalls, getMyMentees } from '../lib/api';
+import { Brain } from 'lucide-react';
 
 function StatusBadge({ status }: { status: string }) {
   const cls = (() => {
@@ -14,6 +15,13 @@ function StatusBadge({ status }: { status: string }) {
     }
   })();
   return <span className={`status-badge ${cls}`}>{status}</span>;
+}
+
+function AiStatusDot({ status }: { status?: string }) {
+  if (status === 'completed') return <span style={{ color: '#16a34a', fontSize: '0.78rem', fontWeight: 600 }}>✓ Ready</span>;
+  if (status === 'pending' || status === 'processing') return <span style={{ color: '#d97706', fontSize: '0.78rem' }}>⏳ Processing</span>;
+  if (status === 'failed') return <span style={{ color: '#dc2626', fontSize: '0.78rem' }}>⚠ Failed</span>;
+  return <span style={{ color: 'var(--text-tertiary)', fontSize: '0.78rem' }}>—</span>;
 }
 
 export function MyCallsPage() {
@@ -45,8 +53,6 @@ export function MyCallsPage() {
     const matchStatus = !statusFilter || call.status === statusFilter;
     return matchSearch && matchStatus;
   });
-
-  const [selectedCall, setSelectedCall] = useState<any | null>(null);
 
   return (
     <div className="form-card">
@@ -85,7 +91,7 @@ export function MyCallsPage() {
               <th>Mentee</th>
               <th>Duration</th>
               <th>Status</th>
-              <th>Summary</th>
+              <th>AI Summary</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -111,12 +117,15 @@ export function MyCallsPage() {
                   <td>{menteeMap[call.menteeId] ?? call.menteeId}</td>
                   <td>{call.duration} min</td>
                   <td><StatusBadge status={call.status} /></td>
-                  <td style={{ fontSize: '0.85rem', maxWidth: 220 }}>
-                    {call.summary ? (call.summary.length > 60 ? call.summary.slice(0, 60) + '…' : call.summary) : 'Awaiting summary'}
-                  </td>
+                  <td><AiStatusDot status={call.aiStatus} /></td>
                   <td>
-                    <button className="btn-secondary" style={{ fontSize: '0.82rem', padding: '6px 12px' }} onClick={() => setSelectedCall(call)}>
-                      View
+                    <button
+                      id={`view-call-${call.id}`}
+                      className="btn-secondary"
+                      style={{ fontSize: '0.82rem', padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      onClick={() => navigate(`/mentor/calls/${call.id}`)}
+                    >
+                      <Brain size={14} /> View Intelligence
                     </button>
                   </td>
                 </tr>
@@ -125,38 +134,6 @@ export function MyCallsPage() {
           </tbody>
         </table>
       </div>
-
-      {/* Call Detail Modal */}
-      {selectedCall && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 1000, padding: 20 }} onClick={() => setSelectedCall(null)}>
-          <div className="form-card" style={{ width: '100%', maxWidth: 640, maxHeight: '85vh', overflowY: 'auto', background: '#fff', borderRadius: 20, padding: 28, position: 'relative' }} onClick={(e) => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <div>
-                <div className="eyebrow">Call Session Details</div>
-                <h3 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Mentee: {menteeMap[selectedCall.menteeId] ?? selectedCall.menteeId}</h3>
-              </div>
-              <button className="btn-secondary" onClick={() => setSelectedCall(null)} style={{ padding: '6px 12px' }}>✕ Close</button>
-            </div>
-
-            <div style={{ display: 'grid', gap: 16 }}>
-              <div style={{ display: 'flex', gap: 18, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                <span>📅 <strong>Date:</strong> {new Date(selectedCall.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                <span>⏱️ <strong>Duration:</strong> {selectedCall.duration} min</span>
-                <span>📌 <strong>Status:</strong> <StatusBadge status={selectedCall.status} /></span>
-              </div>
-
-              <div style={{ background: 'rgba(143,63,102,0.04)', padding: 16, borderRadius: 14, border: '1px solid rgba(143,63,102,0.1)' }}>
-                <div className="label" style={{ marginBottom: 6 }}>AI Session Summary</div>
-                <p style={{ lineHeight: 1.6, margin: 0, fontSize: '0.95rem' }}>{selectedCall.summary}</p>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-                <button className="btn-primary" onClick={() => setSelectedCall(null)}>Close View</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

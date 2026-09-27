@@ -69,6 +69,60 @@ export interface MentorshipDocument {
   status: 'active' | 'archived';
 }
 
+export interface TranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+  speaker?: string;
+}
+
+export interface CallRecordingData {
+  url?: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+}
+
+export interface CallTranscriptionData {
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  text: string;
+  language?: string;
+  duration?: number;
+  segments?: TranscriptSegment[];
+  provider?: string;
+  createdAt?: Date;
+}
+
+export interface CallStructuredSummary {
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  shortSummary: string;
+  keyDiscussionPoints: string[];
+  academicProgress?: string;
+  personalDevelopment?: string;
+  challenges: string[];
+  achievements: string[];
+  actionItems: string[];
+  mentorCommitments: string[];
+  menteeCommitments: string[];
+  followUpTopics: string[];
+  topicsDiscussed: string[];
+  generatedAt?: Date;
+}
+
+export interface CallSummaryVersion {
+  version: number;
+  type: 'AI' | 'MENTOR_EDIT' | 'APPROVED';
+  content: Record<string, any>;
+  timestamp: Date;
+  author?: string;
+}
+
+export interface CallMentorReview {
+  status: 'Draft' | 'Pending Review' | 'Approved' | 'Rejected';
+  reviewedAt?: Date;
+  reviewedBy?: string;
+}
+
 export interface CallDocument {
   _id: string;
   mentorId: string;
@@ -77,8 +131,11 @@ export interface CallDocument {
   duration: number;
   recordingUrl?: string;
   recordingStatus: 'pending' | 'uploaded' | 'processing' | 'failed';
+  recording?: CallRecordingData;
   transcript?: string;
+  transcription?: CallTranscriptionData;
   summary?: string;
+  aiSummary?: CallStructuredSummary;
   keyDiscussionPoints: string[];
   studentConcerns: string[];
   actionItems: string[];
@@ -87,6 +144,9 @@ export interface CallDocument {
   mentorNotes?: string;
   aiStatus: 'pending' | 'processing' | 'completed' | 'failed';
   reviewStatus: AiReviewStatus;
+  mentorReview?: CallMentorReview;
+  summaryVersions?: CallSummaryVersion[];
   createdAt: Date;
   updatedAt: Date;
 }
+

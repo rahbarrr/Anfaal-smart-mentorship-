@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, UserRound, FileText, BarChart3, FileSpreadsheet, Link2, ClipboardCheck, LogOut, Menu, X, CalendarCheck, UploadCloud } from 'lucide-react';
+import { LayoutDashboard, Users, UserRound, FileText, BarChart3, FileSpreadsheet, Link2, ClipboardCheck, LogOut, Menu, X, CalendarCheck, UploadCloud, PhoneCall } from 'lucide-react';
 
 const links = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/admin/calls', label: 'Call Records', icon: PhoneCall, end: false },
   { to: '/admin/mentors', label: 'Mentors', icon: Users, end: false },
   { to: '/admin/mentees', label: 'Mentees', icon: UserRound, end: false },
   { to: '/admin/assignments', label: 'Assign', icon: Link2, end: false },

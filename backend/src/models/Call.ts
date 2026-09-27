@@ -13,8 +13,45 @@ const callSchema = new Schema<CallDocument>(
       enum: ['pending', 'uploaded', 'processing', 'failed'],
       default: 'pending',
     },
+    recording: {
+      url: { type: String },
+      fileName: { type: String },
+      fileSize: { type: Number },
+      mimeType: { type: String },
+    },
     transcript: { type: String },
+    transcription: {
+      status: { type: String, enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'], default: 'PENDING' },
+      text: { type: String, default: '' },
+      language: { type: String },
+      duration: { type: Number },
+      segments: [
+        {
+          start: { type: Number, required: true },
+          end: { type: Number, required: true },
+          text: { type: String, required: true },
+          speaker: { type: String },
+        },
+      ],
+      provider: { type: String },
+      createdAt: { type: Date },
+    },
     summary: { type: String },
+    aiSummary: {
+      status: { type: String, enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'], default: 'PENDING' },
+      shortSummary: { type: String, default: '' },
+      keyDiscussionPoints: [{ type: String, default: [] }],
+      academicProgress: { type: String },
+      personalDevelopment: { type: String },
+      challenges: [{ type: String, default: [] }],
+      achievements: [{ type: String, default: [] }],
+      actionItems: [{ type: String, default: [] }],
+      mentorCommitments: [{ type: String, default: [] }],
+      menteeCommitments: [{ type: String, default: [] }],
+      followUpTopics: [{ type: String, default: [] }],
+      topicsDiscussed: [{ type: String, default: [] }],
+      generatedAt: { type: Date },
+    },
     keyDiscussionPoints: [{ type: String, default: [] }],
     studentConcerns: [{ type: String, default: [] }],
     actionItems: [{ type: String, default: [] }],
@@ -31,6 +68,20 @@ const callSchema = new Schema<CallDocument>(
       enum: ['Draft', 'Pending Review', 'Approved', 'Rejected'],
       default: 'Draft',
     },
+    mentorReview: {
+      status: { type: String, enum: ['Draft', 'Pending Review', 'Approved', 'Rejected'], default: 'Draft' },
+      reviewedAt: { type: Date },
+      reviewedBy: { type: String },
+    },
+    summaryVersions: [
+      {
+        version: { type: Number, required: true },
+        type: { type: String, enum: ['AI', 'MENTOR_EDIT', 'APPROVED'], required: true },
+        content: { type: Schema.Types.Mixed, required: true },
+        timestamp: { type: Date, default: Date.now },
+        author: { type: String },
+      },
+    ],
   },
   { timestamps: true },
 );
@@ -40,6 +91,16 @@ callSchema.index({ menteeId: 1 });
 callSchema.index({ date: 1 });
 callSchema.index({ reviewStatus: 1 });
 callSchema.index({ mentorId: 1, date: -1 });
+// Full-text search index across transcripts and summaries
+callSchema.index({
+  transcript: 'text',
+  summary: 'text',
+  'aiSummary.shortSummary': 'text',
+  'aiSummary.academicProgress': 'text',
+  'aiSummary.personalDevelopment': 'text',
+  'aiSummary.keyDiscussionPoints': 'text',
+  'aiSummary.topicsDiscussed': 'text',
+});
 
 export const Call = mongoose.model<CallDocument>('Call', callSchema);
 

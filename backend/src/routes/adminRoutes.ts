@@ -9,6 +9,7 @@ import { User } from '../models/User.js';
 import { getDashboardSummary } from '../services/dashboardService.js';
 import { createStorageProvider } from '../services/storageService.js';
 import { summarizeAssignments } from '../services/mentorshipService.js';
+import { logAuditEvent } from '../services/auditService.js';
 
 const createAssignmentSchema = z.object({
   mentorId: z.string().min(1),
@@ -165,6 +166,18 @@ router.post('/assignments', requireAuth, requireRole('ADMIN'), async (req: AuthR
       status: parsed.data.status ?? 'active',
     });
 
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'CHANGE_ASSIGNMENT',
+      targetType: 'MENTORSHIP',
+      targetId: String(assignment._id),
+      menteeName: mentee.name,
+      details: `Created assignment: Mentee ${mentee.name} to mentor ${parsed.data.mentorId}`,
+      ipAddress: req.ip,
+    });
+
     return res.status(201).json({
       message: 'Assignment created successfully.',
       assignment: {
@@ -193,6 +206,17 @@ router.patch('/assignments/:assignmentId', requireAuth, requireRole('ADMIN'), as
       return res.status(404).json({ message: 'Assignment not found.' });
     }
 
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'CHANGE_ASSIGNMENT',
+      targetType: 'MENTORSHIP',
+      targetId: String(assignment._id),
+      details: `Updated assignment status to ${parsed.data.status}`,
+      ipAddress: req.ip,
+    });
+
     return res.json({
       message: 'Assignment updated.',
       assignment: {
@@ -212,6 +236,17 @@ router.delete('/assignments/:assignmentId', requireAuth, requireRole('ADMIN'), a
     if (!deleted) {
       return res.status(404).json({ message: 'Assignment not found.' });
     }
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'CHANGE_ASSIGNMENT',
+      targetType: 'MENTORSHIP',
+      targetId: String(req.params.assignmentId),
+      details: `Deleted mentorship assignment ${req.params.assignmentId}`,
+      ipAddress: req.ip,
+    });
 
     return res.json({ message: 'Assignment removed.' });
   } catch (error) {
@@ -362,6 +397,25 @@ router.get('/reports/calls', requireAuth, requireRole('ADMIN'), async (req: Auth
     return res.send(csvLines.join('\n'));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to generate report';
+    return res.status(500).json({ message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// GET /api/admin/audit-logs  — audit log for sensitive operations (Section 16)
+// ──────────────────────────────────────────────────────────────────────────
+router.get('/audit-logs', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const action = req.query.action as string | undefined;
+    const query: Record<string, unknown> = {};
+    if (action) query.action = action;
+
+    const { AuditLog } = await import('../models/AuditLog.js');
+    const logs = await AuditLog.find(query).sort({ createdAt: -1 }).limit(limit).lean();
+    return res.json({ logs });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to fetch audit logs';
     return res.status(500).json({ message });
   }
 });

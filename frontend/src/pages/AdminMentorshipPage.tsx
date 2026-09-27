@@ -24,7 +24,7 @@ export function AdminMentorshipPage() {
     if (!token) { setIsLoading(false); return; }
 
     getMentorshipSummary(token)
-      .then((res) => setSummary(res))
+      .then((res) => setSummary({ ...fallback, ...(res ?? {}) }))
       .catch(() => setSummary(fallback))
       .finally(() => setIsLoading(false));
   }, []);
@@ -58,7 +58,7 @@ export function AdminMentorshipPage() {
         <div className="summary-header">
           <h3>Mentors by assignment count</h3>
         </div>
-        {summary.mentorsByAssignmentCount.length === 0 ? (
+        {(!summary.mentorsByAssignmentCount || summary.mentorsByAssignmentCount.length === 0) ? (
           <p className="muted" style={{ marginTop: 18 }}>No assignment data yet.</p>
         ) : (
           <div style={{ marginTop: 18, display: 'grid', gap: 10 }}>

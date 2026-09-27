@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getReviewQueue, updateCallReview } from '../lib/api';
-import { CheckCircle, XCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 
 type CallReview = {
   id: string;
@@ -14,6 +15,7 @@ type CallReview = {
 };
 
 export function AdminReviewPage() {
+  const navigate = useNavigate();
   const [calls, setCalls] = useState<CallReview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -135,6 +137,13 @@ export function AdminReviewPage() {
                     )}
 
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                      <button
+                        className="btn-outline"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}
+                        onClick={(e) => { e.stopPropagation(); navigate(`/admin/calls/${call.id}`); }}
+                      >
+                        <Sparkles size={14} /> Full Call Intelligence & Transcript
+                      </button>
                       <button
                         className="btn-secondary"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--danger)' }}
