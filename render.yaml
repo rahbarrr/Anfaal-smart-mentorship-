@@ -22,7 +22,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CLIENT_URL
-        sync: false
+        value: https://anfaal-smart-mentorship.vercel.app
       - key: REDIS_URL
         sync: false
       - key: AWS_REGION
@@ -34,10 +34,14 @@ services:
       - key: AWS_SECRET_ACCESS_KEY
         sync: false
       - key: STORAGE_BUCKET
-        sync: false
+        value: anfaal-recordings
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_TRANSCRIPTION_MODEL
         value: whisper-1
       - key: OPENAI_MODEL
         value: gpt-4o-mini
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        value: admin@anfaalfoundation.com
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false

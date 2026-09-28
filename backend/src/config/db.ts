@@ -1,14 +1,20 @@
 import mongoose from 'mongoose';
 
-export async function connectDatabase() {
-  const mongoUri = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/anfaal';
+const DEFAULT_PROD_URI = 'mongodb+srv://sayedrahbarraza110_db_user:xphOrSAS25aeY59K@cluster1.yztincx.mongodb.net/anfaal_production?retryWrites=true&w=majority&appName=Cluster1';
 
-  if (!mongoUri) {
-    throw new Error('MONGODB_URI is not defined');
-  }
+export async function connectDatabase(): Promise<void> {
+  const isProd = process.env.NODE_ENV === 'production';
+  const mongoUri = process.env.MONGODB_URI || (isProd ? DEFAULT_PROD_URI : 'mongodb://localhost:27017/anfaal');
 
   if (mongoose.connection.readyState === 1) return;
 
-  await mongoose.connect(mongoUri);
-  console.log('MongoDB connected');
+  const maskedUri = mongoUri.replace(/:([^@]+)@/, ':***@');
+  console.log(`[Database] Connecting to MongoDB: ${maskedUri}`);
+
+  await mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 10000,
+  });
+
+  console.log('[Database] MongoDB connected successfully.');
 }

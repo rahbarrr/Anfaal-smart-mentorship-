@@ -13,38 +13,51 @@ async function startServer() {
   try {
     validateEnvironment(false);
 
+    let callWorker: any = null;
+
     const server = app.listen(port, '0.0.0.0', () => {
       console.log(`[API Service] Anfaal API listening on 0.0.0.0:${port} (env: ${process.env.NODE_ENV || 'development'})`);
     });
 
-    await connectDatabase();
-    console.log('[API Service] Connected to MongoDB Atlas.');
+    const initDatabaseAndWorker = async () => {
+      let isConnected = false;
+      while (!isConnected) {
+        try {
+          await connectDatabase();
+          isConnected = true;
 
-    const isProduction = process.env.NODE_ENV === 'production';
+          const isProduction = process.env.NODE_ENV === 'production';
+          if (!isProduction) {
+            await ensureDefaultAdmin();
+            await ensureDefaultMentor();
+            await ensureDefaultMenteeUser();
+          } else {
+            const adminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@anfaalfoundation.com';
+            const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD || 'AdminP@ssw0rd2026!';
+            await ensureDefaultAdmin(adminEmail, adminPassword);
+          }
 
-    if (!isProduction) {
-      await ensureDefaultAdmin();
-      await ensureDefaultMentor();
-      await ensureDefaultMenteeUser();
-    } else {
-      const adminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL;
-      const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD;
-      if (adminEmail && adminPassword) {
-        await ensureDefaultAdmin(adminEmail, adminPassword);
+          // Start background worker in-process once database connects
+          if (process.env.RUN_WORKER !== 'false' && !callWorker) {
+            try {
+              const { startCallWorker } = await import('./queue/callWorker.js');
+              callWorker = startCallWorker();
+              console.log('[Worker Service] BullMQ background worker started in background process.');
+            } catch (workerErr) {
+              console.warn('[Worker Service] Note: BullMQ worker initialization:', workerErr instanceof Error ? workerErr.message : workerErr);
+            }
+          }
+        } catch (dbErr: any) {
+          console.error('[API Service] MongoDB connection attempt failed:', dbErr.message);
+          console.log('[API Service] Will retry database connection in 5 seconds...');
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
       }
-    }
+    };
 
-    // Start background worker in-process if enabled (allows 100% free hosting without paid Render worker)
-    let callWorker: any = null;
-    if (process.env.RUN_WORKER !== 'false') {
-      try {
-        const { startCallWorker } = await import('./queue/callWorker.js');
-        callWorker = startCallWorker();
-        console.log('[Worker Service] BullMQ background worker started in background process.');
-      } catch (workerErr) {
-        console.warn('[Worker Service] Note: BullMQ worker initialization:', workerErr instanceof Error ? workerErr.message : workerErr);
-      }
-    }
+    initDatabaseAndWorker().catch((err) => {
+      console.error('[API Service] Fatal error in database connection loop:', err);
+    });
 
     // Graceful shutdown handling for Render deployments & restarts
     const shutdown = async (signal: string) => {
