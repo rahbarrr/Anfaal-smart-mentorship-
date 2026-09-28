@@ -7,12 +7,19 @@ import { ensureDefaultAdmin, ensureDefaultMentor, ensureDefaultMenteeUser } from
 
 dotenv.config();
 
-const port = Number(process.env.PORT ?? 5000);
+const port = Number(process.env.PORT || 10000);
 
 async function startServer() {
   try {
     validateEnvironment(false);
+
+    const server = app.listen(port, '0.0.0.0', () => {
+      console.log(`[API Service] Anfaal API listening on 0.0.0.0:${port} (env: ${process.env.NODE_ENV || 'development'})`);
+    });
+
     await connectDatabase();
+    console.log('[API Service] Connected to MongoDB Atlas.');
+
     const isProduction = process.env.NODE_ENV === 'production';
 
     if (!isProduction) {
@@ -26,10 +33,6 @@ async function startServer() {
         await ensureDefaultAdmin(adminEmail, adminPassword);
       }
     }
-
-    const server = app.listen(port, '0.0.0.0', () => {
-      console.log(`[API Service] Anfaal API running on 0.0.0.0:${port} (env: ${process.env.NODE_ENV || 'development'})`);
-    });
 
     // Start background worker in-process if enabled (allows 100% free hosting without paid Render worker)
     let callWorker: any = null;

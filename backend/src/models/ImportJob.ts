@@ -71,7 +71,7 @@ const importJobSchema = new Schema<ImportJobDocument>(
     startedAt: { type: Date },
     completedAt: { type: Date },
   },
-  { timestamps: true },
+  { timestamps: true, suppressReservedKeysWarning: true },
 );
 
 importJobSchema.index({ type: 1, createdAt: -1 });
