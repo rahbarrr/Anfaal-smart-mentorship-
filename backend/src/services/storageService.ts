@@ -121,14 +121,18 @@ export class S3StorageProvider implements StorageProvider {
       );
     }
 
+    const endpoint = process.env.AWS_ENDPOINT || process.env.S3_ENDPOINT;
+
     this.bucket = bucket;
     this.region = region;
     this.client = new S3Client({
       region: this.region,
+      endpoint: endpoint || undefined,
       credentials: {
         accessKeyId,
         secretAccessKey,
       },
+      forcePathStyle: Boolean(endpoint),
     });
   }
 
