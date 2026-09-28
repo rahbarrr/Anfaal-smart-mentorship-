@@ -332,7 +332,7 @@ export function BulkImportPage() {
         <div>
           {/* Quick Choice Cards (shown on Step 1) */}
           {wizardStep === 1 && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginBottom: 28 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 16, marginBottom: 28 }}>
               {/* Card 1: Mentors */}
               <div
                 style={{
@@ -445,16 +445,19 @@ export function BulkImportPage() {
 
           {/* 6-Step Wizard Navigation Indicator */}
           <div
+            className="bulk-stepper-bar"
             style={{
               background: '#fff',
               border: '1px solid var(--border)',
               borderRadius: 'var(--radius)',
-              padding: '16px 24px',
+              padding: '16px 20px',
               marginBottom: 24,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
+              gap: 12,
               overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch',
               boxShadow: 'var(--shadow-soft)',
             }}
           >

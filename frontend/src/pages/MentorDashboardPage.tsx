@@ -95,7 +95,7 @@ export function MentorDashboardPage() {
   ];
 
   return (
-    <div style={{ display: 'grid', gap: 24 }}>
+    <div style={{ display: 'grid', gap: 24, minWidth: 0, maxWidth: '100%' }}>
       {/* ── Top Metric Cards ──────────────────────────────────────────────── */}
       <div className="card-grid">
         {cards.map((card) => (
@@ -108,7 +108,7 @@ export function MentorDashboardPage() {
       </div>
 
       {/* ── Section 9: My Mentees Cards Grid ──────────────────────────────── */}
-      <div>
+      <div style={{ minWidth: 0, maxWidth: '100%' }}>
         <div className="page-header" style={{ marginBottom: 14 }}>
           <div>
             <div className="eyebrow">Assigned Students</div>
@@ -131,13 +131,7 @@ export function MentorDashboardPage() {
             <p className="muted">Your administrator will assign mentees to your mentor profile shortly.</p>
           </div>
         ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-              gap: 16,
-            }}
-          >
+          <div className="mentees-card-grid">
             {mentees.map((mentee) => {
               const p = mentee.todayProgress;
               const hasSubmitted = Boolean(p && p.submitted);
@@ -155,28 +149,31 @@ export function MentorDashboardPage() {
                     borderLeftStyle: 'solid',
                     borderLeftColor: needsHelp ? 'var(--danger)' : hasSubmitted ? 'var(--success)' : 'var(--border)',
                     position: 'relative',
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <div>
                     {/* Header */}
                     <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-                      <div>
-                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 2 }}>{mentee.name}</h4>
+                      <div style={{ minWidth: 0 }}>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 2, wordBreak: 'break-word' }}>{mentee.name}</h4>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
                           Class: {mentee.standard}
                         </span>
                       </div>
-                      <div>
+                      <div style={{ flexShrink: 0 }}>
                         {needsHelp ? (
-                          <span className="status-badge status-failed" style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                          <span className="status-badge status-failed" style={{ fontSize: '0.72rem', padding: '3px 8px', whiteSpace: 'nowrap' }}>
                             Needs Help
                           </span>
                         ) : hasSubmitted ? (
-                          <span className="status-badge status-completed" style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                          <span className="status-badge status-completed" style={{ fontSize: '0.72rem', padding: '3px 8px', whiteSpace: 'nowrap' }}>
                             ✓ Logged Today
                           </span>
                         ) : (
-                          <span className="status-badge status-pending" style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                          <span className="status-badge status-pending" style={{ fontSize: '0.72rem', padding: '3px 8px', whiteSpace: 'nowrap' }}>
                             No Log Today
                           </span>
                         )}
@@ -233,17 +230,17 @@ export function MentorDashboardPage() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                     <button
                       className="btn-primary btn-sm"
-                      style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                      style={{ flex: 1, minWidth: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, whiteSpace: 'nowrap' }}
                       onClick={() => navigate(`/mentor/mentees/${mentee.id}`)}
                     >
-                      View Mentee <ArrowRight size={13} />
+                      View Mentee <ArrowRight size={14} />
                     </button>
                     <button
                       className="btn-outline btn-sm"
-                      style={{ fontSize: '0.8rem' }}
+                      style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', flexShrink: 0 }}
                       title="Upload Call with this Mentee"
                       onClick={() => navigate('/mentor/upload')}
                     >
@@ -258,7 +255,7 @@ export function MentorDashboardPage() {
       </div>
 
       {/* ── Recent Mentorship Sessions Table ──────────────────────────────── */}
-      <div style={{ marginTop: 10 }}>
+      <div style={{ marginTop: 10, minWidth: 0, maxWidth: '100%' }}>
         <div className="page-header" style={{ marginBottom: 14 }}>
           <div>
             <div className="eyebrow">Call Records</div>

@@ -193,7 +193,7 @@ export function AdminDashboardPage() {
       )}
 
       {/* ── Dual Grid: Recent Calls & Recent Mentee Progress ──────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 20 }}>
         {/* Recent Calls */}
         <div className="summary-card">
           <div className="summary-header" style={{ marginBottom: 14 }}>

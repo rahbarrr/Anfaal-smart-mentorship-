@@ -76,7 +76,7 @@ export function MyMenteesPage() {
           <p className="muted">Contact your admin to get mentees assigned to you.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+        <div className="mentees-card-grid">
           {mentees.map((mentee, idx) => {
             const color = AVATAR_COLORS[idx % AVATAR_COLORS.length];
             return (

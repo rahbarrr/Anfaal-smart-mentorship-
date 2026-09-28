@@ -30,6 +30,7 @@ export function MenteeLayout() {
 
   return (
     <div className="layout-shell">
+      {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
       {/* ── Sidebar ──────────────────────────────────────────────────────── */}
       <aside className={`sidebar ${menuOpen ? 'mobile-menu-open' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
         <div className="brand-block">
@@ -69,16 +70,14 @@ export function MenteeLayout() {
             <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(143,63,102,0.12)', display: 'grid', placeItems: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: '0.9rem', flexShrink: 0 }}>
               {user?.name?.charAt(0) ?? 'M'}
             </div>
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name ?? 'Mentee'}</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Learner</div>
             </div>
           </div>
-          <button className="btn-secondary" style={{ width: '100%' }} onClick={handleSignOut}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-              <LogOut size={16} />
-              Sign out
-            </span>
+          <button className="btn-secondary" style={{ width: '100%', minHeight: 42, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, whiteSpace: 'nowrap' }} onClick={handleSignOut}>
+            <LogOut size={16} />
+            <span style={{ whiteSpace: 'nowrap' }}>Sign out</span>
           </button>
         </div>
       </aside>
@@ -101,7 +100,7 @@ export function MenteeLayout() {
       </main>
 
       {/* ── Mobile bottom navigation bar ─────────────────────────────────── */}
-      <nav className="bottom-nav">
+      <nav className="bottom-nav" aria-label="Mobile Mentee Navigation">
         {links.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
@@ -109,12 +108,12 @@ export function MenteeLayout() {
             end={end}
             className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}
           >
-            <Icon size={22} />
+            <Icon size={20} />
             <span>{label}</span>
           </NavLink>
         ))}
         <button className="bottom-nav-item" onClick={handleSignOut} title="Sign out">
-          <LogOut size={22} />
+          <LogOut size={20} />
           <span>Sign out</span>
         </button>
       </nav>

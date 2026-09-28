@@ -201,7 +201,7 @@ export function MenteeProfilePage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+      <div className="profile-tabs" style={{ display: 'flex', gap: 6, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0, overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -211,6 +211,7 @@ export function MenteeProfilePage() {
               fontSize: '0.88rem', borderBottom: activeTab === tab.id ? '2px solid var(--primary)' : '2px solid transparent',
               color: activeTab === tab.id ? 'var(--primary)' : 'var(--text-secondary)',
               transition: 'color 0.15s',
+              flexShrink: 0,
             }}
           >
             {tab.label}

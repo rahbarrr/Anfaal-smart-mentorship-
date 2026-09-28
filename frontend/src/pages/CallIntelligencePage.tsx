@@ -381,7 +381,7 @@ export function CallIntelligencePage() {
       {/* Failed state with Retry button */}
       {job?.status === 'FAILED' && (
         <div className="wizard-card" style={{ marginBottom: '1.5rem', borderLeft: '4px solid var(--danger)', background: 'rgba(239,68,68,0.04)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+          <div className="call-failed-row">
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
               <AlertTriangle size={24} color="var(--danger)" style={{ marginTop: 2, flexShrink: 0 }} />
               <div>
@@ -417,7 +417,7 @@ export function CallIntelligencePage() {
 
       {/* ── Call Overview & Audio Player Card (Section 1 & 15) ─────────────── */}
       <div className="summary-card" style={{ marginBottom: '1.5rem', padding: '18px 22px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+        <div className="call-overview-row">
           <div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
               Mentorship Session Details
@@ -447,7 +447,7 @@ export function CallIntelligencePage() {
           </div>
 
           {/* Secure Audio Player */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 280, justifyContent: 'flex-end' }}>
+          <div className="call-audio-player-wrap">
             {Boolean(signedAudioUrl || call.recording?.storageKey || call.recordingUrl || call.recording?.url) ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 420 }}>
                 <Volume2 size={20} color="var(--primary)" style={{ flexShrink: 0 }} />

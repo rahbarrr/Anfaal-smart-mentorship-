@@ -166,7 +166,7 @@ export function AdminCallsPage() {
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 260, justifyContent: 'flex-end' }}>
+          <div className="call-audio-player-wrap">
             <audio
               controls
               autoPlay
