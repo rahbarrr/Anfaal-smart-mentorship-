@@ -448,10 +448,18 @@ export async function executeImportJob(
             const { name, email, phone, gender, status } = rowItem.data;
             const existingUser = await User.findOne({ email });
 
+            // Default password of each mentor is their phone number, fallback to Mentor@123
+            const cleanPhone = (phone || '').trim().replace(/\s+/g, '');
+            const mentorPassword = cleanPhone || 'Mentor@123';
+            const mentorPasswordHash = await bcrypt.hash(mentorPassword, 10);
+
             if (existingUser) {
               if (duplicateAction === 'update') {
                 existingUser.name = name || existingUser.name;
                 existingUser.status = status?.toLowerCase() === 'disabled' ? 'disabled' : 'active';
+                if (cleanPhone) {
+                  existingUser.passwordHash = mentorPasswordHash;
+                }
                 await existingUser.save();
 
                 await Mentor.findOneAndUpdate(
@@ -472,7 +480,7 @@ export async function executeImportJob(
               const newUser = await User.create({
                 name,
                 email,
-                passwordHash: defaultMentorPassword,
+                passwordHash: mentorPasswordHash,
                 role: 'MENTOR',
                 status: status?.toLowerCase() === 'disabled' ? 'disabled' : 'active',
               });

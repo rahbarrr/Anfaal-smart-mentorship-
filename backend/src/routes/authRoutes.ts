@@ -5,8 +5,8 @@ import { loginUser } from '../services/authService.js';
 const router = Router();
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+  email: z.string().min(3),
+  password: z.string().min(1),
 });
 
 router.post('/login', async (req: Request, res: Response) => {

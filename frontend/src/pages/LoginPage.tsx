@@ -108,10 +108,11 @@ export function LoginPage() {
 
           <div style={{ display: 'grid', gap: 18 }}>
             <div className="field">
-              <label style={{ fontSize: '0.95rem', fontWeight: 700 }}>Email</label>
+              <label style={{ fontSize: '0.95rem', fontWeight: 700 }}>Email or Phone Number</label>
               <input
                 className="input"
-                type="email"
+                type="text"
+                placeholder="e.g. 9876543210 or email@domain.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
@@ -131,6 +132,7 @@ export function LoginPage() {
                 <input
                   className="input"
                   type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter password (default is phone number for mentors)"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
@@ -160,14 +162,14 @@ export function LoginPage() {
             <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12 }}>
               <button
                 type="button"
-                onClick={() => { setEmail('admin@anfaalfoundation.com'); setPassword('Admin@123'); }}
+                onClick={() => { setEmail('admin@anfaalfoundation.com'); setPassword('AdminP@ssw0rd2026!'); }}
                 style={{ fontSize: '0.78rem', background: '#f0eaed', border: '1px solid #d8d0d3', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
               >
                 Demo Admin
               </button>
               <button
                 type="button"
-                onClick={() => { setEmail('mentor@anfaalfoundation.com'); setPassword('Mentor@123'); }}
+                onClick={() => { setEmail('8767326868'); setPassword('8767326868'); }}
                 style={{ fontSize: '0.78rem', background: '#f0eaed', border: '1px solid #d8d0d3', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
               >
                 Demo Mentor
@@ -182,7 +184,7 @@ export function LoginPage() {
             </div>
 
             <div style={{ textAlign: 'center', marginTop: 16, fontSize: '0.84rem', color: '#6a6568', background: 'rgba(143,63,102,0.06)', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(143,63,102,0.12)' }}>
-              🔒 <strong>Anfaal Mentorship Platform:</strong> Supports Admins, Mentors, and Mentees. Select a demo account above for testing.
+              🔒 <strong>Mentors:</strong> You can log in using your phone number as both your username and password.
             </div>
           </div>
         </form>

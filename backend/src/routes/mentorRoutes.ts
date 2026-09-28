@@ -84,7 +84,9 @@ router.post('/', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res
       return res.status(409).json({ message: 'A user with this email already exists.' });
     }
 
-    const passwordHash = await bcrypt.hash(parsed.data.password ?? 'Mentor@123', 10);
+    const cleanPhone = (parsed.data.phone || '').trim().replace(/\s+/g, '');
+    const defaultPass = cleanPhone || 'Mentor@123';
+    const passwordHash = await bcrypt.hash(parsed.data.password ?? defaultPass, 10);
     const user = await User.create({
       name: parsed.data.name,
       email: parsed.data.email,

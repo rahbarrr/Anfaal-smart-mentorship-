@@ -8,16 +8,68 @@ export interface LoginPayload {
 }
 
 export async function loginUser({ email, password }: LoginPayload) {
-  const user = await User.findOne({ email: email.toLowerCase() });
+  const input = (email || '').trim();
+  let user = null;
 
-  if (!user) {
-    throw new Error('Invalid email or password');
+  if (input.includes('@')) {
+    user = await User.findOne({ email: input.toLowerCase() });
+  } else {
+    const rawDigits = input.replace(/\D/g, '');
+    const last10 = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
+
+    // 1. Try finding Mentor by phone
+    const { Mentor } = await import('../models/Mentor.js');
+    const mentor = await Mentor.findOne({
+      $or: [
+        { phone: input },
+        { phone: rawDigits },
+        { phone: `+91${last10}` },
+        { phone: last10 },
+        { phone: { $regex: last10, $options: 'i' } },
+      ],
+    });
+
+    if (mentor) {
+      user = await User.findById(mentor.userId);
+    }
+
+    // 2. Try finding Mentee by phone
+    if (!user) {
+      const { Mentee } = await import('../models/Mentee.js');
+      const mentee = await Mentee.findOne({
+        $or: [
+          { phone: input },
+          { phone: rawDigits },
+          { phone: `+91${last10}` },
+          { phone: last10 },
+          { phone: { $regex: last10, $options: 'i' } },
+        ],
+      });
+      if (mentee) {
+        user = await User.findById(mentee.userId);
+      }
+    }
   }
 
-  const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+  if (!user) {
+    throw new Error('Invalid email, phone number, or password');
+  }
+
+  let passwordMatches = await bcrypt.compare(password, user.passwordHash);
+
+  // If password comparison failed and password looks like phone number, try alternate phone representations
+  if (!passwordMatches && /\d{8,}/.test(password)) {
+    const passDigits = password.replace(/\D/g, '');
+    const passLast10 = passDigits.slice(-10);
+    if (await bcrypt.compare(passLast10, user.passwordHash)) {
+      passwordMatches = true;
+    } else if (await bcrypt.compare(`+91${passLast10}`, user.passwordHash)) {
+      passwordMatches = true;
+    }
+  }
 
   if (!passwordMatches) {
-    throw new Error('Invalid email or password');
+    throw new Error('Invalid email, phone number, or password');
   }
 
   let menteeId = user.menteeId;
