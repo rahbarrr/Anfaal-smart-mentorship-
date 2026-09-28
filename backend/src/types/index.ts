@@ -13,6 +13,7 @@ export interface UserDocument {
   _id: string;
   name: string;
   email: string;
+  macid?: string;
   passwordHash: string;
   role: UserRole;
   status: 'active' | 'disabled';
@@ -34,6 +35,7 @@ export interface MenteeDocument {
   _id: string;
   name: string;
   standard: string;
+  macid?: string;
   contactInformation?: Record<string, unknown>;
   status: 'active' | 'inactive';
   userId?: string;

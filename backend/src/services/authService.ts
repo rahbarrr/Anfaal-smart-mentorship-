@@ -14,26 +14,40 @@ export async function loginUser({ email, password }: LoginPayload) {
   if (input.includes('@')) {
     user = await User.findOne({ email: input.toLowerCase() });
   } else {
+    const rawUpper = input.toUpperCase();
     const rawDigits = input.replace(/\D/g, '');
     const last10 = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
 
-    // 1. Try finding Mentor by phone
-    const { Mentor } = await import('../models/Mentor.js');
-    const mentor = await Mentor.findOne({
-      $or: [
-        { phone: input },
-        { phone: rawDigits },
-        { phone: `+91${last10}` },
-        { phone: last10 },
-        { phone: { $regex: last10, $options: 'i' } },
-      ],
-    });
+    // 1. Try finding User or Mentee by MACID
+    user = await User.findOne({ macid: rawUpper });
 
-    if (mentor) {
-      user = await User.findById(mentor.userId);
+    if (!user) {
+      const { Mentee } = await import('../models/Mentee.js');
+      const mentee = await Mentee.findOne({ macid: rawUpper });
+      if (mentee && mentee.userId) {
+        user = await User.findById(mentee.userId);
+      }
     }
 
-    // 2. Try finding Mentee by phone
+    // 2. Try finding Mentor by phone
+    if (!user) {
+      const { Mentor } = await import('../models/Mentor.js');
+      const mentor = await Mentor.findOne({
+        $or: [
+          { phone: input },
+          { phone: rawDigits },
+          { phone: `+91${last10}` },
+          { phone: last10 },
+          { phone: { $regex: last10, $options: 'i' } },
+        ],
+      });
+
+      if (mentor) {
+        user = await User.findById(mentor.userId);
+      }
+    }
+
+    // 3. Try finding Mentee by phone
     if (!user) {
       const { Mentee } = await import('../models/Mentee.js');
       const mentee = await Mentee.findOne({
@@ -45,17 +59,26 @@ export async function loginUser({ email, password }: LoginPayload) {
           { phone: { $regex: last10, $options: 'i' } },
         ],
       });
-      if (mentee) {
+      if (mentee && mentee.userId) {
         user = await User.findById(mentee.userId);
       }
     }
   }
 
   if (!user) {
-    throw new Error('Invalid email, phone number, or password');
+    throw new Error('Invalid MACID, email, phone number, or password');
   }
 
   let passwordMatches = await bcrypt.compare(password, user.passwordHash);
+
+  // If password comparison failed and user is a mentee, check if password is MACID, phone, or Mentee@123
+  if (!passwordMatches && user.role === 'MENTEE') {
+    if (user.macid && password.toUpperCase() === user.macid) {
+      passwordMatches = true;
+    } else if (password === 'Mentee@123') {
+      passwordMatches = true;
+    }
+  }
 
   // If password comparison failed and password looks like phone number, try alternate phone representations
   if (!passwordMatches && /\d{8,}/.test(password)) {
@@ -69,7 +92,7 @@ export async function loginUser({ email, password }: LoginPayload) {
   }
 
   if (!passwordMatches) {
-    throw new Error('Invalid email, phone number, or password');
+    throw new Error('Invalid MACID, email, phone number, or password');
   }
 
   let menteeId = user.menteeId;

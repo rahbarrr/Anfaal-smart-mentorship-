@@ -5,6 +5,7 @@ const userSchema = new Schema<UserDocument>(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    macid: { type: String, trim: true, uppercase: true },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ['ADMIN', 'MENTOR', 'MENTEE'], required: true },
     status: { type: String, enum: ['active', 'disabled'], default: 'active' },
@@ -15,6 +16,7 @@ const userSchema = new Schema<UserDocument>(
 
 userSchema.index({ role: 1 });
 userSchema.index({ menteeId: 1 });
+userSchema.index({ macid: 1 }, { sparse: true });
 
 export const User = mongoose.model<UserDocument>('User', userSchema);
 
