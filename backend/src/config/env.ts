@@ -10,6 +10,7 @@ export interface AppConfig {
   clientUrl: string;
   redisUrl: string;
   awsRegion: string;
+  awsEndpoint?: string;
   storageBucket: string;
   openaiTranscriptionModel: string;
 }
@@ -90,6 +91,7 @@ export function getConfig(): AppConfig {
     clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
     redisUrl: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
     awsRegion: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1',
+    awsEndpoint: process.env.AWS_ENDPOINT || process.env.S3_ENDPOINT || undefined,
     storageBucket: process.env.STORAGE_BUCKET || process.env.AWS_STORAGE_BUCKET || '',
     openaiTranscriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || 'whisper-1',
   };
