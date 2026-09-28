@@ -6,8 +6,16 @@ import { processCallProcessingJob } from '../queue/callWorker.js';
  * Returns quickly to the Express HTTP handler.
  */
 export async function enqueueCallProcessingJob(data: CallProcessingJobData): Promise<{ enqueued: boolean; jobId?: string }> {
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // In production, the API service must NOT execute long-running transcription or AI summarization directly.
+  // It strictly enqueues to the Redis BullMQ queue for the dedicated Render Background Worker.
+  if (isProduction && process.env.ALLOW_INLINE_PROCESSING !== 'true') {
+    return addCallProcessingJob(data);
+  }
+
   return addCallProcessingJob(data, async (jobData) => {
-    // Fallback executor for dev/test when Redis is not running
+    // Fallback executor strictly for local development/test when Redis is not running
     console.log('[CallProcessing] Running job via fallback in-process handler for call:', jobData.callId);
     await processCallProcessingJob(jobData);
   });

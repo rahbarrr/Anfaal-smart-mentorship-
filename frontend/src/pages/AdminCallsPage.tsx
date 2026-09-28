@@ -167,13 +167,17 @@ export function AdminCallsPage() {
             </div>
           </div>
           <div className="call-audio-player-wrap">
-            <audio
-              controls
-              autoPlay
-              src={signedAudioUrl || `/api/calls/${playingCallId}/audio`}
-              style={{ width: '100%', maxWidth: 380, height: 38 }}
-              onError={() => setAudioError('Audio recording file is unavailable or missing on server.')}
-            />
+            {signedAudioUrl ? (
+              <audio
+                controls
+                autoPlay
+                src={signedAudioUrl}
+                style={{ width: '100%', maxWidth: 380, height: 38 }}
+                onError={() => setAudioError('Audio recording file is unavailable or missing on server.')}
+              />
+            ) : (
+              <span className="muted" style={{ fontSize: '0.85rem' }}>Loading secure audio player…</span>
+            )}
             <button className="btn btn-ghost btn-sm" onClick={() => setPlayingCallId(null)}>✕ Close</button>
           </div>
         </div>

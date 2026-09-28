@@ -192,12 +192,21 @@ export class S3StorageProvider implements StorageProvider {
 }
 
 export function createStorageProvider(): StorageProvider {
+  const isProd = process.env.NODE_ENV === 'production';
   const provider = process.env.STORAGE_PROVIDER?.toLowerCase();
   const hasS3Config = Boolean(
     (process.env.STORAGE_BUCKET || process.env.AWS_STORAGE_BUCKET) &&
     (process.env.AWS_ACCESS_KEY_ID || process.env.STORAGE_ACCESS_KEY) &&
     (process.env.AWS_SECRET_ACCESS_KEY || process.env.STORAGE_SECRET_KEY),
   );
+
+  // In production, AWS S3 is mandatory; silent fallback to mock local storage is disallowed
+  if (isProd) {
+    if (!hasS3Config && provider !== 's3') {
+      throw new Error('[Storage] AWS S3 configuration (STORAGE_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) is required in production.');
+    }
+    return new S3StorageProvider();
+  }
 
   if (provider === 's3' || hasS3Config) {
     try {
@@ -210,3 +219,4 @@ export function createStorageProvider(): StorageProvider {
 
   return new MockStorageProvider();
 }
+

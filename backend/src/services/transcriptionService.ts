@@ -110,8 +110,9 @@ export class MockTranscriptionService implements TranscriptionService {
 
 export class RealTranscriptionService implements TranscriptionService {
   async transcribe({ buffer, originalname, mimetype }: TranscriptInput): Promise<TranscriptionResult> {
+    const isProduction = process.env.NODE_ENV === 'production';
     const apiKey = process.env.TRANSCRIPTION_API_KEY || process.env.OPENAI_API_KEY;
-    const allowMock = process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
+    const allowMock = !isProduction && process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
 
     if (!buffer) {
       throw new Error('No audio recording buffer available for transcription.');
@@ -122,7 +123,7 @@ export class RealTranscriptionService implements TranscriptionService {
         console.warn('[Transcription] No API key found. Falling back to mock transcription because ALLOW_MOCK_TRANSCRIPTION=true');
         return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype });
       }
-      throw new Error('Transcription API key is not configured. Real transcription required in production.');
+      throw new Error('Transcription API key is not configured. Real transcription required in production (OPENAI_API_KEY).');
     }
 
     try {
@@ -213,8 +214,9 @@ export class RealTranscriptionService implements TranscriptionService {
 }
 
 export function createTranscriptionService(): TranscriptionService {
+  const isProduction = process.env.NODE_ENV === 'production';
   const hasKey = Boolean(process.env.OPENAI_API_KEY || process.env.TRANSCRIPTION_API_KEY);
-  const allowMock = process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
+  const allowMock = !isProduction && process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
 
   if (!hasKey && allowMock) {
     return new MockTranscriptionService();

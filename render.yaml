@@ -1,0 +1,75 @@
+services:
+  # ────────────────────────────────────────────────────────────────────────────
+  # 1. Anfaal Backend API (Render Web Service)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: web
+    name: anfaal-api
+    runtime: node
+    rootDir: backend
+    plan: starter
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: STORAGE_BUCKET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_TRANSCRIPTION_MODEL
+        value: whisper-1
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # 2. Anfaal Background Worker (Render Background Worker)
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: worker
+    name: anfaal-worker
+    runtime: node
+    rootDir: backend
+    plan: starter
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm run worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: STORAGE_BUCKET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_TRANSCRIPTION_MODEL
+        value: whisper-1
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini

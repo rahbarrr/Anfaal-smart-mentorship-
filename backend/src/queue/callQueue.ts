@@ -103,3 +103,23 @@ export async function addCallProcessingJob(
 
   throw new Error('Redis queue is unavailable and no fallback executor was provided.');
 }
+
+/**
+ * Checks Redis connectivity for health/readiness endpoints.
+ */
+export async function checkRedisHealth(): Promise<boolean> {
+  if (process.env.DISABLE_REDIS === 'true') {
+    return true;
+  }
+  try {
+    const client = redisConnection || createRedisConnection();
+    const pong = await Promise.race([
+      client.ping(),
+      new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000)),
+    ]);
+    return pong === 'PONG';
+  } catch {
+    return false;
+  }
+}
+

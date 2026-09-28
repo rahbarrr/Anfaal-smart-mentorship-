@@ -105,15 +105,16 @@ export class MockAiSummaryService implements AiSummaryService {
 
 export class RealAiSummaryService implements AiSummaryService {
   async summarize({ transcript, mentorNotes, metadata }: AiSummaryInput): Promise<AiSummaryResult> {
+    const isProduction = process.env.NODE_ENV === 'production';
     const apiKey = process.env.AI_API_KEY || process.env.OPENAI_API_KEY;
-    const allowMock = process.env.ALLOW_MOCK_AI === 'true';
+    const allowMock = !isProduction && process.env.ALLOW_MOCK_AI === 'true';
 
     if (!apiKey) {
       if (allowMock) {
         console.warn('[AISummary] No AI API key found. Falling back to mock summary because ALLOW_MOCK_AI=true');
         return new MockAiSummaryService().summarize({ transcript, mentorNotes, metadata });
       }
-      throw new Error('AI API key is not configured. Real AI summary required in production.');
+      throw new Error('AI API key is not configured. Real AI summary required in production (OPENAI_API_KEY).');
     }
 
     const systemPrompt = `You are an expert educational mentorship documentation assistant for the Anfaal Foundation.
@@ -220,8 +221,9 @@ Please produce the structured JSON summary strictly from the transcript above.`;
 }
 
 export function createAiSummaryService(): AiSummaryService {
+  const isProduction = process.env.NODE_ENV === 'production';
   const hasKey = Boolean(process.env.OPENAI_API_KEY || process.env.AI_API_KEY);
-  const allowMock = process.env.ALLOW_MOCK_AI === 'true';
+  const allowMock = !isProduction && process.env.ALLOW_MOCK_AI === 'true';
 
   if (!hasKey && allowMock) {
     return new MockAiSummaryService();

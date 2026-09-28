@@ -1,6 +1,7 @@
-// Use the same origin by default. Vite proxies this path in development and
-// Nginx proxies it in Docker, so phones never try to call their own localhost.
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? '/api';
+// Production API Base URL: loaded from VITE_API_URL or defaults to '/api'
+const rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || '/api';
+const API_BASE_URL = rawApiUrl.replace(/\/+$/, '');
+
 
 export type UserRole = 'ADMIN' | 'MENTOR' | 'MENTEE';
 

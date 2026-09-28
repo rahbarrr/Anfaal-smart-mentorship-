@@ -159,13 +159,21 @@ ${JSON.stringify(input.records, null, 2)}`,
               'Ask if they need any mentorship support with current topics.',
             ],
       };
-    } catch {
+    } catch (err) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(`Daily performance AI insight generation failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
       return new MockDailyPerformanceAiService().generateInsights(input);
     }
   }
 }
 
 export function createDailyPerformanceAiService(): DailyPerformanceAiService {
+  const isProduction = process.env.NODE_ENV === 'production';
   const hasKey = Boolean(process.env.OPENAI_API_KEY || process.env.AI_API_KEY);
+  if (isProduction && !hasKey) {
+    throw new Error('OPENAI_API_KEY is required in production for daily performance AI insights.');
+  }
   return hasKey ? new RealDailyPerformanceAiService() : new MockDailyPerformanceAiService();
 }
+

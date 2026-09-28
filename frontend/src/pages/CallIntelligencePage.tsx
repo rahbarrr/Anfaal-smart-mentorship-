@@ -451,12 +451,16 @@ export function CallIntelligencePage() {
             {Boolean(signedAudioUrl || call.recording?.storageKey || call.recordingUrl || call.recording?.url) ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 420 }}>
                 <Volume2 size={20} color="var(--primary)" style={{ flexShrink: 0 }} />
-                <audio
-                  controls
-                  src={signedAudioUrl || `/api/calls/${call._id}/audio`}
-                  style={{ width: '100%', height: 38 }}
-                  preload="metadata"
-                />
+                {signedAudioUrl ? (
+                  <audio
+                    controls
+                    src={signedAudioUrl}
+                    style={{ width: '100%', height: 38 }}
+                    preload="metadata"
+                  />
+                ) : (
+                  <span className="muted" style={{ fontSize: '0.85rem' }}>Loading secure audio player…</span>
+                )}
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
