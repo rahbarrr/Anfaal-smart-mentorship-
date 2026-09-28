@@ -19,38 +19,59 @@ dotenv.config();
 
 const app = express();
 
+// Enable trust proxy for Render / Cloudflare environment
+app.set('trust proxy', 1);
+
 const isProduction = process.env.NODE_ENV === 'production';
-const allowedOrigins = process.env.CLIENT_URL
-  ? process.env.CLIENT_URL.split(',').map((u) => u.trim())
-  : [];
+const rawOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((u) => u.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+const allowedOrigins = new Set([
+  'https://anfaal-smart-mentorship.vercel.app',
+  ...rawOrigins,
+]);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. mobile apps, curl, tests)
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
 
-      if (!isProduction) {
+      const cleanOrigin = origin.replace(/\/+$/, '');
+
+      // Allow if explicit in allowedOrigins
+      if (allowedOrigins.has(cleanOrigin)) {
         return callback(null, true);
       }
 
-      if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
+      // Allow any Vercel preview or production deployment domain for this app
+      if (/^https:\/\/([a-zA-Z0-9_-]+\.)?vercel\.app$/.test(cleanOrigin)) {
         return callback(null, true);
       }
 
-      return callback(new Error(`CORS policy violation: origin ${origin} is not allowed.`));
+      // Allow local development
+      if (!isProduction || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(cleanOrigin)) {
+        return callback(null, true);
+      }
+
+      console.warn(`[CORS] Origin rejected: ${origin}`);
+      return callback(null, false);
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept', 'X-Requested-With'],
   }),
 );
 app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(morgan('dev'));
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
 });
