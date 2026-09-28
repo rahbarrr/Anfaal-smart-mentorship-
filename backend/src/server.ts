@@ -31,9 +31,29 @@ async function startServer() {
       console.log(`[API Service] Anfaal API running on port ${port} (env: ${process.env.NODE_ENV || 'development'})`);
     });
 
+    // Start background worker in-process if enabled (allows 100% free hosting without paid Render worker)
+    let callWorker: any = null;
+    if (process.env.RUN_WORKER !== 'false') {
+      try {
+        const { startCallWorker } = await import('./queue/callWorker.js');
+        callWorker = startCallWorker();
+        console.log('[Worker Service] BullMQ background worker started in background process.');
+      } catch (workerErr) {
+        console.warn('[Worker Service] Note: BullMQ worker initialization:', workerErr instanceof Error ? workerErr.message : workerErr);
+      }
+    }
+
     // Graceful shutdown handling for Render deployments & restarts
     const shutdown = async (signal: string) => {
-      console.log(`[API Service] Received ${signal}. Shutting down API server gracefully...`);
+      console.log(`[API Service] Received ${signal}. Shutting down gracefully...`);
+      if (callWorker) {
+        try {
+          await callWorker.close();
+          console.log('[Worker Service] BullMQ worker closed.');
+        } catch {
+          // ignore
+        }
+      }
       server.close(async () => {
         try {
           await mongoose.disconnect();
