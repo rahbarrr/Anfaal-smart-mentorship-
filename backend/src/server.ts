@@ -27,8 +27,8 @@ async function startServer() {
       }
     }
 
-    const server = app.listen(port, () => {
-      console.log(`[API Service] Anfaal API running on port ${port} (env: ${process.env.NODE_ENV || 'development'})`);
+    const server = app.listen(port, '0.0.0.0', () => {
+      console.log(`[API Service] Anfaal API running on 0.0.0.0:${port} (env: ${process.env.NODE_ENV || 'development'})`);
     });
 
     // Start background worker in-process if enabled (allows 100% free hosting without paid Render worker)
