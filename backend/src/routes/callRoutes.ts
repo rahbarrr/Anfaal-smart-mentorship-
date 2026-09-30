@@ -42,11 +42,12 @@ const upload = multer({
   limits: { fileSize: MAX_MULTER_FALLBACK_SIZE_BYTES },
   fileFilter: (_req, file, cb) => {
     if (
-      ALLOWED_MIME_TYPES.includes(file.mimetype) ||
-      file.originalname.match(/\.(mp3|wav|m4a|mp4|webm|ogg|aac)$/i)
-    ) {
-      cb(null, true);
-    } else {
+  ALLOWED_MIME_TYPES.includes(file.mimetype) ||
+  file.originalname.match(/\.(mp3|wav|m4a|mp4|webm|ogg|aac)$/i) ||
+  file.mimetype === 'application/octet-stream'
+) {
+  cb(null, true);
+} else {
       cb(new Error(`Unsupported file type: ${file.mimetype}`));
     }
   },
