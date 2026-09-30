@@ -108,14 +108,87 @@ export class MockTranscriptionService implements TranscriptionService {
   }
 }
 
+const SUPPORTED_AUDIO_MIME_TYPES: Record<string, string> = {
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/mp4': 'mp4',
+  'audio/m4a': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/ogg': 'ogg',
+  'audio/webm': 'webm',
+  'audio/aac': 'aac',
+  'audio/flac': 'flac',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+};
+
+const SUPPORTED_WHISPER_EXTENSIONS = new Set(Object.values(SUPPORTED_AUDIO_MIME_TYPES));
+const EXTENSION_TO_MIME_TYPE: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  m4a: 'audio/m4a',
+  mp4: 'audio/mp4',
+  ogg: 'audio/ogg',
+  webm: 'audio/webm',
+  aac: 'audio/aac',
+  flac: 'audio/flac',
+  mpga: 'audio/mpeg',
+  mpeg: 'audio/mpeg',
+  oga: 'audio/ogg',
+};
+
+function normalizeMimeType(mimeType?: string): string {
+  return (mimeType || 'audio/mpeg').trim().toLowerCase();
+}
+
+function resolveMimeType(originalname: string, mimeType?: string): string {
+  const safeMimeType = normalizeMimeType(mimeType);
+  if (SUPPORTED_AUDIO_MIME_TYPES[safeMimeType]) {
+    return safeMimeType;
+  }
+
+  const extensionFromName = String(originalname || '').split('.').pop()?.toLowerCase();
+  if (extensionFromName && EXTENSION_TO_MIME_TYPE[extensionFromName]) {
+    return EXTENSION_TO_MIME_TYPE[extensionFromName];
+  }
+
+  return 'audio/mpeg';
+}
+
+function getSupportedAudioExtension(originalname: string, mimeType?: string): string {
+  const safeMimeType = normalizeMimeType(mimeType);
+  const extensionFromName = String(originalname || '').split('.').pop()?.toLowerCase();
+
+  if (extensionFromName && SUPPORTED_WHISPER_EXTENSIONS.has(extensionFromName)) {
+    return extensionFromName;
+  }
+
+  const extensionFromMime = SUPPORTED_AUDIO_MIME_TYPES[safeMimeType];
+  if (extensionFromMime) {
+    return extensionFromMime;
+  }
+
+  throw new Error(`Unsupported audio MIME type or extension for Whisper: ${safeMimeType} (${originalname || 'unknown-file'}). Supported formats: ${Array.from(SUPPORTED_WHISPER_EXTENSIONS).join(', ')}`);
+}
+
+function buildWhisperFileName(originalname: string, mimeType?: string): string {
+  const extension = getSupportedAudioExtension(originalname, mimeType);
+  const baseName = String(originalname || 'recording').split(/[\\/]/).pop() || 'recording';
+  const cleanBaseName = baseName.replace(/\.[^/.]+$/, '') || 'recording';
+  const sanitizedBaseName = cleanBaseName.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '') || 'recording';
+  return `${sanitizedBaseName}.${extension}`;
+}
+
 export class RealTranscriptionService implements TranscriptionService {
   async transcribe({ buffer, originalname, mimetype }: TranscriptInput): Promise<TranscriptionResult> {
     const isProduction = process.env.NODE_ENV === 'production';
     const apiKey = process.env.TRANSCRIPTION_API_KEY || process.env.OPENAI_API_KEY;
     const allowMock = !isProduction && process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
 
-    if (!buffer) {
-      throw new Error('No audio recording buffer available for transcription.');
+    if (!buffer || buffer.length === 0) {
+      throw new Error('Audio recording buffer is empty.');
     }
 
     if (!apiKey) {
@@ -127,9 +200,13 @@ export class RealTranscriptionService implements TranscriptionService {
     }
 
     try {
+      const normalizedMimeType = resolveMimeType(originalname, mimetype);
+      const safeFileName = buildWhisperFileName(originalname, normalizedMimeType);
+      console.info(`[Transcription] Sending ${buffer.length} bytes to OpenAI: ${safeFileName} (${normalizedMimeType})`);
+
       const body = new FormData();
-      const blob = new Blob([new Uint8Array(buffer)], { type: mimetype || 'audio/mpeg' });
-      body.append('file', blob, originalname);
+      const blob = new Blob([new Uint8Array(buffer)], { type: normalizedMimeType });
+      body.append('file', blob, safeFileName);
       body.append('model', process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'whisper-1');
       body.append('response_format', 'verbose_json');
 

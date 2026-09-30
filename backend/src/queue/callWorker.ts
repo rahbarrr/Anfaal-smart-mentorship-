@@ -52,6 +52,14 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
         try {
           const storageProvider = createStorageProvider();
           const audioBuffer = await storageProvider.getObjectBuffer(storageKey);
+          const fileName = call.recording?.fileName || 'recording.m4a';
+          const mimeType = call.recording?.mimeType || 'audio/mpeg';
+
+          console.info(`[Worker] Audio loaded: ${audioBuffer?.length ?? 0} bytes, file=${fileName}, mime=${mimeType}`);
+
+          if (!audioBuffer || audioBuffer.length === 0) {
+            throw new Error('Audio file retrieved from storage is empty.');
+          }
 
           await updateJob({
             progress: 25,
@@ -62,8 +70,8 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
           const transcriptionService = createTranscriptionService();
           const result = await transcriptionService.transcribe({
             buffer: audioBuffer,
-            originalname: call.recording?.fileName || 'recording.m4a',
-            mimetype: call.recording?.mimeType || 'audio/mpeg',
+            originalname: fileName,
+            mimetype: mimeType,
           });
 
           transcriptText = result.text;

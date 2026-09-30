@@ -136,10 +136,11 @@ export class S3StorageProvider implements StorageProvider {
     });
   }
 
-  async getPresignedUploadUrl(storageKey: string, _mimeType: string, expiresInSeconds = 900): Promise<string> {
+  async getPresignedUploadUrl(storageKey: string, mimeType: string, expiresInSeconds = 900): Promise<string> {
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: storageKey,
+      ContentType: mimeType || 'audio/mpeg',
     });
 
     return getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });

@@ -22,11 +22,12 @@ test('PROCESSING: Real transcription service fails if audio buffer is empty', as
   await assert.rejects(
     async () => {
       await service.transcribe({
+        buffer: Buffer.alloc(0),
         originalname: 'empty.m4a',
         mimetype: 'audio/m4a',
       });
     },
-    { message: /No audio recording buffer available for transcription/ },
+    { message: /Audio recording buffer is empty/ },
   );
 });
 
