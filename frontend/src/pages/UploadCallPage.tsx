@@ -65,6 +65,19 @@ const WIZARD_STEPS = ['Record Details', 'Upload Audio', 'AI Processing', 'Review
 const ACCEPTED_TYPES = '.mp3,.wav,.m4a,.mp4,audio/*,video/*';
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
+// Browsers and mobile share sheets may report an empty or generic MIME type
+// for valid audio files. Send a stable audio MIME type inferred from the name.
+function getRecordingMimeType(file: File): string {
+  const extension = file.name.split('.').pop()?.toLowerCase();
+  const mimeByExtension: Record<string, string> = {
+    mp3: 'audio/mpeg', mpeg: 'audio/mpeg', mpga: 'audio/mpeg',
+    wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'audio/mp4',
+    ogg: 'audio/ogg', webm: 'audio/webm', aac: 'audio/aac',
+  };
+  if (file.type.startsWith('audio/') || file.type.startsWith('video/')) return file.type;
+  return (extension && mimeByExtension[extension]) || 'audio/mpeg';
+}
+
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -323,7 +336,7 @@ export function UploadCallPage() {
         const presignRes = await getPresignedUploadUrl(token, {
           fileName: selectedFile.name,
           fileSize: selectedFile.size,
-          mimeType: selectedFile.type || 'audio/mpeg',
+          mimeType: getRecordingMimeType(selectedFile),
           menteeId: form.menteeId,
         });
 

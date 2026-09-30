@@ -118,7 +118,10 @@ Follow these exact steps to deploy the production architecture:
     {
       "AllowedHeaders": ["*"],
       "AllowedMethods": ["GET", "PUT", "HEAD"],
-      "AllowedOrigins": ["https://*.vercel.app", "https://YOUR-DOMAIN.com"],
+      "AllowedOrigins": [
+        "https://mentorship.vercel.app",
+        "https://YOUR-DOMAIN.com"
+      ],
       "ExposeHeaders": ["ETag"],
       "MaxAgeSeconds": 3600
     }
@@ -126,6 +129,7 @@ Follow these exact steps to deploy the production architecture:
   ```
 - Create an IAM policy with `s3:PutObject`, `s3:GetObject`, and `s3:DeleteObject` on `arn:aws:s3:::anfaal-call-recordings-prod/*`.
 - Generate an IAM Access Key and Secret Key.
+- Set `AWS_REGION` to the bucket's actual region. S3 CORS origins must be exact: add every deployed frontend origin, including `https://mentorship.vercel.app`. Missing origins cause the browser's direct PUT to fail with HTTP 403 even when presigning succeeds.
 
 ### STEP 3: Create / Configure Redis
 - Create a managed Redis instance (e.g. Render Redis, Upstash Redis, or Redis Cloud).
@@ -321,3 +325,4 @@ All 24 automated unit and integration tests run against mockable providers, veri
 - Processing success, transcription failure, and AI summary fallback
 - Safe retry flow avoiding re-transcription
 - Mentorship and bulk CSV import validation
+

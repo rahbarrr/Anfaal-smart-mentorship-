@@ -156,7 +156,20 @@ export async function getPresignedUploadUrl(
   });
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({}));
-    throw new Error(errorPayload.message ?? 'Unable to obtain presigned upload URL');
+    const validationDetails = Array.isArray(errorPayload.errors)
+      ? errorPayload.errors
+          .map((issue: { path?: (string | number)[]; message?: string }) => {
+            const field = issue.path?.join('.') ?? '';
+            return field && issue.message ? `${field}: ${issue.message}` : issue.message;
+          })
+          .filter(Boolean)
+          .join(' ')
+      : '';
+    throw new Error(
+      [errorPayload.message ?? 'Unable to obtain presigned upload URL', validationDetails]
+        .filter(Boolean)
+        .join(' '),
+    );
   }
   return response.json();
 }
@@ -820,6 +833,5 @@ export async function getAuditLogs(token: string, action?: string, limit: number
   if (!res.ok) throw new Error('Failed to fetch audit logs');
   return res.json();
 }
-
 
 
