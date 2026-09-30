@@ -4,6 +4,7 @@ import {
   getMyMentees,
   getPresignedUploadUrl,
   uploadFileDirectToS3,
+  uploadCall,
   completeCallUpload,
   retryCallProcessing,
   getCallJobStatus,
@@ -64,6 +65,7 @@ type JobStatus = {
 const WIZARD_STEPS = ['Record Details', 'Upload Audio', 'AI Processing', 'Review & Approve'];
 const ACCEPTED_TYPES = '.mp3,.wav,.m4a,.mp4,audio/*,video/*';
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const SERVER_UPLOAD_FALLBACK_MAX_SIZE = 25 * 1024 * 1024;
 
 // Browsers and mobile share sheets may report an empty or generic MIME type
 // for valid audio files. Send a stable audio MIME type inferred from the name.
@@ -330,6 +332,7 @@ export function UploadCallPage() {
       let fileName: string | undefined;
       let fileSize: number | undefined;
       let mimeType: string | undefined;
+      let result: { callId: string } | undefined;
 
       if (selectedFile) {
         setUploadStatusText('Requesting secure direct S3 upload credentials…');
@@ -346,22 +349,46 @@ export function UploadCallPage() {
         mimeType = presignRes.mimeType;
 
         setUploadStatusText('Uploading recording directly to private S3 bucket…');
-        await uploadFileDirectToS3(presignRes.uploadUrl, selectedFile, mimeType, (pct) => {
-          setUploadProgress(pct);
-        });
+        try {
+          await uploadFileDirectToS3(presignRes.uploadUrl, selectedFile, mimeType, (pct) => {
+            setUploadProgress(pct);
+          });
+        } catch (error) {
+          const isS3Forbidden = error instanceof Error && /direct s3 upload failed with status 403/i.test(error.message);
+          if (!isS3Forbidden || selectedFile.size > SERVER_UPLOAD_FALLBACK_MAX_SIZE) {
+            throw error;
+          }
+
+          // A bucket CORS rule can reject an otherwise valid browser presigned PUT.
+          // For smaller recordings, use the authenticated API instead; it uploads to
+          // S3 server-to-server and therefore does not depend on browser bucket CORS.
+          setUploadStatusText('Direct S3 upload was blocked; uploading securely through the server…');
+          result = await uploadCall(
+            token,
+            {
+              menteeId: form.menteeId,
+              duration: form.duration,
+              date: form.date,
+              mentorNotes: form.mentorNotes,
+            },
+            selectedFile,
+          );
+        }
       }
 
-      setUploadStatusText('Finalizing call session & queueing background AI pipeline…');
-      const result = await completeCallUpload(token, {
-        storageKey,
-        fileName,
-        fileSize,
-        mimeType,
-        menteeId: form.menteeId,
-        duration: form.duration,
-        date: form.date,
-        mentorNotes: form.mentorNotes,
-      });
+      if (!result) {
+        setUploadStatusText('Finalizing call session & queueing background AI pipeline…');
+        result = await completeCallUpload(token, {
+          storageKey,
+          fileName,
+          fileSize,
+          mimeType,
+          menteeId: form.menteeId,
+          duration: form.duration,
+          date: form.date,
+          mentorNotes: form.mentorNotes,
+        });
+      }
 
       setCreatedCallId(result.callId);
       setJobStatus({
