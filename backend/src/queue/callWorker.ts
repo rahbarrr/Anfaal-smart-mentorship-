@@ -9,6 +9,7 @@ import { CallProcessingJobData, createRedisConnection } from './callQueue.js';
 
 export async function processCallProcessingJob(data: CallProcessingJobData): Promise<void> {
   const { callId, jobId, mentorNotes, skipTranscription } = data;
+  const pipelineStartedAt = Date.now();
 
   const updateJob = async (fields: Record<string, unknown>) => {
     await CallProcessingJob.findByIdAndUpdate(jobId, { $set: fields });
@@ -51,11 +52,12 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
       } else {
         try {
           const storageProvider = createStorageProvider();
+          const audioLoadStartedAt = Date.now();
           const audioBuffer = await storageProvider.getObjectBuffer(storageKey);
           const fileName = call.recording?.fileName || 'recording.m4a';
           const mimeType = call.recording?.mimeType || 'audio/mpeg';
 
-          console.info(`[Worker] Audio loaded: ${audioBuffer?.length ?? 0} bytes, file=${fileName}, mime=${mimeType}`);
+          console.info(`[Worker] Audio loaded in ${Date.now() - audioLoadStartedAt}ms: ${audioBuffer?.length ?? 0} bytes, file=${fileName}, mime=${mimeType}`);
 
           if (!audioBuffer || audioBuffer.length === 0) {
             throw new Error('Audio file retrieved from storage is empty.');
@@ -67,12 +69,14 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
             'stageStatus.transcription': 'PROCESSING',
           });
 
+          const transcriptionStartedAt = Date.now();
           const transcriptionService = createTranscriptionService();
           const result = await transcriptionService.transcribe({
             buffer: audioBuffer,
             originalname: fileName,
             mimetype: mimeType,
           });
+          console.info(`[Worker] Transcription completed in ${Date.now() - transcriptionStartedAt}ms for call ${callId}`);
 
           transcriptText = result.text;
           segments = (result.segments ?? []).map((s) => ({
@@ -148,7 +152,8 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
     });
 
     try {
-      const refreshedCall = await Call.findById(callId).lean();
+      const summaryStartedAt = Date.now();
+      const refreshedCall = call && typeof (call as any).toObject === 'function' ? (call as any).toObject() : call;
       const aiSummaryService = createAiSummaryService();
 
       const summaryResult = await aiSummaryService.summarize({
@@ -161,6 +166,7 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
           duration: refreshedCall?.duration,
         },
       });
+      console.info(`[Worker] AI summary completed in ${Date.now() - summaryStartedAt}ms for call ${callId}`);
 
       const versionEntry = {
         version: (refreshedCall?.summaryVersions?.length ?? 0) + 1,
@@ -206,6 +212,8 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
         'stageStatus.mentorReview': 'READY',
         completedAt: new Date(),
       });
+
+      console.info(`[Worker] Total processing time for call ${callId}: ${Date.now() - pipelineStartedAt}ms`);
     } catch (summaryErr) {
       const errMsg = summaryErr instanceof Error ? summaryErr.message : String(summaryErr);
       console.error(`[Worker] AI Summary failed for call ${callId}:`, errMsg);
