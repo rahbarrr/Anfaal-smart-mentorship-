@@ -130,3 +130,37 @@ test('AUTH: role authorization rejects unauthorized role with 403', () => {
   assert.equal(res.statusCode, 403);
   assert.equal(res.body.message, 'You do not have access to this resource.');
 });
+
+test('AUTH: pending mentor access is blocked until admin approval', () => {
+  const req: AuthRequest = {
+    user: { id: 'mentor_1', email: 'mentor@anfaal.org', role: 'MENTOR', mentorApprovalStatus: 'PENDING' },
+  } as any;
+  const res = createMockResponse();
+  let nextCalled = false;
+
+  const mentorOnly = requireRole('MENTOR');
+  mentorOnly(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.message, 'Your mentor account is pending approval.');
+});
+
+test('AUTH: rejected mentor access is blocked until new review', () => {
+  const req: AuthRequest = {
+    user: { id: 'mentor_2', email: 'mentor@anfaal.org', role: 'MENTOR', mentorApprovalStatus: 'REJECTED' },
+  } as any;
+  const res = createMockResponse();
+  let nextCalled = false;
+
+  const mentorOnly = requireRole('MENTOR');
+  mentorOnly(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.message, 'Your mentor application was rejected.');
+});

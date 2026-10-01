@@ -11,6 +11,7 @@ export type AuthUser = {
   email: string;
   role: UserRole;
   menteeId?: string;
+  mentorApprovalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
 };
 
 export type LoginResponse = {
@@ -385,6 +386,19 @@ export async function createMentor(token: string, payload: { name: string; email
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({}));
     throw new Error(errorPayload.message ?? 'Unable to create mentor');
+  }
+  return response.json();
+}
+
+export async function updateMentorApprovalStatus(token: string, mentorId: string, approvalStatus: 'APPROVED' | 'REJECTED') {
+  const response = await fetch(`${API_BASE_URL}/mentors/${mentorId}/approval`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ approvalStatus }),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to update mentor approval status');
   }
   return response.json();
 }

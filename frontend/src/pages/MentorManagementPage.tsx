@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getMentors, createMentor, updateMentorStatus, deleteMentor } from '../lib/api';
+import { getMentors, createMentor, updateMentorStatus, deleteMentor, updateMentorApprovalStatus } from '../lib/api';
 import { X, Trash2, Eye, EyeOff } from 'lucide-react';
 
 type MentorRow = {
@@ -92,6 +92,15 @@ export function MentorManagementPage() {
       loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update status.');
+    }
+  };
+
+  const handleApprovalDecision = async (id: string, approvalStatus: 'APPROVED' | 'REJECTED') => {
+    try {
+      await updateMentorApprovalStatus(token, id, approvalStatus);
+      loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update mentor approval.');
     }
   };
 
@@ -241,6 +250,22 @@ export function MentorManagementPage() {
                           onClick={() => handleToggleStatus(mentor.id, mentor.status)}
                         >
                           {mentor.status === 'active' ? 'Disable' : 'Enable'}
+                        </button>
+                        {mentor.status !== 'active' && (
+                          <button
+                            className="btn-secondary"
+                            style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap', color: 'var(--success)' }}
+                            onClick={() => handleApprovalDecision(mentor.id, 'APPROVED')}
+                          >
+                            Approve
+                          </button>
+                        )}
+                        <button
+                          className="btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap', color: 'var(--danger)' }}
+                          onClick={() => handleApprovalDecision(mentor.id, 'REJECTED')}
+                        >
+                          Reject
                         </button>
                         <button
                           className="btn-secondary"

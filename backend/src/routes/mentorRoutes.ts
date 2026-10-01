@@ -60,6 +60,7 @@ export function normalizeMentorRegistration(input: unknown) {
     location: parsed.location?.trim() ?? '',
     preferredSubjects: parsed.preferredSubjects.map((item) => item.trim()).filter(Boolean),
     status: 'disabled' as const,
+    mentorApprovalStatus: 'PENDING' as const,
   };
 }
 
@@ -137,7 +138,7 @@ router.post('/register', async (req, res) => {
       email: normalized.email,
       passwordHash,
       role: 'MENTOR',
-      status: 'disabled',
+      status: 'active',
     });
 
     const mentor = await Mentor.create({
@@ -149,17 +150,19 @@ router.post('/register', async (req, res) => {
       availability: normalized.availability,
       location: normalized.location,
       preferredSubjects: normalized.preferredSubjects,
+      mentorApprovalStatus: 'PENDING',
       status: 'disabled',
     });
 
     return res.status(201).json({
-      message: 'Mentor registration submitted successfully. Your profile is pending admin approval.',
+      message: 'Your account has been created successfully. Your mentor application is pending admin approval.',
       mentor: {
         id: String(mentor._id),
         userId: mentor.userId,
         name: user.name,
         email: user.email,
         status: mentor.status,
+        mentorApprovalStatus: mentor.mentorApprovalStatus,
       },
     });
   } catch (error) {
@@ -211,6 +214,41 @@ router.post('/', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to create mentor';
+    return res.status(500).json({ message });
+  }
+});
+
+// PATCH /api/mentors/:id/approval — approve or reject a mentor application (admin only)
+router.patch('/:id/approval', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const approvalSchema = z.object({ approvalStatus: z.enum(['APPROVED', 'REJECTED']) });
+    const parsed = approvalSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Please provide approvalStatus: "APPROVED" or "REJECTED".' });
+    }
+
+    const mentor = await Mentor.findById(req.params.id);
+    if (!mentor) {
+      return res.status(404).json({ message: 'Mentor not found.' });
+    }
+
+    mentor.mentorApprovalStatus = parsed.data.approvalStatus;
+    mentor.status = parsed.data.approvalStatus === 'APPROVED' ? 'active' : 'disabled';
+    await mentor.save();
+
+    await User.findByIdAndUpdate(mentor.userId, { status: 'active' });
+
+    return res.json({
+      message: `Mentor application ${parsed.data.approvalStatus === 'APPROVED' ? 'approved' : 'rejected'} successfully.`,
+      mentor: {
+        id: String(mentor._id),
+        userId: mentor.userId,
+        mentorApprovalStatus: mentor.mentorApprovalStatus,
+        status: mentor.status,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to update mentor approval';
     return res.status(500).json({ message });
   }
 });

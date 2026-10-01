@@ -22,6 +22,8 @@ export interface UserDocument {
   updatedAt: Date;
 }
 
+export type MentorApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export interface MentorDocument {
   _id: string;
   userId: string;
@@ -32,6 +34,7 @@ export interface MentorDocument {
   availability?: string;
   location?: string;
   preferredSubjects?: string[];
+  mentorApprovalStatus?: MentorApprovalStatus;
   status: 'active' | 'disabled';
 }
 

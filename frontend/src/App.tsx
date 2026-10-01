@@ -26,6 +26,8 @@ import { BulkImportPage } from './pages/BulkImportPage';
 import { CallIntelligencePage } from './pages/CallIntelligencePage';
 import { AdminCallsPage } from './pages/AdminCallsPage';
 import { MentorRegistrationPage } from './pages/MentorRegistrationPage';
+import { MentorPendingApprovalPage } from './pages/MentorPendingApprovalPage';
+import { MentorRejectedPage } from './pages/MentorRejectedPage';
 
 function getStoredUser() {
   const rawUser = localStorage.getItem('anfaal-user');
@@ -47,6 +49,15 @@ function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode;
   if (requiredRole && user.role !== requiredRole) {
     const target = user.role === 'ADMIN' ? '/admin' : user.role === 'MENTEE' ? '/mentee' : '/mentor';
     return <Navigate to={target} replace />;
+  }
+
+  if (requiredRole === 'MENTOR' && user.role === 'MENTOR') {
+    if (user.mentorApprovalStatus === 'PENDING') {
+      return <Navigate to="/mentor/pending" replace />;
+    }
+    if (user.mentorApprovalStatus === 'REJECTED') {
+      return <Navigate to="/mentor/rejected" replace />;
+    }
   }
 
   return <>{children}</>;
@@ -80,6 +91,8 @@ function App() {
           <Route path="calls" element={<AdminCallsPage />} />
           <Route path="calls/:callId" element={<CallIntelligencePage />} />
         </Route>
+        <Route path="/mentor/pending" element={<ProtectedRoute requiredRole="MENTOR"><MentorPendingApprovalPage /></ProtectedRoute>} />
+        <Route path="/mentor/rejected" element={<ProtectedRoute requiredRole="MENTOR"><MentorRejectedPage /></ProtectedRoute>} />
         <Route
           path="/mentor"
           element={

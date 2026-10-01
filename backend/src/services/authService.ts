@@ -104,12 +104,20 @@ export async function loginUser({ email, password }: LoginPayload) {
     }
   }
 
+  let mentorApprovalStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | undefined;
+  if (user.role === 'MENTOR') {
+    const { Mentor } = await import('../models/Mentor.js');
+    const mentorDoc = await Mentor.findOne({ userId: String(user._id) }).lean();
+    mentorApprovalStatus = mentorDoc?.mentorApprovalStatus ?? 'APPROVED';
+  }
+
   const token = jwt.sign(
     {
       id: String(user._id),
       email: user.email,
       role: user.role,
       menteeId,
+      mentorApprovalStatus,
     },
     process.env.JWT_SECRET ?? 'development-secret',
     { expiresIn: '7d' },
@@ -123,6 +131,7 @@ export async function loginUser({ email, password }: LoginPayload) {
       email: user.email,
       role: user.role,
       menteeId,
+      mentorApprovalStatus,
     },
   };
 }

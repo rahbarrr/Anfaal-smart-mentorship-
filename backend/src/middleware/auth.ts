@@ -6,6 +6,7 @@ export type AuthenticatedUser = {
   email: string;
   role: 'ADMIN' | 'MENTOR' | 'MENTEE';
   menteeId?: string;
+  mentorApprovalStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
 };
 
 export interface AuthRequest extends Request {
@@ -32,6 +33,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
       email: payload.email,
       role: payload.role,
       menteeId: payload.menteeId,
+      mentorApprovalStatus: payload.mentorApprovalStatus,
     };
 
     return next();
@@ -48,6 +50,16 @@ export function requireRole(...roles: ('ADMIN' | 'MENTOR' | 'MENTEE')[]) {
 
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'You do not have access to this resource.' });
+    }
+
+    if (req.user.role === 'MENTOR') {
+      if (req.user.mentorApprovalStatus === 'PENDING') {
+        return res.status(403).json({ message: 'Your mentor account is pending approval.' });
+      }
+
+      if (req.user.mentorApprovalStatus === 'REJECTED') {
+        return res.status(403).json({ message: 'Your mentor application was rejected.' });
+      }
     }
 
     return next();

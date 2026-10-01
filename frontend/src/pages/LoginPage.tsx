@@ -24,6 +24,10 @@ export function LoginPage() {
         navigate('/admin');
       } else if (response.user.role === 'MENTEE') {
         navigate('/mentee');
+      } else if (response.user.mentorApprovalStatus === 'PENDING') {
+        navigate('/mentor/pending');
+      } else if (response.user.mentorApprovalStatus === 'REJECTED') {
+        navigate('/mentor/rejected');
       } else {
         navigate('/mentor');
       }
