@@ -161,42 +161,40 @@ export function MenteeManagementPage() {
       {/* ── Search ──────────────────────────────────────────────────────────── */}
       <div style={{ marginBottom: 16 }}>
         <input
-          className="input"
+          className="input search-full"
           placeholder="Search by name, class, or mentor…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 360 }}
         />
       </div>
 
       {/* ── Bulk action toolbar ─────────────────────────────────────────────── */}
       {selected.size > 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14,
-          padding: '10px 16px', borderRadius: 12,
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))',
-          border: '1.5px solid rgba(99,102,241,0.25)',
-        }}>
-          <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--primary)' }}>
+        <div className="bulk-toolbar">
+          <span className="bulk-toolbar-label">
             {selected.size} student{selected.size !== 1 ? 's' : ''} selected
           </span>
-          <button
-            className="btn-secondary"
-            style={{ fontSize: '0.82rem', padding: '5px 14px', marginLeft: 'auto' }}
-            onClick={() => setSelected(new Set())}
-          >
-            Clear
-          </button>
-          <button
-            className="btn-primary"
-            style={{ fontSize: '0.82rem', padding: '5px 14px', background: 'var(--danger)', borderColor: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 6 }}
-            onClick={() => setShowBulkDeleteConfirm(true)}
-          >
-            <Trash2 size={14} /> Delete Selected
-          </button>
+          <div className="bulk-toolbar-actions">
+            <button
+              className="btn-secondary"
+              style={{ fontSize: '0.82rem', padding: '5px 14px' }}
+              onClick={() => setSelected(new Set())}
+            >
+              Clear
+            </button>
+            <button
+              className="btn-primary"
+              style={{ fontSize: '0.82rem', padding: '5px 14px', background: 'var(--danger)', borderColor: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={() => setShowBulkDeleteConfirm(true)}
+            >
+              <Trash2 size={14} /> Delete Selected
+            </button>
+          </div>
         </div>
       )}
 
+      {/* ── Desktop Table ─────────────────────────────────────────────────────── */}
+      <div className="desktop-table">
       <div className="table-wrap">
         <table>
           <thead>
@@ -304,6 +302,75 @@ export function MenteeManagementPage() {
             )}
           </tbody>
         </table>
+      </div>
+      </div>{/* end .desktop-table */}
+
+      {/* ── Mobile Card List ──────────────────────────────────────────────────── */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>Loading mentees…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>No mentees found</div>
+            <div style={{ fontSize: '0.88rem' }}>Add your first student to get started.</div>
+          </div>
+        ) : (
+          filtered.map((mentee) => {
+            const isChecked = selected.has(mentee.id);
+            return (
+              <div key={mentee.id} className={`mobile-card ${isChecked ? 'selected' : ''}`}>
+                <div className="mobile-card-header">
+                  <input
+                    type="checkbox"
+                    className="mobile-card-checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleOne(mentee.id)}
+                    aria-label={`Select ${mentee.name}`}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <button
+                      className="mobile-card-name"
+                      onClick={() => navigate(`/admin/mentees/${mentee.id}`)}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--primary)', textAlign: 'left', width: '100%' }}
+                    >
+                      {mentee.name}
+                    </button>
+                    <span className={`status-badge ${mentee.status === 'active' ? 'status-completed' : 'status-failed'}`} style={{ marginTop: 4, display: 'inline-flex' }}>
+                      {mentee.status}
+                    </span>
+                  </div>
+                </div>
+                <div className="mobile-card-meta">
+                  <div className="mobile-card-row">Class: <strong>{mentee.standard}</strong></div>
+                  {mentee.assignedMentor && (
+                    <div className="mobile-card-row">Mentor: <strong>{mentee.assignedMentor}</strong></div>
+                  )}
+                  <div className="mobile-card-row">
+                    <span>Calls: <strong>{mentee.totalCalls ?? 0}</strong></span>
+                    {mentee.lastCallDate && <><span style={{ opacity: 0.4 }}>·</span><span>Last: {mentee.lastCallDate}</span></>}
+                  </div>
+                </div>
+                <div className="mobile-card-actions">
+                  <button className="btn-secondary" onClick={() => navigate(`/admin/mentees/${mentee.id}`)}>Profile</button>
+                  <button
+                    className="btn-secondary"
+                    style={{ color: mentee.status === 'active' ? 'var(--danger)' : 'var(--success)' }}
+                    onClick={() => handleToggleStatus(mentee.id, mentee.status)}
+                  >
+                    {mentee.status === 'active' ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    style={{ color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    onClick={() => setDeleteTarget(mentee)}
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* ── Add Mentee Modal ─────────────────────────────────────────────────── */}

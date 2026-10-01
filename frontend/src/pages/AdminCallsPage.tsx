@@ -192,22 +192,22 @@ export function AdminCallsPage() {
 
       {/* Search & Filters */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 240 }}>
+        <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 0 }}>
           <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
           <input
             type="text"
-            className="input-field"
+            className="input-field search-full"
             placeholder="Search by mentor, mentee, or topic…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ paddingLeft: 36 }}
+            style={{ paddingLeft: 36, width: '100%' }}
           />
         </div>
         <select
           className="input-field"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ width: 'auto', minWidth: 170 }}
+          style={{ width: 'auto', minWidth: 160, flex: '0 0 auto' }}
         >
           <option value="ALL">All Statuses</option>
           <option value="Approved">Approved</option>
@@ -217,98 +217,162 @@ export function AdminCallsPage() {
         </select>
       </div>
 
-      {/* Calls Table */}
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Mentor</th>
-              <th>Mentee</th>
-              <th>Duration</th>
-              <th>Recording</th>
-              <th>AI Summary</th>
-              <th>Status</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
+      {/* Calls Table — desktop */}
+      <div className="desktop-table">
+        <div className="table-wrap">
+          <table>
+            <thead>
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-secondary)' }}>
-                  Loading call records…
-                </td>
+                <th>Date</th>
+                <th>Mentor</th>
+                <th>Mentee</th>
+                <th>Duration</th>
+                <th>Recording</th>
+                <th>AI Summary</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
-            ) : filteredCalls.length === 0 ? (
-              <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-secondary)' }}>
-                  {search || statusFilter !== 'ALL' ? 'No calls match your filters.' : 'No call records available yet.'}
-                </td>
-              </tr>
-            ) : (
-              filteredCalls.map((call) => {
-                const isPlaying = playingCallId === call.id;
-                return (
-                  <tr key={call.id}>
-                    <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-                      {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{call.mentorName}</td>
-                    <td>{call.menteeName}</td>
-                    <td>{call.duration} min</td>
-                    <td>
-                      {call.hasRecording ? (
-                        <button
-                          className="btn-outline btn-sm"
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-secondary)' }}>
+                    Loading call records…
+                  </td>
+                </tr>
+              ) : filteredCalls.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-secondary)' }}>
+                    {search || statusFilter !== 'ALL' ? 'No calls match your filters.' : 'No call records available yet.'}
+                  </td>
+                </tr>
+              ) : (
+                filteredCalls.map((call) => {
+                  const isPlaying = playingCallId === call.id;
+                  return (
+                    <tr key={call.id}>
+                      <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{call.mentorName}</td>
+                      <td>{call.menteeName}</td>
+                      <td>{call.duration} min</td>
+                      <td>
+                        {call.hasRecording ? (
+                          <button
+                            className="btn-outline btn-sm"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              fontSize: '0.78rem',
+                              padding: '4px 10px',
+                              color: isPlaying ? 'var(--primary)' : undefined,
+                              borderColor: isPlaying ? 'var(--primary)' : undefined,
+                            }}
+                            onClick={() => handlePlayAudio(call.id)}
+                          >
+                            {isPlaying ? <Pause size={12} /> : <Play size={12} />} {isPlaying ? 'Playing' : 'Play Audio'}
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Notes only</span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: '0.85rem', maxWidth: 220 }}>
+                        <span
+                          title={call.summary}
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 5,
-                            fontSize: '0.78rem',
-                            padding: '4px 10px',
-                            color: isPlaying ? 'var(--primary)' : undefined,
-                            borderColor: isPlaying ? 'var(--primary)' : undefined,
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            lineHeight: 1.4,
                           }}
-                          onClick={() => handlePlayAudio(call.id)}
                         >
-                          {isPlaying ? <Pause size={12} /> : <Play size={12} />} {isPlaying ? 'Playing' : 'Play Audio'}
+                          {call.summary || 'Processing…'}
+                        </span>
+                      </td>
+                      <td>
+                        <StatusBadge status={call.status} />
+                      </td>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <button
+                          className="btn-primary btn-sm"
+                          style={{ fontSize: '0.8rem', padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                          onClick={() => navigate(`/admin/calls/${call.id}`)}
+                        >
+                          <Sparkles size={13} /> Full Details <ArrowRight size={13} />
                         </button>
-                      ) : (
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Notes only</span>
-                      )}
-                    </td>
-                    <td style={{ fontSize: '0.85rem', maxWidth: 220 }}>
-                      <span
-                        title={call.summary}
-                        style={{
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {call.summary || 'Processing…'}
-                      </span>
-                    </td>
-                    <td>
-                      <StatusBadge status={call.status} />
-                    </td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      <button
-                        className="btn-primary btn-sm"
-                        style={{ fontSize: '0.8rem', padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                        onClick={() => navigate(`/admin/calls/${call.id}`)}
-                      >
-                        <Sparkles size={13} /> Full Details <ArrowRight size={13} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Calls Cards — mobile */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>Loading call records…</div>
+        ) : filteredCalls.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
+            {search || statusFilter !== 'ALL' ? 'No calls match your filters.' : 'No call records available yet.'}
+          </div>
+        ) : (
+          filteredCalls.map((call) => {
+            const isPlaying = playingCallId === call.id;
+            return (
+              <div key={call.id} className="call-mobile-card">
+                <div className="call-mobile-card-header">
+                  <div className="call-mobile-card-names">
+                    <div className="call-mobile-card-title">{call.mentorName} → {call.menteeName}</div>
+                    <div className="call-mobile-card-subtitle">
+                      {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </div>
+                  </div>
+                  <StatusBadge status={call.status} />
+                </div>
+                <div className="call-mobile-card-meta">
+                  <div className="call-mobile-card-meta-item">
+                    <span className="call-mobile-card-meta-label">Duration</span>
+                    <span className="call-mobile-card-meta-value">{call.duration} min</span>
+                  </div>
+                  <div className="call-mobile-card-meta-item">
+                    <span className="call-mobile-card-meta-label">Recording</span>
+                    <span className="call-mobile-card-meta-value">{call.hasRecording ? 'Available' : 'Notes only'}</span>
+                  </div>
+                </div>
+                {call.summary && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                    {call.summary}
+                  </div>
+                )}
+                <div className="call-mobile-card-actions">
+                  {call.hasRecording && (
+                    <button
+                      className="btn-secondary"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: isPlaying ? 'var(--primary)' : undefined }}
+                      onClick={() => handlePlayAudio(call.id)}
+                    >
+                      {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                      {isPlaying ? 'Playing…' : 'Play Audio'}
+                    </button>
+                  )}
+                  <button
+                    className="btn-primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                    onClick={() => navigate(`/admin/calls/${call.id}`)}
+                  >
+                    <Sparkles size={13} /> Full Details
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
