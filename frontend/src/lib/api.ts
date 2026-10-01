@@ -352,6 +352,30 @@ export async function getMentors(token: string) {
   return response.json();
 }
 
+export async function submitMentorRegistration(payload: {
+  fullName: string;
+  email: string;
+  password: string;
+  phone: string;
+  gender?: string;
+  bio?: string;
+  expertise?: string;
+  availability?: string;
+  location?: string;
+  preferredSubjects?: string[];
+}) {
+  const response = await fetch(`${API_BASE_URL}/mentors/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to submit mentor registration');
+  }
+  return response.json();
+}
+
 export async function createMentor(token: string, payload: { name: string; email: string; password?: string; phone?: string; bio?: string }) {
   const response = await fetch(`${API_BASE_URL}/mentors`, {
     method: 'POST',

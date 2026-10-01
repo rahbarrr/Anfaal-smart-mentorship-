@@ -18,6 +18,51 @@ const createMentorSchema = z.object({
   bio: z.string().optional(),
 });
 
+export const mentorRegistrationSchema = z.object({
+  fullName: z.string().trim().min(2, 'Full name is required.'),
+  email: z.string().trim().email('Please enter a valid email address.'),
+  password: z.string().min(8, 'Password must be at least 8 characters long.'),
+  phone: z.string().trim().min(8, 'Please provide a valid phone number.'),
+  gender: z.string().trim().optional().default(''),
+  bio: z.string().trim().min(10, 'Please share a bit more about your mentorship background.').max(500).optional().or(z.literal('')),
+  expertise: z.string().trim().min(3, 'Please tell us your expertise.').max(200).optional().or(z.literal('')),
+  availability: z.string().trim().min(2, 'Please share your availability.').max(120).optional().or(z.literal('')),
+  location: z.string().trim().min(2, 'Please share your location.').max(120).optional().or(z.literal('')),
+  preferredSubjects: z.array(z.string().trim().min(1)).max(8).optional().default([]),
+});
+
+export function normalizeMentorRegistration(input: unknown) {
+  const parsed = mentorRegistrationSchema.parse(input);
+  const digits = parsed.phone.replace(/\D/g, '');
+
+  let normalizedPhone = digits;
+  if (digits.length === 10) {
+    normalizedPhone = `+91${digits}`;
+  } else if (digits.length === 12 && digits.startsWith('91')) {
+    normalizedPhone = `+${digits}`;
+  } else if (digits.length > 0) {
+    normalizedPhone = `+${digits}`;
+  }
+
+  if (!normalizedPhone || normalizedPhone === '+') {
+    throw new Error('Please provide a valid phone number.');
+  }
+
+  return {
+    name: parsed.fullName.trim().replace(/\s+/g, ' '),
+    email: parsed.email.trim().toLowerCase(),
+    phone: normalizedPhone,
+    password: parsed.password,
+    gender: parsed.gender?.trim() ?? '',
+    bio: parsed.bio?.trim() ?? '',
+    expertise: parsed.expertise?.trim() ?? '',
+    availability: parsed.availability?.trim() ?? '',
+    location: parsed.location?.trim() ?? '',
+    preferredSubjects: parsed.preferredSubjects.map((item) => item.trim()).filter(Boolean),
+    status: 'disabled' as const,
+  };
+}
+
 // GET /api/mentors — list all mentors with enriched stats (admin only)
 router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res: Response) => {
   try {
@@ -68,6 +113,58 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch mentors';
     return res.status(500).json({ message });
+  }
+});
+
+// POST /api/mentors/register — mentor self-registration submitted for review
+router.post('/register', async (req, res) => {
+  try {
+    const normalized = normalizeMentorRegistration(req.body);
+
+    const existingUser = await User.findOne({ email: normalized.email });
+    if (existingUser) {
+      return res.status(409).json({ message: 'A mentor account with this email already exists.' });
+    }
+
+    const existingPhoneMentor = await Mentor.findOne({ phone: normalized.phone });
+    if (existingPhoneMentor) {
+      return res.status(409).json({ message: 'A mentor account with this phone number already exists.' });
+    }
+
+    const passwordHash = await bcrypt.hash(normalized.password, 10);
+    const user = await User.create({
+      name: normalized.name,
+      email: normalized.email,
+      passwordHash,
+      role: 'MENTOR',
+      status: 'disabled',
+    });
+
+    const mentor = await Mentor.create({
+      userId: String(user._id),
+      phone: normalized.phone,
+      bio: normalized.bio,
+      gender: normalized.gender,
+      expertise: normalized.expertise,
+      availability: normalized.availability,
+      location: normalized.location,
+      preferredSubjects: normalized.preferredSubjects,
+      status: 'disabled',
+    });
+
+    return res.status(201).json({
+      message: 'Mentor registration submitted successfully. Your profile is pending admin approval.',
+      mentor: {
+        id: String(mentor._id),
+        userId: mentor.userId,
+        name: user.name,
+        email: user.email,
+        status: mentor.status,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to submit mentor registration';
+    return res.status(400).json({ message });
   }
 });
 

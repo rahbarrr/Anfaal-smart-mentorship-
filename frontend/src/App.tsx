@@ -25,6 +25,7 @@ import { AdminPerformanceAnalyticsPage } from './pages/AdminPerformanceAnalytics
 import { BulkImportPage } from './pages/BulkImportPage';
 import { CallIntelligencePage } from './pages/CallIntelligencePage';
 import { AdminCallsPage } from './pages/AdminCallsPage';
+import { MentorRegistrationPage } from './pages/MentorRegistrationPage';
 
 function getStoredUser() {
   const rawUser = localStorage.getItem('anfaal-user');
@@ -56,6 +57,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LoginPage />} />
+        <Route path="/mentor/register" element={<MentorRegistrationPage />} />
         <Route
           path="/admin"
           element={

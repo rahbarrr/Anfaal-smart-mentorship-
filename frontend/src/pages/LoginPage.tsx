@@ -157,6 +157,14 @@ export function LoginPage() {
               <button type="submit" className="button btn-primary" disabled={isSubmitting} style={{ textAlign: 'center', height: 58, fontSize: '1rem', borderRadius: 16 }}>
                 {isSubmitting ? 'Signing in...' : 'Login'}
               </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => navigate('/mentor/register')}
+                style={{ height: 48, fontSize: '0.9rem', borderRadius: 14 }}
+              >
+                Apply to become a mentor
+              </button>
             </div>
 
             <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12 }}>

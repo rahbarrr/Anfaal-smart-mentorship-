@@ -28,6 +28,10 @@ export interface MentorDocument {
   phone?: string;
   bio?: string;
   gender?: string;
+  expertise?: string;
+  availability?: string;
+  location?: string;
+  preferredSubjects?: string[];
   status: 'active' | 'disabled';
 }
 

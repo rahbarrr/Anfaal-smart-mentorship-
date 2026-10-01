@@ -229,7 +229,7 @@ export function MentorManagementPage() {
                     <td style={{ fontSize: '0.85rem' }}>{mentor.lastActivity ?? '—'}</td>
                     <td>
                       <span className={`status-badge ${mentor.status === 'active' ? 'status-completed' : 'status-failed'}`}>
-                        {mentor.status}
+                        {mentor.status === 'active' ? 'Active' : 'Pending review'}
                       </span>
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
