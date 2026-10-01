@@ -157,50 +157,90 @@ export function AdminAssignmentsPage() {
         {error ? <div style={{ marginTop: 12, color: '#b64343', fontWeight: 600 }}>{error}</div> : null}
       </div>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Mentor</th>
-              <th>Mentee</th>
-              <th>Standard</th>
-              <th>Status</th>
-              <th>Assigned</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {assignments.length === 0 ? (
+      {/* Assignments Table — desktop */}
+      <div className="desktop-table">
+        <div className="table-wrap">
+          <table>
+            <thead>
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
-                  {isLoading ? 'Loading assignments...' : 'No mentor assignments found.'}
-                </td>
+                <th>Mentor</th>
+                <th>Mentee</th>
+                <th>Standard</th>
+                <th>Status</th>
+                <th>Assigned</th>
+                <th>Actions</th>
               </tr>
-            ) : (
-              assignments.map((assignment) => (
-                <tr key={assignment.id}>
-                  <td>{assignment.mentorName}</td>
-                  <td>{assignment.menteeName}</td>
-                  <td>{assignment.menteeStandard}</td>
-                  <td>
-                    <span className={`status-badge ${assignment.status === 'active' ? 'status-completed' : 'status-failed'}`}>
-                      {assignment.status}
-                    </span>
-                  </td>
-                  <td>{new Date(assignment.assignedAt).toLocaleDateString()}</td>
-                  <td style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn-secondary" onClick={() => handleStatusToggle(assignment.id, assignment.status)}>
-                      {assignment.status === 'active' ? 'Archive' : 'Activate'}
-                    </button>
-                    <button className="btn-secondary" style={{ color: 'var(--danger)' }} onClick={() => handleDeleteAssignment(assignment.id, assignment.mentorName, assignment.menteeName)}>
-                      Delete
-                    </button>
+            </thead>
+            <tbody>
+              {assignments.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    {isLoading ? 'Loading assignments...' : 'No mentor assignments found.'}
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : (
+                assignments.map((assignment) => (
+                  <tr key={assignment.id}>
+                    <td>{assignment.mentorName}</td>
+                    <td>{assignment.menteeName}</td>
+                    <td>{assignment.menteeStandard}</td>
+                    <td>
+                      <span className={`status-badge ${assignment.status === 'active' ? 'status-completed' : 'status-failed'}`}>
+                        {assignment.status}
+                      </span>
+                    </td>
+                    <td>{new Date(assignment.assignedAt).toLocaleDateString()}</td>
+                    <td style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn-secondary" onClick={() => handleStatusToggle(assignment.id, assignment.status)}>
+                        {assignment.status === 'active' ? 'Archive' : 'Activate'}
+                      </button>
+                      <button className="btn-secondary" style={{ color: 'var(--danger)' }} onClick={() => handleDeleteAssignment(assignment.id, assignment.mentorName, assignment.menteeName)}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Assignments Cards — mobile */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>Loading assignments…</div>
+        ) : assignments.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>No mentor assignments found.</div>
+        ) : (
+          assignments.map((assignment) => (
+            <div key={assignment.id} className="assignment-mobile-card">
+              <div className="assignment-mobile-pair">
+                <strong>{assignment.mentorName}</strong>
+                <span className="arrow">→</span>
+                <strong>{assignment.menteeName}</strong>
+              </div>
+              <div className="mobile-card-row">
+                Class: <strong>{assignment.menteeStandard}</strong>
+                <span style={{ opacity: 0.4 }}>·</span>
+                <span className={`status-badge ${assignment.status === 'active' ? 'status-completed' : 'status-failed'}`} style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                  {assignment.status}
+                </span>
+              </div>
+              <div className="mobile-card-row" style={{ fontSize: '0.8rem' }}>
+                Assigned: {new Date(assignment.assignedAt).toLocaleDateString()}
+              </div>
+              <div className="assignment-mobile-actions">
+                <button className="btn-secondary" onClick={() => handleStatusToggle(assignment.id, assignment.status)}>
+                  {assignment.status === 'active' ? 'Archive' : 'Activate'}
+                </button>
+                <button className="btn-secondary" style={{ color: 'var(--danger)' }} onClick={() => handleDeleteAssignment(assignment.id, assignment.mentorName, assignment.menteeName)}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

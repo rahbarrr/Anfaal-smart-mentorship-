@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getMentors, createMentor, updateMentorStatus, deleteMentor } from '../lib/api';
+import { getMentors, createMentor, updateMentorStatus, deleteMentor, updateMentorApprovalStatus } from '../lib/api';
 import { X, Trash2, Eye, EyeOff } from 'lucide-react';
 
 type MentorRow = {
@@ -95,6 +95,15 @@ export function MentorManagementPage() {
     }
   };
 
+  const handleApprovalDecision = async (id: string, approvalStatus: 'APPROVED' | 'REJECTED') => {
+    try {
+      await updateMentorApprovalStatus(token, id, approvalStatus);
+      loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update mentor approval.');
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
@@ -144,119 +153,214 @@ export function MentorManagementPage() {
 
       {/* ── Bulk action toolbar ─────────────────────────────────────────────── */}
       {selected.size > 0 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14,
-          padding: '10px 16px', borderRadius: 12,
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))',
-          border: '1.5px solid rgba(99,102,241,0.25)',
-        }}>
-          <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--primary)' }}>
+        <div className="bulk-toolbar">
+          <span className="bulk-toolbar-label">
             {selected.size} mentor{selected.size !== 1 ? 's' : ''} selected
           </span>
-          <button
-            className="btn-secondary"
-            style={{ fontSize: '0.82rem', padding: '5px 14px', marginLeft: 'auto' }}
-            onClick={() => setSelected(new Set())}
-          >
-            Clear
-          </button>
-          <button
-            className="btn-primary"
-            style={{ fontSize: '0.82rem', padding: '5px 14px', background: 'var(--danger)', borderColor: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 6 }}
-            onClick={() => setShowBulkDeleteConfirm(true)}
-          >
-            <Trash2 size={14} /> Delete Selected
-          </button>
+          <div className="bulk-toolbar-actions">
+            <button
+              className="btn-secondary"
+              style={{ fontSize: '0.82rem', padding: '5px 14px' }}
+              onClick={() => setSelected(new Set())}
+            >
+              Clear
+            </button>
+            <button
+              className="btn-primary"
+              style={{ fontSize: '0.82rem', padding: '5px 14px', background: 'var(--danger)', borderColor: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 6 }}
+              onClick={() => setShowBulkDeleteConfirm(true)}
+            >
+              <Trash2 size={14} /> Delete Selected
+            </button>
+          </div>
         </div>
       )}
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              {/* Select-all checkbox */}
-              <th style={{ width: 40, textAlign: 'center' }}>
-                <input
-                  type="checkbox"
-                  checked={allChecked}
-                  ref={(el) => { if (el) el.indeterminate = someChecked; }}
-                  onChange={toggleAll}
-                  style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--primary)' }}
-                  title="Select all"
-                />
-              </th>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Assigned Mentees</th>
-              <th>Calls This Month</th>
-              <th>Last Activity</th>
-              <th>Status</th>
-              <th style={{ whiteSpace: 'nowrap', minWidth: 200 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {mentors.length === 0 ? (
+      {/* ── Desktop Table ────────────────────────────────────────────────────── */}
+      <div className="desktop-table">
+        <div className="table-wrap">
+          <table>
+            <thead>
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
-                  {isLoading ? 'Loading mentors…' : (
-                    <>
-                      <div style={{ fontWeight: 700, marginBottom: 6 }}>No mentors registered yet</div>
-                      <div style={{ fontSize: '0.88rem' }}>Add your first mentor to get started.</div>
-                    </>
-                  )}
-                </td>
+                <th style={{ width: 40, textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    checked={allChecked}
+                    ref={(el) => { if (el) el.indeterminate = someChecked; }}
+                    onChange={toggleAll}
+                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--primary)' }}
+                    title="Select all"
+                  />
+                </th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Assigned Mentees</th>
+                <th>Calls This Month</th>
+                <th>Last Activity</th>
+                <th>Status</th>
+                <th style={{ whiteSpace: 'nowrap', minWidth: 200 }}>Actions</th>
               </tr>
-            ) : (
-              mentors.map((mentor) => {
-                const isChecked = selected.has(mentor.id);
-                return (
-                  <tr
-                    key={mentor.id}
-                    style={{ background: isChecked ? 'rgba(99,102,241,0.06)' : undefined, transition: 'background 0.15s' }}
+            </thead>
+            <tbody>
+              {mentors.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
+                    {isLoading ? 'Loading mentors…' : (
+                      <>
+                        <div style={{ fontWeight: 700, marginBottom: 6 }}>No mentors registered yet</div>
+                        <div style={{ fontSize: '0.88rem' }}>Add your first mentor to get started.</div>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ) : (
+                mentors.map((mentor) => {
+                  const isChecked = selected.has(mentor.id);
+                  return (
+                    <tr
+                      key={mentor.id}
+                      style={{ background: isChecked ? 'rgba(99,102,241,0.06)' : undefined, transition: 'background 0.15s' }}
+                    >
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => toggleOne(mentor.id)}
+                          style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--primary)' }}
+                        />
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{mentor.name}</td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>{mentor.email}</td>
+                      <td>{mentor.assignedMentees ?? 0}</td>
+                      <td>{mentor.callsThisMonth ?? 0}</td>
+                      <td style={{ fontSize: '0.85rem' }}>{mentor.lastActivity ?? '—'}</td>
+                      <td>
+                        <span className={`status-badge ${mentor.status === 'active' ? 'status-completed' : 'status-failed'}`}>
+                          {mentor.status === 'active' ? 'Active' : 'Pending review'}
+                        </span>
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                          <button className="btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap' }} onClick={() => setSelectedMentor(mentor)}>View</button>
+                          <button
+                            className="btn-secondary"
+                            style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap', color: mentor.status === 'active' ? 'var(--danger)' : 'var(--success)' }}
+                            onClick={() => handleToggleStatus(mentor.id, mentor.status)}
+                          >
+                            {mentor.status === 'active' ? 'Disable' : 'Enable'}
+                          </button>
+                          {mentor.status !== 'active' && (
+                            <button
+                              className="btn-secondary"
+                              style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap', color: 'var(--success)' }}
+                              onClick={() => handleApprovalDecision(mentor.id, 'APPROVED')}
+                            >
+                              Approve
+                            </button>
+                          )}
+                          <button
+                            className="btn-secondary"
+                            style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap', color: 'var(--danger)' }}
+                            onClick={() => handleApprovalDecision(mentor.id, 'REJECTED')}
+                          >
+                            Reject
+                          </button>
+                          <button
+                            className="btn-secondary"
+                            style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 3 }}
+                            onClick={() => setDeleteTarget(mentor)}
+                          >
+                            <Trash2 size={12} /> Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Mobile Card List ─────────────────────────────────────────────────── */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>Loading mentors…</div>
+        ) : mentors.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>No mentors registered yet</div>
+            <div style={{ fontSize: '0.88rem' }}>Add your first mentor to get started.</div>
+          </div>
+        ) : (
+          mentors.map((mentor) => {
+            const isChecked = selected.has(mentor.id);
+            return (
+              <div key={mentor.id} className={`mobile-card ${isChecked ? 'selected' : ''}`}>
+                {/* Header: checkbox + name */}
+                <div className="mobile-card-header">
+                  <input
+                    type="checkbox"
+                    className="mobile-card-checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleOne(mentor.id)}
+                    aria-label={`Select ${mentor.name}`}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="mobile-card-name">{mentor.name}</div>
+                    <span className={`status-badge ${mentor.status === 'active' ? 'status-completed' : 'status-failed'}`} style={{ marginTop: 4, display: 'inline-flex' }}>
+                      {mentor.status === 'active' ? 'Active' : 'Pending review'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Meta info */}
+                <div className="mobile-card-meta">
+                  <div className="mobile-card-email">{mentor.email}</div>
+                  {mentor.phone && (
+                    <div className="mobile-card-row">📞 <span>{mentor.phone}</span></div>
+                  )}
+                  <div className="mobile-card-row">
+                    <span>Mentees: <strong>{mentor.assignedMentees ?? 0}</strong></span>
+                    <span style={{ opacity: 0.4 }}>·</span>
+                    <span>Calls: <strong>{mentor.callsThisMonth ?? 0}</strong></span>
+                  </div>
+                  {mentor.lastActivity && (
+                    <div className="mobile-card-row">Last: {mentor.lastActivity}</div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="mobile-card-actions">
+                  <button className="btn-secondary" onClick={() => setSelectedMentor(mentor)}>View</button>
+                  <button
+                    className="btn-secondary"
+                    style={{ color: mentor.status === 'active' ? 'var(--danger)' : 'var(--success)' }}
+                    onClick={() => handleToggleStatus(mentor.id, mentor.status)}
                   >
-                    <td style={{ textAlign: 'center' }}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleOne(mentor.id)}
-                        style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--primary)' }}
-                      />
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{mentor.name}</td>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>{mentor.email}</td>
-                    <td>{mentor.assignedMentees ?? 0}</td>
-                    <td>{mentor.callsThisMonth ?? 0}</td>
-                    <td style={{ fontSize: '0.85rem' }}>{mentor.lastActivity ?? '—'}</td>
-                    <td>
-                      <span className={`status-badge ${mentor.status === 'active' ? 'status-completed' : 'status-failed'}`}>
-                        {mentor.status === 'active' ? 'Active' : 'Pending review'}
-                      </span>
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                        <button className="btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap' }} onClick={() => setSelectedMentor(mentor)}>View</button>
-                        <button
-                          className="btn-secondary"
-                          style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap', color: mentor.status === 'active' ? 'var(--danger)' : 'var(--success)' }}
-                          onClick={() => handleToggleStatus(mentor.id, mentor.status)}
-                        >
-                          {mentor.status === 'active' ? 'Disable' : 'Enable'}
-                        </button>
-                        <button
-                          className="btn-secondary"
-                          style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: 3 }}
-                          onClick={() => setDeleteTarget(mentor)}
-                        >
-                          <Trash2 size={12} /> Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                    {mentor.status === 'active' ? 'Disable' : 'Enable'}
+                  </button>
+                  {mentor.status !== 'active' && (
+                    <button
+                      className="btn-secondary"
+                      style={{ color: 'var(--success)' }}
+                      onClick={() => handleApprovalDecision(mentor.id, 'APPROVED')}
+                    >
+                      Approve
+                    </button>
+                  )}
+                  <button
+                    className="btn-secondary"
+                    style={{ color: 'var(--danger)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    onClick={() => setDeleteTarget(mentor)}
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* ── Add Mentor Modal ─────────────────────────────────────────────────── */}
@@ -327,7 +431,7 @@ export function MentorManagementPage() {
             <div className="eyebrow" style={{ marginBottom: 4 }}>Mentor Details</div>
             <h3 style={{ fontWeight: 800, fontSize: '1.4rem', marginBottom: 16 }}>{selectedMentor.name}</h3>
             <div style={{ display: 'grid', gap: 12, fontSize: '0.92rem' }}>
-              <div><strong>Email:</strong> {selectedMentor.email}</div>
+              <div style={{ overflowWrap: 'anywhere' }}><strong>Email:</strong> {selectedMentor.email}</div>
               <div><strong>Phone:</strong> {selectedMentor.phone || 'Not provided'}</div>
               <div><strong>Status:</strong> <span className={`status-badge ${selectedMentor.status === 'active' ? 'status-completed' : 'status-failed'}`}>{selectedMentor.status}</span></div>
               <div><strong>Assigned Mentees:</strong> {selectedMentor.assignedMentees ?? 0}</div>

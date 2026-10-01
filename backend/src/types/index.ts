@@ -13,7 +13,7 @@ export interface UserDocument {
   _id: string;
   name: string;
   email: string;
-  macid?: string;
+  makid?: string;
   passwordHash: string;
   role: UserRole;
   status: 'active' | 'disabled';
@@ -21,6 +21,8 @@ export interface UserDocument {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type MentorApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface MentorDocument {
   _id: string;
@@ -32,6 +34,7 @@ export interface MentorDocument {
   availability?: string;
   location?: string;
   preferredSubjects?: string[];
+  mentorApprovalStatus?: MentorApprovalStatus;
   status: 'active' | 'disabled';
 }
 
@@ -39,7 +42,7 @@ export interface MenteeDocument {
   _id: string;
   name: string;
   standard: string;
-  macid?: string;
+  makid?: string;
   contactInformation?: Record<string, unknown>;
   status: 'active' | 'inactive';
   userId?: string;

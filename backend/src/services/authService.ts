@@ -18,12 +18,12 @@ export async function loginUser({ email, password }: LoginPayload) {
     const rawDigits = input.replace(/\D/g, '');
     const last10 = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
 
-    // 1. Try finding User or Mentee by MACID
-    user = await User.findOne({ macid: rawUpper });
+    // 1. Try finding User or Mentee by MAKID
+    user = await User.findOne({ makid: rawUpper });
 
     if (!user) {
       const { Mentee } = await import('../models/Mentee.js');
-      const mentee = await Mentee.findOne({ macid: rawUpper });
+      const mentee = await Mentee.findOne({ makid: rawUpper });
       if (mentee && mentee.userId) {
         user = await User.findById(mentee.userId);
       }
@@ -66,13 +66,13 @@ export async function loginUser({ email, password }: LoginPayload) {
   }
 
   if (!user) {
-    throw new Error('Invalid MACID, email, phone number, or password');
+    throw new Error('Invalid MAKID, email, phone number, or password');
   }
 
   const passwordMatches = await bcrypt.compare(password, user.passwordHash);
 
   if (!passwordMatches) {
-    throw new Error('Invalid MACID, email, phone number, or password');
+    throw new Error('Invalid MAKID, email, phone number, or password');
   }
 
   let menteeId = user.menteeId;
@@ -84,6 +84,13 @@ export async function loginUser({ email, password }: LoginPayload) {
     }
   }
 
+  let mentorApprovalStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | undefined;
+  if (user.role === 'MENTOR') {
+    const { Mentor } = await import('../models/Mentor.js');
+    const mentorDoc = await Mentor.findOne({ userId: String(user._id) }).lean();
+    mentorApprovalStatus = mentorDoc?.mentorApprovalStatus ?? 'APPROVED';
+  }
+
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) throw new Error('Authentication is not configured.');
 
@@ -93,6 +100,7 @@ export async function loginUser({ email, password }: LoginPayload) {
       email: user.email,
       role: user.role,
       menteeId,
+      mentorApprovalStatus,
     },
     jwtSecret,
     { expiresIn: '7d' },
@@ -106,6 +114,7 @@ export async function loginUser({ email, password }: LoginPayload) {
       email: user.email,
       role: user.role,
       menteeId,
+      mentorApprovalStatus,
     },
   };
 }

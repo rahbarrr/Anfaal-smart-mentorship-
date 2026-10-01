@@ -27,6 +27,8 @@ const BulkImportPage = lazy(() => import('./pages/BulkImportPage').then((m) => (
 const CallIntelligencePage = lazy(() => import('./pages/CallIntelligencePage').then((m) => ({ default: m.CallIntelligencePage })));
 const AdminCallsPage = lazy(() => import('./pages/AdminCallsPage').then((m) => ({ default: m.AdminCallsPage })));
 const MentorRegistrationPage = lazy(() => import('./pages/MentorRegistrationPage').then((m) => ({ default: m.MentorRegistrationPage })));
+const MentorPendingApprovalPage = lazy(() => import('./pages/MentorPendingApprovalPage').then((m) => ({ default: m.MentorPendingApprovalPage })));
+const MentorRejectedPage = lazy(() => import('./pages/MentorRejectedPage').then((m) => ({ default: m.MentorRejectedPage })));
 
 function getStoredUser() {
   const rawUser = localStorage.getItem('anfaal-user');
@@ -48,6 +50,15 @@ function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode;
   if (requiredRole && user.role !== requiredRole) {
     const target = user.role === 'ADMIN' ? '/admin' : user.role === 'MENTEE' ? '/mentee' : '/mentor';
     return <Navigate to={target} replace />;
+  }
+
+  if (requiredRole === 'MENTOR' && user.role === 'MENTOR') {
+    if (user.mentorApprovalStatus === 'PENDING') {
+      return <Navigate to="/mentor/pending" replace />;
+    }
+    if (user.mentorApprovalStatus === 'REJECTED') {
+      return <Navigate to="/mentor/rejected" replace />;
+    }
   }
 
   return <>{children}</>;
@@ -82,6 +93,8 @@ function App() {
           <Route path="calls" element={<AdminCallsPage />} />
           <Route path="calls/:callId" element={<CallIntelligencePage />} />
         </Route>
+        <Route path="/mentor/pending" element={<ProtectedRoute requiredRole="MENTOR"><MentorPendingApprovalPage /></ProtectedRoute>} />
+        <Route path="/mentor/rejected" element={<ProtectedRoute requiredRole="MENTOR"><MentorRejectedPage /></ProtectedRoute>} />
         <Route
           path="/mentor"
           element={
