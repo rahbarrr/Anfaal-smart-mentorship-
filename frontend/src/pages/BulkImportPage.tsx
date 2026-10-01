@@ -732,12 +732,12 @@ export function BulkImportPage() {
                         {previewData.type === 'ASSIGNMENTS' ? (
                           <>
                             <th style={{ padding: '10px 14px', fontWeight: 700 }}>Mentor (Phone / Email)</th>
-                            <th style={{ padding: '10px 14px', fontWeight: 700 }}>Mentee (MACID / Email)</th>
+                            <th style={{ padding: '10px 14px', fontWeight: 700 }}>Mentee (MAKID / Email)</th>
                           </>
                         ) : (
                           <>
                             <th style={{ padding: '10px 14px', fontWeight: 700 }}>Name</th>
-                            <th style={{ padding: '10px 14px', fontWeight: 700 }}>{previewData.type === 'MENTEES' ? 'MACID' : 'Email'}</th>
+                            <th style={{ padding: '10px 14px', fontWeight: 700 }}>{previewData.type === 'MENTEES' ? 'MAKID' : 'Email'}</th>
                             <th style={{ padding: '10px 14px', fontWeight: 700 }}>Phone</th>
                             {previewData.type === 'MENTEES' && <th style={{ padding: '10px 14px', fontWeight: 700 }}>Standard</th>}
                             <th style={{ padding: '10px 14px', fontWeight: 700 }}>Status</th>
@@ -769,12 +769,12 @@ export function BulkImportPage() {
                               {previewData.type === 'ASSIGNMENTS' ? (
                                 <>
                                   <td style={{ padding: '10px 14px' }}>{row.data.mentor_email || row.data.mentor_identifier || '—'}</td>
-                                  <td style={{ padding: '10px 14px' }}>{row.data.mentee_macid || row.data.mentee_email || '—'}</td>
+                                  <td style={{ padding: '10px 14px' }}>{row.data.mentee_makid || row.data.mentee_email || '—'}</td>
                                 </>
                               ) : (
                                 <>
                                   <td style={{ padding: '10px 14px', fontWeight: 600 }}>{row.data.name || '—'}</td>
-                                  <td style={{ padding: '10px 14px' }}>{row.data.macid || row.data.email || '—'}</td>
+                                  <td style={{ padding: '10px 14px' }}>{row.data.makid || row.data.email || '—'}</td>
                                   <td style={{ padding: '10px 14px' }}>{row.data.phone || '—'}</td>
                                   {previewData.type === 'MENTEES' && <td style={{ padding: '10px 14px' }}>{row.data.standard || '—'}</td>}
                                   <td style={{ padding: '10px 14px' }}>{row.data.status || 'Active'}</td>

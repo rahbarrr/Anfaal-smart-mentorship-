@@ -18,12 +18,12 @@ export async function loginUser({ email, password }: LoginPayload) {
     const rawDigits = input.replace(/\D/g, '');
     const last10 = rawDigits.length >= 10 ? rawDigits.slice(-10) : rawDigits;
 
-    // 1. Try finding User or Mentee by MACID
-    user = await User.findOne({ macid: rawUpper });
+    // 1. Try finding User or Mentee by MAKID
+    user = await User.findOne({ makid: rawUpper });
 
     if (!user) {
       const { Mentee } = await import('../models/Mentee.js');
-      const mentee = await Mentee.findOne({ macid: rawUpper });
+      const mentee = await Mentee.findOne({ makid: rawUpper });
       if (mentee && mentee.userId) {
         user = await User.findById(mentee.userId);
       }
@@ -66,14 +66,14 @@ export async function loginUser({ email, password }: LoginPayload) {
   }
 
   if (!user) {
-    throw new Error('Invalid MACID, email, phone number, or password');
+    throw new Error('Invalid MAKID, email, phone number, or password');
   }
 
   let passwordMatches = await bcrypt.compare(password, user.passwordHash);
 
-  // If password comparison failed and user is a mentee, check if password is MACID, phone, or Mentee@123
+  // If password comparison failed and user is a mentee, check if password is MAKID, phone, or Mentee@123
   if (!passwordMatches && user.role === 'MENTEE') {
-    if (user.macid && password.toUpperCase() === user.macid) {
+    if (user.makid && password.toUpperCase() === user.makid) {
       passwordMatches = true;
     } else if (password === 'Mentee@123') {
       passwordMatches = true;
@@ -92,7 +92,7 @@ export async function loginUser({ email, password }: LoginPayload) {
   }
 
   if (!passwordMatches) {
-    throw new Error('Invalid MACID, email, phone number, or password');
+    throw new Error('Invalid MAKID, email, phone number, or password');
   }
 
   let menteeId = user.menteeId;

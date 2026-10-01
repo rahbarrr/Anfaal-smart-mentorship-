@@ -112,11 +112,11 @@ export function LoginPage() {
 
           <div style={{ display: 'grid', gap: 18 }}>
             <div className="field">
-              <label style={{ fontSize: '0.95rem', fontWeight: 700 }}>Email, Phone Number, or MACID</label>
+              <label style={{ fontSize: '0.95rem', fontWeight: 700 }}>Email, Phone Number, or MAKID</label>
               <input
                 className="input"
                 type="text"
-                placeholder="e.g. MAC101, 9876543210, or email@domain.com"
+                placeholder="e.g. MAK101, 9876543210, or email@domain.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
@@ -136,7 +136,7 @@ export function LoginPage() {
                 <input
                   className="input"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter password (default is phone number or MACID)"
+                  placeholder="Enter password (default is phone number or MAKID)"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
@@ -196,7 +196,7 @@ export function LoginPage() {
             </div>
 
             <div style={{ textAlign: 'center', marginTop: 16, fontSize: '0.84rem', color: '#6a6568', background: 'rgba(143,63,102,0.06)', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(143,63,102,0.12)' }}>
-              🔒 <strong>Mentors:</strong> Sign in with Phone Number. <strong>Mentees:</strong> Sign in with MACID.
+              🔒 <strong>Mentors:</strong> Sign in with Phone Number. <strong>Mentees:</strong> Sign in with MAKID.
             </div>
           </div>
         </form>

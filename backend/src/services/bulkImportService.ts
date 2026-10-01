@@ -26,7 +26,7 @@ export function getTemplateCsv(type: ImportType): string {
 
     case 'MENTEES':
       return [
-        'name,macid,phone,standard,gender,status',
+        'name,makid,phone,standard,gender,status',
         'Arif Khan,MAC101,9876543210,10,Male,Active',
         'Ayesha Shaikh,MAC102,9876543211,9,Female,Active',
         'Bilal Siddiqui,MAC103,9876543212,11,Male,Active',
@@ -34,7 +34,7 @@ export function getTemplateCsv(type: ImportType): string {
 
     case 'ASSIGNMENTS':
       return [
-        'mentor_identifier,mentee_macid',
+        'mentor_identifier,mentee_makid',
         '8767326868,MAC101',
         '8767326868,MAC102',
         '9838734640,MAC103',
@@ -155,14 +155,14 @@ export async function createAndValidateImportJob(
       throw new Error('Mentee CSV must include a "name" column.');
     }
 
-    const seenMacidsInCsv = new Set<string>();
+    const seenMakidsInCsv = new Set<string>();
     const seenEmailsInCsv = new Set<string>();
 
     for (const r of rows) {
       const name = (r.data.name || '').trim();
-      const rawMacid = (r.data.macid || r.data.MACID || r.data.mac_id || '').trim().toUpperCase();
+      const rawMakid = (r.data.makid || r.data.MAKID || r.data.mak_id || '').trim().toUpperCase();
       const rawEmail = (r.data.email || '').trim();
-      const macid = rawMacid || (rawEmail && !rawEmail.includes('@') ? rawEmail.toUpperCase() : '');
+      const makid = rawMakid || (rawEmail && !rawEmail.includes('@') ? rawEmail.toUpperCase() : '');
       const email = normalizeEmail(rawEmail.includes('@') ? rawEmail : '');
       const phone = normalizePhone(r.data.phone);
       const standard = (r.data.standard || '10').trim();
@@ -173,12 +173,12 @@ export async function createAndValidateImportJob(
       const rowItem: ParsedRowItem = {
         row: r.rowNumber,
         status: 'valid',
-        data: { name, macid, email, phone, standard, gender, status: rawStatus },
+        data: { name, makid, email, phone, standard, gender, status: rawStatus },
       };
 
       // 1. Required name check
       if (!name) {
-        errors.push({ row: r.rowNumber, name, email: macid || email, error: 'Name is required' });
+        errors.push({ row: r.rowNumber, name, email: makid || email, error: 'Name is required' });
         rowItem.status = 'error';
         rowItem.message = 'Name is required';
         invalidRowsCount++;
@@ -186,24 +186,24 @@ export async function createAndValidateImportJob(
         continue;
       }
 
-      // 2. Validate MACID if provided
-      if (macid) {
-        if (seenMacidsInCsv.has(macid)) {
-          errors.push({ row: r.rowNumber, name, email: macid, error: `Duplicate MACID "${macid}" in CSV`, warning: true });
+      // 2. Validate MAKID if provided
+      if (makid) {
+        if (seenMakidsInCsv.has(makid)) {
+          errors.push({ row: r.rowNumber, name, email: makid, error: `Duplicate MAKID "${makid}" in CSV`, warning: true });
           rowItem.status = 'warning';
-          rowItem.message = `Duplicate MACID "${macid}" in CSV file`;
+          rowItem.message = `Duplicate MAKID "${makid}" in CSV file`;
           warningRowsCount++;
           parsedRows.push(rowItem);
           continue;
         }
-        seenMacidsInCsv.add(macid);
+        seenMakidsInCsv.add(makid);
 
-        const existingMenteeWithMacid = await Mentee.findOne({ macid }).lean();
-        if (existingMenteeWithMacid) {
+        const existingMenteeWithMakid = await Mentee.findOne({ makid }).lean();
+        if (existingMenteeWithMakid) {
           rowItem.status = 'warning';
           rowItem.isExisting = true;
-          rowItem.message = `Mentee with MACID "${macid}" already exists in database`;
-          errors.push({ row: r.rowNumber, name, email: macid, error: `Mentee with MACID "${macid}" already exists`, warning: true });
+          rowItem.message = `Mentee with MAKID "${makid}" already exists in database`;
+          errors.push({ row: r.rowNumber, name, email: makid, error: `Mentee with MAKID "${makid}" already exists`, warning: true });
           warningRowsCount++;
           parsedRows.push(rowItem);
           continue;
@@ -244,8 +244,8 @@ export async function createAndValidateImportJob(
           parsedRows.push(rowItem);
           continue;
         }
-      } else if (!macid) {
-        // Name duplicate check if neither macid nor email
+      } else if (!makid) {
+        // Name duplicate check if neither makid nor email
         const existingMentee = await Mentee.findOne({ name: new RegExp(`^${name}$`, 'i') }).lean();
         if (existingMentee) {
           rowItem.status = 'warning';
@@ -263,11 +263,11 @@ export async function createAndValidateImportJob(
     }
   } else if (type === 'ASSIGNMENTS') {
     const mentorCol = headers.find((h) => h.includes('mentor')) || 'mentor_identifier';
-    const menteeCol = headers.find((h) => h.includes('mentee') || h.includes('macid')) || 'mentee_macid';
+    const menteeCol = headers.find((h) => h.includes('mentee') || h.includes('makid')) || 'mentee_makid';
 
     for (const r of rows) {
       const mentorInput = (r.data[mentorCol] || r.data.mentor_email || r.data.mentor_phone || '').trim();
-      const menteeInput = (r.data[menteeCol] || r.data.mentee_macid || r.data.mentee_email || r.data.macid || '').trim();
+      const menteeInput = (r.data[menteeCol] || r.data.mentee_makid || r.data.mentee_email || r.data.makid || '').trim();
 
       const rowItem: ParsedRowItem = {
         row: r.rowNumber,
@@ -328,8 +328,8 @@ export async function createAndValidateImportJob(
         continue;
       }
 
-      // Check mentee exists (by macid, email, or name)
-      let menteeDoc: any = await Mentee.findOne({ macid: menteeInput.toUpperCase() }).lean();
+      // Check mentee exists (by makid, email, or name)
+      let menteeDoc: any = await Mentee.findOne({ makid: menteeInput.toUpperCase() }).lean();
 
       if (!menteeDoc && menteeInput.includes('@')) {
         menteeDoc = await Mentee.findOne({ 'contactInformation.email': menteeInput.toLowerCase() }).lean();
@@ -530,27 +530,27 @@ export async function executeImportJob(
               createdCount++;
             }
           } else if (job.type === 'MENTEES') {
-            const { name, macid, email, phone, standard, gender, status } = rowItem.data;
+            const { name, makid, email, phone, standard, gender, status } = rowItem.data;
 
-            const existingMentee = macid
-              ? await Mentee.findOne({ macid })
+            const existingMentee = makid
+              ? await Mentee.findOne({ makid })
               : (email
                 ? await Mentee.findOne({
                     $or: [{ 'contactInformation.email': email }, { name: new RegExp(`^${name}$`, 'i') }],
                   })
                 : await Mentee.findOne({ name: new RegExp(`^${name}$`, 'i') }));
 
-            // Password priority: phone digits -> macid -> Mentee@123
+            // Password priority: phone digits -> makid -> Mentee@123
             const cleanPhone = (phone || '').trim().replace(/\D/g, '').slice(-10);
-            const defaultMenteePass = cleanPhone || macid || 'Mentee@123';
+            const defaultMenteePass = cleanPhone || makid || 'Mentee@123';
             const passwordHash = await bcrypt.hash(defaultMenteePass, 10);
-            const menteeEmail = email || (macid ? `${macid.toLowerCase()}@mentee.anfaal.org` : `${Date.now()}_${Math.random().toString(36).substring(7)}@mentee.anfaal.org`);
+            const menteeEmail = email || (makid ? `${makid.toLowerCase()}@mentee.anfaal.org` : `${Date.now()}_${Math.random().toString(36).substring(7)}@mentee.anfaal.org`);
 
             if (existingMentee) {
               if (duplicateAction === 'update') {
                 existingMentee.name = name || existingMentee.name;
                 existingMentee.standard = standard || existingMentee.standard;
-                if (macid) existingMentee.macid = macid;
+                if (makid) existingMentee.makid = makid;
                 existingMentee.status = status?.toLowerCase() === 'inactive' ? 'inactive' : 'active';
 
                 const contact = (existingMentee.contactInformation as Record<string, any>) || {};
@@ -563,7 +563,7 @@ export async function executeImportJob(
                 if (existingMentee.userId) {
                   await User.findByIdAndUpdate(existingMentee.userId, {
                     name: existingMentee.name,
-                    macid: macid || undefined,
+                    makid: makid || undefined,
                     passwordHash,
                     status: existingMentee.status === 'inactive' ? 'disabled' : 'active',
                   });
@@ -573,20 +573,20 @@ export async function executeImportJob(
                 skippedCount++;
               }
             } else {
-              // Always create a User account for the mentee so they can log in with MACID!
-              let userDoc = macid ? await User.findOne({ macid }) : (email ? await User.findOne({ email: menteeEmail }) : null);
+              // Always create a User account for the mentee so they can log in with MAKID!
+              let userDoc = makid ? await User.findOne({ makid }) : (email ? await User.findOne({ email: menteeEmail }) : null);
 
               if (!userDoc) {
                 userDoc = await User.create({
                   name,
                   email: menteeEmail,
-                  macid: macid || undefined,
+                  makid: makid || undefined,
                   passwordHash,
                   role: 'MENTEE',
                   status: status?.toLowerCase() === 'inactive' ? 'disabled' : 'active',
                 });
               } else {
-                userDoc.macid = macid || userDoc.macid;
+                userDoc.makid = makid || userDoc.makid;
                 userDoc.passwordHash = passwordHash;
                 await userDoc.save();
               }
@@ -594,7 +594,7 @@ export async function executeImportJob(
               const newMentee = await Mentee.create({
                 name,
                 standard: standard || '10',
-                macid: macid || undefined,
+                makid: makid || undefined,
                 contactInformation: {
                   email: email || '',
                   phone: phone || '',
