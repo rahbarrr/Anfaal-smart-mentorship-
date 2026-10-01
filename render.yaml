@@ -47,6 +47,10 @@ services:
         value: admin@anfaalfoundation.com
       - key: BOOTSTRAP_ADMIN_PASSWORD
         sync: false
+      # Production uses an explicitly provisioned administrator; do not fail
+      # deploys or recreate credentials when bootstrap values are absent.
+      - key: DISABLE_BOOTSTRAP_ADMIN
+        value: "true"
 
   # Dedicated BullMQ worker. The API service must never process audio/AI inline.
   - type: worker
