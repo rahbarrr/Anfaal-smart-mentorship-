@@ -171,12 +171,15 @@ const verifiedData: VerifiedRecord[] = [
 ];
 
 async function run() {
-  const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/anfaal';
-  console.log(`Connecting to MongoDB at: ${uri}`);
+  const uri = process.env.MONGODB_URI;
+  const initialPassword = process.env.INJECT_INITIAL_PASSWORD;
+  if (!uri || !initialPassword) {
+    throw new Error('MONGODB_URI and INJECT_INITIAL_PASSWORD are required for this data-injection script.');
+  }
+  console.log('Connecting to configured MongoDB instance.');
   await mongoose.connect(uri);
 
-  const defaultPassword = 'password123';
-  const passwordHash = await bcrypt.hash(defaultPassword, 10);
+  const passwordHash = await bcrypt.hash(initialPassword, 12);
 
   // Group verified entries by mentor
   const mentorsMap = new Map<string, { name: string; email: string; records: VerifiedRecord[] }>();

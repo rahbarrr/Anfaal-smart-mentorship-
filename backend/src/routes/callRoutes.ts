@@ -14,6 +14,7 @@ import { User } from '../models/User.js';
 import { createStorageProvider, S3StorageProvider } from '../services/storageService.js';
 import { enqueueCallProcessingJob } from '../services/callProcessingService.js';
 import { logAuditEvent } from '../services/auditService.js';
+import mongoose from 'mongoose';
 
 const router = Router();
 
@@ -389,32 +390,42 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
       filter = { menteeId: { $in: menteeIds } };
     }
 
-    const calls = await Call.find(filter).sort({ date: -1 }).lean();
+    const requestedLimit = Number(req.query.limit || 25);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 100) : 25;
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+    if (cursor) {
+      try {
+        const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { date: string; id: string };
+        if (!decoded.date || !mongoose.isValidObjectId(decoded.id)) throw new Error('invalid');
+        const cursorDate = new Date(decoded.date);
+        if (Number.isNaN(cursorDate.getTime())) throw new Error('invalid');
+        filter.$or = [{ date: { $lt: cursorDate } }, { date: cursorDate, _id: { $lt: decoded.id } }];
+      } catch {
+        return res.status(400).json({ message: 'Invalid calls cursor.' });
+      }
+    }
 
-    const menteeCache = new Map<string, string>();
-    const mentorCache = new Map<string, string>();
+    const calls = await Call.find(filter).sort({ date: -1, _id: -1 }).limit(limit + 1).lean();
+    const page = calls.slice(0, limit);
+    const menteeIds = [...new Set(page.map((call) => call.menteeId))];
+    const mentorIds = [...new Set(page.map((call) => call.mentorId))];
+    const [mentees, mentorProfiles, directUsers] = await Promise.all([
+      Mentee.find({ _id: { $in: menteeIds } }, { name: 1 }).lean(),
+      Mentor.find({ _id: { $in: mentorIds } }, { userId: 1 }).lean(),
+      User.find({ _id: { $in: mentorIds } }, { name: 1 }).lean(),
+    ]);
+    const menteeNames = new Map(mentees.map((mentee) => [String(mentee._id), mentee.name]));
+    const mentorUsers = await User.find({ _id: { $in: mentorProfiles.map((profile) => profile.userId) } }, { name: 1 }).lean();
+    const mentorNames = new Map<string, string>();
+    mentorProfiles.forEach((profile) => {
+      const user = mentorUsers.find((candidate) => String(candidate._id) === String(profile.userId));
+      mentorNames.set(String(profile._id), user?.name || 'Mentor');
+    });
+    directUsers.forEach((user) => mentorNames.set(String(user._id), user.name));
 
-    const enrichedCalls = await Promise.all(
-      calls.map(async (call) => {
-        let menteeName = menteeCache.get(call.menteeId);
-        if (!menteeName) {
-          const mentee = await Mentee.findById(call.menteeId).lean();
-          menteeName = mentee?.name || 'Mentee';
-          menteeCache.set(call.menteeId, menteeName);
-        }
-
-        let mentorName = mentorCache.get(call.mentorId);
-        if (!mentorName) {
-          const mentorProfile = await Mentor.findById(call.mentorId).lean();
-          if (mentorProfile) {
-            const u = await User.findById(mentorProfile.userId).lean();
-            mentorName = u?.name || 'Mentor';
-          } else {
-            const u = await User.findById(call.mentorId).lean();
-            mentorName = u?.name || 'Mentor';
-          }
-          mentorCache.set(call.mentorId, mentorName);
-        }
+    const enrichedCalls = page.map((call) => {
+        const menteeName = menteeNames.get(String(call.menteeId)) || 'Mentee';
+        const mentorName = mentorNames.get(String(call.mentorId)) || 'Mentor';
 
         return {
           id: String(call._id),
@@ -432,10 +443,14 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
           topicsDiscussed: call.topicsDiscussed ?? [],
           hasRecording: Boolean(call.recording?.storageKey || call.recordingUrl || call.recording?.url),
         };
-      }),
-    );
+      });
 
-    return res.json({ calls: enrichedCalls });
+    const last = page[page.length - 1];
+    const nextCursor = calls.length > limit && last
+      ? Buffer.from(JSON.stringify({ date: new Date(last.date).toISOString(), id: String(last._id) })).toString('base64url')
+      : null;
+
+    return res.json({ calls: enrichedCalls, nextCursor, hasMore: Boolean(nextCursor) });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to load calls';
     return res.status(500).json({ message });

@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import { User } from '../models/User.js';
 import { Mentor } from '../models/Mentor.js';
 import { Mentee } from '../models/Mentee.js';
@@ -468,9 +469,6 @@ export async function executeImportJob(
       let skippedCount = 0;
       let failedCount = 0;
 
-      const defaultMentorPassword = await bcrypt.hash('Mentor@123', 10);
-      const defaultMenteePassword = await bcrypt.hash('Mentee@123', 10);
-
       for (const rowItem of job.parsedRows) {
         if (rowItem.status === 'error') {
           failedCount++;
@@ -482,18 +480,10 @@ export async function executeImportJob(
             const { name, email, phone, gender, status } = rowItem.data;
             const existingUser = await User.findOne({ email });
 
-            // Default password of each mentor is their phone number, fallback to Mentor@123
-            const cleanPhone = (phone || '').trim().replace(/\s+/g, '');
-            const mentorPassword = cleanPhone || 'Mentor@123';
-            const mentorPasswordHash = await bcrypt.hash(mentorPassword, 10);
-
             if (existingUser) {
               if (duplicateAction === 'update') {
                 existingUser.name = name || existingUser.name;
                 existingUser.status = status?.toLowerCase() === 'disabled' ? 'disabled' : 'active';
-                if (cleanPhone) {
-                  existingUser.passwordHash = mentorPasswordHash;
-                }
                 await existingUser.save();
 
                 await Mentor.findOneAndUpdate(
@@ -514,9 +504,9 @@ export async function executeImportJob(
               const newUser = await User.create({
                 name,
                 email,
-                passwordHash: mentorPasswordHash,
+                passwordHash: await bcrypt.hash(crypto.randomBytes(32).toString('base64url'), 12),
                 role: 'MENTOR',
-                status: status?.toLowerCase() === 'disabled' ? 'disabled' : 'active',
+                status: 'disabled',
               });
 
               await Mentor.create({
@@ -524,7 +514,7 @@ export async function executeImportJob(
                 phone: phone || '',
                 gender: gender || '',
                 bio: '',
-                status: newUser.status,
+                status: 'disabled',
               });
 
               createdCount++;
@@ -540,10 +530,6 @@ export async function executeImportJob(
                   })
                 : await Mentee.findOne({ name: new RegExp(`^${name}$`, 'i') }));
 
-            // Password priority: phone digits -> makid -> Mentee@123
-            const cleanPhone = (phone || '').trim().replace(/\D/g, '').slice(-10);
-            const defaultMenteePass = cleanPhone || makid || 'Mentee@123';
-            const passwordHash = await bcrypt.hash(defaultMenteePass, 10);
             const menteeEmail = email || (makid ? `${makid.toLowerCase()}@mentee.anfaal.org` : `${Date.now()}_${Math.random().toString(36).substring(7)}@mentee.anfaal.org`);
 
             if (existingMentee) {
@@ -564,7 +550,6 @@ export async function executeImportJob(
                   await User.findByIdAndUpdate(existingMentee.userId, {
                     name: existingMentee.name,
                     makid: makid || undefined,
-                    passwordHash,
                     status: existingMentee.status === 'inactive' ? 'disabled' : 'active',
                   });
                 }
@@ -581,13 +566,12 @@ export async function executeImportJob(
                   name,
                   email: menteeEmail,
                   makid: makid || undefined,
-                  passwordHash,
+                  passwordHash: await bcrypt.hash(crypto.randomBytes(32).toString('base64url'), 12),
                   role: 'MENTEE',
-                  status: status?.toLowerCase() === 'inactive' ? 'disabled' : 'active',
+                  status: 'disabled',
                 });
               } else {
                 userDoc.makid = makid || userDoc.makid;
-                userDoc.passwordHash = passwordHash;
                 await userDoc.save();
               }
 
@@ -600,7 +584,7 @@ export async function executeImportJob(
                   phone: phone || '',
                   gender: gender || '',
                 },
-                status: status?.toLowerCase() === 'inactive' ? 'inactive' : 'active',
+                    status: 'disabled',
                 userId: String(userDoc._id),
               });
 

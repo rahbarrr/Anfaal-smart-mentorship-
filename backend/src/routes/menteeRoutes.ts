@@ -30,32 +30,28 @@ const updateMenteeSchema = z.object({
 // GET /api/mentees — all mentees with enriched data (admin only)
 router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res: Response) => {
   try {
-    const mentees = await Mentee.find().sort({ createdAt: -1 }).lean();
-
-    const payload = await Promise.all(
-      mentees.map(async (mentee) => {
+    const requestedLimit = Number(_req.query.limit || 100);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 250) : 100;
+    const mentees = await Mentee.find().sort({ createdAt: -1 }).limit(limit).lean();
+    const menteeIds = mentees.map((mentee) => String(mentee._id));
+    const [assignments, callStats] = await Promise.all([
+      Mentorship.find({ menteeId: { $in: menteeIds }, status: 'active' }).lean(),
+      Call.aggregate<{ _id: string; totalCalls: number; lastCallDate: Date }>([
+        { $match: { menteeId: { $in: menteeIds } } },
+        { $group: { _id: '$menteeId', totalCalls: { $sum: 1 }, lastCallDate: { $max: '$date' } } },
+      ]),
+    ]);
+    const mentorIds = [...new Set(assignments.map((assignment) => assignment.mentorId))];
+    const mentors = await Mentor.find({ _id: { $in: mentorIds } }, { userId: 1 }).lean();
+    const users = await User.find({ _id: { $in: mentors.map((mentor) => mentor.userId) } }, { name: 1 }).lean();
+    const userNames = new Map(users.map((user) => [String(user._id), user.name]));
+    const mentorNames = new Map(mentors.map((mentor) => [String(mentor._id), userNames.get(String(mentor.userId)) ?? 'Unknown mentor']));
+    const assignmentMap = new Map(assignments.map((assignment) => [assignment.menteeId, mentorNames.get(assignment.mentorId) ?? 'Unknown mentor']));
+    const callStatsMap = new Map(callStats.map((stat) => [String(stat._id), stat]));
+    const payload = mentees.map((mentee) => {
         const menteeId = String(mentee._id);
-
-        // Find assigned mentor
-        const assignment = await Mentorship.findOne({ menteeId, status: 'active' }).lean();
-        let assignedMentorName = 'Unassigned';
-        if (assignment) {
-          const mentorProfile = await Mentor.findById(assignment.mentorId).lean();
-          if (mentorProfile) {
-            const mentorUser = await User.findById(mentorProfile.userId, { name: 1 }).lean();
-            assignedMentorName = mentorUser?.name ?? 'Unknown mentor';
-          }
-        }
-
-        // Total calls and last call
-        const totalCalls = await Call.countDocuments({ menteeId });
-        const lastCallDoc = await Call.findOne({ menteeId }).sort({ date: -1 }).lean();
-        const lastCallDate = lastCallDoc
-          ? new Date(lastCallDoc.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-          : 'No calls yet';
-
+        const stats = callStatsMap.get(menteeId);
         const contactInfo = mentee.contactInformation as Record<string, string> | undefined;
-
         return {
           id: menteeId,
           name: mentee.name,
@@ -63,13 +59,14 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res
           guardian: contactInfo?.guardian ?? '',
           phone: contactInfo?.phone ?? '',
           status: mentee.status,
-          assignedMentor: assignedMentorName,
-          totalCalls,
-          lastCallDate,
+          assignedMentor: assignmentMap.get(menteeId) ?? 'Unassigned',
+          totalCalls: stats?.totalCalls ?? 0,
+          lastCallDate: stats?.lastCallDate
+            ? new Date(stats.lastCallDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+            : 'No calls yet',
           createdAt: mentee.createdAt,
         };
-      }),
-    );
+      });
 
     return res.json({ mentees: payload });
   } catch (error) {
@@ -94,20 +91,26 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
     const mentorId = String(mentorProfile._id);
     const assignments = await Mentorship.find({ mentorId, status: 'active' }).lean();
     const menteeIds = assignments.map((a) => a.menteeId);
-    const mentees = await Mentee.find({ _id: { $in: menteeIds } }).lean();
-
     const todayStr = new Date().toISOString().split('T')[0];
+    const [mentees, callStats, todayPerformances] = await Promise.all([
+      Mentee.find({ _id: { $in: menteeIds } }).lean(),
+      Call.aggregate<{ _id: string; totalCalls: number; lastCallDate: Date; lastCallSummary?: string }>([
+        { $match: { menteeId: { $in: menteeIds }, mentorId } },
+        { $sort: { date: -1 } },
+        { $group: { _id: '$menteeId', totalCalls: { $sum: 1 }, lastCallDate: { $first: '$date' }, lastCallSummary: { $first: { $ifNull: ['$aiSummary.shortSummary', '$summary'] } } } },
+      ]),
+      DailyPerformance.find({ menteeId: { $in: menteeIds }, date: todayStr }).lean(),
+    ]);
 
-    const payload = await Promise.all(
-      mentees.map(async (mentee) => {
+    const callStatsMap = new Map(callStats.map((stat) => [String(stat._id), stat]));
+    const performanceMap = new Map(todayPerformances.map((performance) => [String(performance.menteeId), performance]));
+    const payload = mentees.map((mentee) => {
         const menteeId = String(mentee._id);
-        const totalCalls = await Call.countDocuments({ menteeId, mentorId });
-        const lastCallDoc = await Call.findOne({ menteeId, mentorId }).sort({ date: -1 }).lean();
-        const lastCallDate = lastCallDoc
-          ? new Date(lastCallDoc.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+        const callStat = callStatsMap.get(menteeId);
+        const todayPerf = performanceMap.get(menteeId);
+        const lastCallDate = callStat?.lastCallDate
+          ? new Date(callStat.lastCallDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
           : 'No calls yet';
-
-        const todayPerf = await DailyPerformance.findOne({ menteeId, date: todayStr }).lean();
         const contactInfo = mentee.contactInformation as Record<string, string> | undefined;
 
         return {
@@ -117,9 +120,9 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
           guardian: contactInfo?.guardian ?? '',
           phone: contactInfo?.phone ?? '',
           status: mentee.status,
-          totalCalls,
+          totalCalls: callStat?.totalCalls ?? 0,
           lastCallDate,
-          lastCallSummary: lastCallDoc?.aiSummary?.shortSummary || lastCallDoc?.summary || null,
+          lastCallSummary: callStat?.lastCallSummary || null,
           todayProgress: todayPerf
             ? {
                 studyMinutes: todayPerf.studyMinutes,
@@ -136,8 +139,7 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
               }
             : null,
         };
-      }),
-    );
+      });
 
     return res.json({ mentees: payload });
   } catch (error) {
@@ -178,7 +180,9 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const calls = await Call.find({ menteeId }).sort({ date: -1 }).lean();
+    const requestedLimit = Number(req.query.limit || 25);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 100) : 25;
+    const calls = await Call.find({ menteeId }).sort({ date: -1, _id: -1 }).limit(limit).lean();
     const contactInfo = mentee.contactInformation as Record<string, string> | undefined;
 
     // Resolve assigned mentor name

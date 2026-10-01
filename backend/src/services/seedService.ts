@@ -6,16 +6,18 @@ import { Call } from '../models/Call.js';
 import { User } from '../models/User.js';
 
 export async function ensureDefaultAdmin(
-  email = 'admin@anfaalfoundation.com',
-  password = process.env.ADMIN_PASSWORD ?? 'Admin@123',
+  email = process.env.BOOTSTRAP_ADMIN_EMAIL || '',
+  password = process.env.BOOTSTRAP_ADMIN_PASSWORD || '',
 ) {
   if (process.env.DISABLE_BOOTSTRAP_ADMIN === 'true') {
     return null;
   }
 
-  const isProd = process.env.NODE_ENV === 'production';
-  if (isProd && password.length < 8) {
-    throw new Error('[Bootstrap] BOOTSTRAP_ADMIN_PASSWORD must be at least 8 characters long in production.');
+  if (!email || !password) {
+    throw new Error('[Bootstrap] BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD are required when bootstrap is enabled.');
+  }
+  if (password.length < 12) {
+    throw new Error('[Bootstrap] BOOTSTRAP_ADMIN_PASSWORD must be at least 12 characters long.');
   }
 
   const existing = await User.findOne({ email });
@@ -41,7 +43,9 @@ export async function ensureDefaultMentor() {
     return existingUser;
   }
 
-  const passwordHash = await bcrypt.hash(process.env.MENTOR_PASSWORD ?? 'Mentor@123', 10);
+  const mentorPassword = process.env.MENTOR_PASSWORD;
+  if (!mentorPassword) throw new Error('[Seed] MENTOR_PASSWORD is required when demo seeding is enabled.');
+  const passwordHash = await bcrypt.hash(mentorPassword, 10);
   const user = await User.create({
     name: 'Anfaal Mentor',
     email: 'mentor@anfaalfoundation.com',
@@ -71,7 +75,9 @@ export async function ensureDefaultMenteeUser() {
 
   let user = await User.findOne({ email: 'mentee@anfaalfoundation.com' });
   if (!user) {
-    const passwordHash = await bcrypt.hash(process.env.MENTEE_PASSWORD ?? 'Mentee@123', 10);
+    const menteePassword = process.env.MENTEE_PASSWORD;
+    if (!menteePassword) throw new Error('[Seed] MENTEE_PASSWORD is required when demo seeding is enabled.');
+    const passwordHash = await bcrypt.hash(menteePassword, 10);
     user = await User.create({
       name: 'Aisha Khan',
       email: 'mentee@anfaalfoundation.com',

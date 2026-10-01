@@ -131,8 +131,11 @@ export async function deleteAssignment(token: string, assignmentId: string) {
 
 // ─── Calls ────────────────────────────────────────────────────────────────────
 
-export async function getMentorCalls(token: string) {
-  const response = await fetch(`${API_BASE_URL}/calls`, {
+export async function getMentorCalls(token: string, options: { limit?: number; cursor?: string } = {}) {
+  const params = new URLSearchParams();
+  params.set('limit', String(Math.min(Math.max(options.limit ?? 100, 1), 100)));
+  if (options.cursor) params.set('cursor', options.cursor);
+  const response = await fetch(`${API_BASE_URL}/calls?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error('Unable to load call data');
@@ -458,8 +461,8 @@ export async function getMyMentees(token: string) {
   return response.json();
 }
 
-export async function getMenteeProfile(token: string, menteeId: string) {
-  const response = await fetch(`${API_BASE_URL}/mentees/${menteeId}`, {
+export async function getMenteeProfile(token: string, menteeId: string, limit = 100) {
+  const response = await fetch(`${API_BASE_URL}/mentees/${menteeId}?limit=${Math.min(Math.max(limit, 1), 100)}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error('Unable to load mentee profile');

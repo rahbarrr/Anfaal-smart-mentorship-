@@ -8,10 +8,19 @@ export interface CallProcessingJobData {
   skipTranscription?: boolean;
 }
 
-const redisUrl = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+export const QUEUE_NAMES = {
+  callProcessing: 'call-processing',
+  transcription: 'call-transcription',
+  summary: 'call-summary',
+  imports: 'bulk-import',
+} as const;
+
+export function getRedisUrl(): string {
+  return process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+}
 
 export function createRedisConnection(): Redis {
-  const client = new Redis(redisUrl, {
+  const client = new Redis(getRedisUrl(), {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
     retryStrategy(times: number) {
@@ -36,6 +45,23 @@ export function createRedisConnection(): Redis {
 let redisConnection: Redis | null = null;
 let callProcessingQueue: Queue<CallProcessingJobData> | null = null;
 
+export function getSharedRedisConnection(): Redis {
+  if (!redisConnection) redisConnection = createRedisConnection();
+  return redisConnection;
+}
+
+export function getQueueOptions() {
+  return {
+    connection: getSharedRedisConnection(),
+    defaultJobOptions: {
+      attempts: 2,
+      backoff: { type: 'exponential' as const, delay: 3000 },
+      removeOnComplete: 200,
+      removeOnFail: 500,
+    },
+  };
+}
+
 export function getCallProcessingQueue(): Queue<CallProcessingJobData> | null {
   if (process.env.DISABLE_REDIS === 'true') {
     return null;
@@ -43,18 +69,9 @@ export function getCallProcessingQueue(): Queue<CallProcessingJobData> | null {
 
   if (!callProcessingQueue) {
     try {
-      redisConnection = createRedisConnection();
-      callProcessingQueue = new Queue<CallProcessingJobData>('call-processing', {
-        connection: redisConnection,
-        defaultJobOptions: {
-          attempts: 2,
-          backoff: {
-            type: 'exponential',
-            delay: 3000,
-          },
-          removeOnComplete: 200,
-          removeOnFail: 500,
-        },
+      callProcessingQueue = new Queue<CallProcessingJobData>(QUEUE_NAMES.callProcessing, getQueueOptions());
+      callProcessingQueue.on('error', (err: Error) => {
+        console.warn('[Queue] BullMQ queue warning:', err.message);
       });
     } catch (err) {
       console.warn('[Queue] Failed to initialize BullMQ queue:', err instanceof Error ? err.message : err);
@@ -112,7 +129,7 @@ export async function checkRedisHealth(): Promise<boolean> {
     return true;
   }
   try {
-    const client = redisConnection || createRedisConnection();
+    const client = getSharedRedisConnection();
     const pong = await Promise.race([
       client.ping(),
       new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000)),

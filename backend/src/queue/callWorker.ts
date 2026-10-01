@@ -5,7 +5,9 @@ import { createStorageProvider } from '../services/storageService.js';
 import { createTranscriptionService } from '../services/transcriptionService.js';
 import { createAiSummaryService } from '../services/aiSummaryService.js';
 import { logAuditEvent } from '../services/auditService.js';
-import { CallProcessingJobData, createRedisConnection } from './callQueue.js';
+import { CallProcessingJobData, createRedisConnection, QUEUE_NAMES } from './callQueue.js';
+import { boundedText } from '../services/chunking.js';
+import { invalidateCache } from '../services/cacheService.js';
 
 export async function processCallProcessingJob(data: CallProcessingJobData): Promise<void> {
   const { callId, jobId, mentorNotes, skipTranscription } = data;
@@ -157,7 +159,7 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
       const aiSummaryService = createAiSummaryService();
 
       const summaryResult = await aiSummaryService.summarize({
-        transcript: transcriptText || (refreshedCall?.transcript ?? ''),
+        transcript: boundedText(transcriptText || (refreshedCall?.transcript ?? '')),
         mentorNotes: mentorNotes || refreshedCall?.mentorNotes,
         metadata: {
           mentorName: 'Mentor',
@@ -212,6 +214,7 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
         'stageStatus.mentorReview': 'READY',
         completedAt: new Date(),
       });
+      await invalidateCache('dashboard:summary');
 
       console.info(`[Worker] Total processing time for call ${callId}: ${Date.now() - pipelineStartedAt}ms`);
     } catch (summaryErr) {
@@ -268,16 +271,20 @@ export function startCallWorker(): Worker<CallProcessingJobData> {
   const connection = createRedisConnection();
 
   const worker = new Worker<CallProcessingJobData>(
-    'call-processing',
+    QUEUE_NAMES.callProcessing,
     async (job: Job<CallProcessingJobData>) => {
       console.log(`[Worker] Processing job ${job.id} for call ${job.data.callId}`);
       await processCallProcessingJob(job.data);
     },
     {
       connection,
-      concurrency: 5,
+      concurrency: Math.max(1, Number(process.env.WORKER_CONCURRENCY || 3)),
     },
   );
+
+  worker.on('error', (err: Error) => {
+    console.warn('[Worker Service] BullMQ worker warning:', err.message);
+  });
 
   worker.on('completed', (job) => {
     console.log(`[Worker] Job ${job.id} completed successfully`);

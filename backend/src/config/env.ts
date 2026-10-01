@@ -19,6 +19,21 @@ export function validateEnvironment(isWorker = false): void {
   const isProd = process.env.NODE_ENV === 'production';
   const warnings: string[] = [];
   const errors: string[] = [];
+  const authProvider = (process.env.AUTH_PROVIDER || 'jwt').toLowerCase();
+
+  if (!['jwt', 'supabase'].includes(authProvider)) {
+    errors.push('AUTH_PROVIDER must be either jwt or supabase.');
+  }
+
+  if (authProvider === 'supabase' && !isWorker) {
+    if (!process.env.SUPABASE_URL) errors.push('SUPABASE_URL is required when AUTH_PROVIDER=supabase.');
+    if (!(process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY)) {
+      errors.push('SUPABASE_PUBLISHABLE_KEY is required when AUTH_PROVIDER=supabase.');
+    }
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      errors.push('SUPABASE_SERVICE_ROLE_KEY is required by the backend when AUTH_PROVIDER=supabase.');
+    }
+  }
 
   // Database
   if (!process.env.MONGODB_URI) {
@@ -34,7 +49,7 @@ export function validateEnvironment(isWorker = false): void {
     if (isProd) {
       errors.push('REDIS_URL is required in production for BullMQ background processing.');
     } else {
-      warnings.push('REDIS_URL is not set. Defaulting to local Redis (redis://127.0.0.1:6379).');
+      warnings.push('REDIS_URL is not set. Local development queue access will be unavailable unless Redis is running.');
     }
   }
 
@@ -43,15 +58,21 @@ export function validateEnvironment(isWorker = false): void {
     if (isProd) {
       errors.push('JWT_SECRET is required in production.');
     } else {
-      warnings.push('JWT_SECRET is not set. Using dev default.');
+      warnings.push('JWT_SECRET is not set. Authentication endpoints will be unavailable until it is configured.');
     }
-  } else if (isProd && process.env.JWT_SECRET.length < 16) {
-    errors.push('JWT_SECRET must be at least 16 characters in production.');
+  } else if (isProd && process.env.JWT_SECRET.length < 32) {
+    errors.push('JWT_SECRET must be at least 32 characters in production.');
   }
 
   // Frontend CORS (API only)
   if (!isWorker && isProd && !process.env.CLIENT_URL) {
-    warnings.push('CLIENT_URL is not set in production. Set to your Vercel deployment URL (e.g. https://your-app.vercel.app).');
+    errors.push('CLIENT_URL is required in production for an explicit CORS allowlist.');
+  }
+
+  if (!isWorker && isProd && process.env.DISABLE_BOOTSTRAP_ADMIN !== 'true') {
+    if (!process.env.BOOTSTRAP_ADMIN_EMAIL || !process.env.BOOTSTRAP_ADMIN_PASSWORD) {
+      errors.push('BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD are required unless DISABLE_BOOTSTRAP_ADMIN=true.');
+    }
   }
 
   // AWS S3 Private Storage
@@ -87,7 +108,7 @@ export function getConfig(): AppConfig {
     isProduction: nodeEnv === 'production',
     port: Number(process.env.PORT || 5000),
     mongoUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/anfaal',
-    jwtSecret: process.env.JWT_SECRET || 'dev_jwt_secret_key_12345678',
+    jwtSecret: process.env.JWT_SECRET || '',
     clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
     redisUrl: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
     awsRegion: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1',
