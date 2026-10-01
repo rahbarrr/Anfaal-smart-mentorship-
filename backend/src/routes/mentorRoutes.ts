@@ -13,7 +13,7 @@ const router = Router();
 const createMentorSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(6).optional(),
+  password: z.string().min(12),
   phone: z.string().optional(),
   bio: z.string().optional(),
 });
@@ -66,7 +66,9 @@ export function normalizeMentorRegistration(input: unknown) {
 // GET /api/mentors — list all mentors with enriched stats (admin only)
 router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res: Response) => {
   try {
-    const mentors = await Mentor.find().lean();
+    const requestedLimit = Number(_req.query.limit || 100);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 250) : 100;
+    const mentors = await Mentor.find().limit(limit).lean();
     const userIds = mentors.map((m) => m.userId);
     const users = await User.find({ _id: { $in: userIds } }, { name: 1, email: 1, status: 1 }).lean();
     const userMap = new Map(users.map((u) => [String(u._id), u]));
@@ -74,24 +76,25 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const payload = await Promise.all(
-      mentors.map(async (mentor) => {
+    const mentorIds = mentors.map((mentor) => String(mentor._id));
+    const [assignmentStats, callStats] = await Promise.all([
+      Mentorship.aggregate<{ _id: string; assignedMentees: number }>([
+        { $match: { mentorId: { $in: mentorIds }, status: 'active' } },
+        { $group: { _id: '$mentorId', assignedMentees: { $sum: 1 } } },
+      ]),
+      Call.aggregate<{ _id: string; callsThisMonth: number; lastActivity: Date }>([
+        { $match: { mentorId: { $in: mentorIds } } },
+        { $group: { _id: '$mentorId', callsThisMonth: { $sum: { $cond: [{ $gte: ['$date', startOfMonth] }, 1, 0] } }, lastActivity: { $max: '$date' } } },
+      ]),
+    ]);
+    const assignmentMap = new Map(assignmentStats.map((stat) => [String(stat._id), stat.assignedMentees]));
+    const callMap = new Map(callStats.map((stat) => [String(stat._id), stat]));
+    const payload = mentors.map((mentor) => {
         const user = userMap.get(mentor.userId);
         const mentorId = String(mentor._id);
-
-        // Count assigned mentees
-        const assignedMentees = await Mentorship.countDocuments({ mentorId, status: 'active' });
-
-        // Calls this month
-        const callsThisMonth = await Call.countDocuments({
-          mentorId,
-          date: { $gte: startOfMonth },
-        });
-
-        // Last activity
-        const lastCall = await Call.findOne({ mentorId }).sort({ date: -1 }).lean();
-        const lastActivity = lastCall
-          ? new Date(lastCall.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+        const stats = callMap.get(mentorId);
+        const lastActivity = stats?.lastActivity
+          ? new Date(stats.lastActivity).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
           : 'No calls yet';
 
         return {
@@ -102,12 +105,11 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res
           phone: mentor.phone ?? '',
           bio: mentor.bio ?? '',
           status: mentor.status,
-          assignedMentees,
-          callsThisMonth,
+          assignedMentees: assignmentMap.get(mentorId) ?? 0,
+          callsThisMonth: stats?.callsThisMonth ?? 0,
           lastActivity,
         };
-      }),
-    );
+      });
 
     return res.json({ mentors: payload });
   } catch (error) {
@@ -181,9 +183,7 @@ router.post('/', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res
       return res.status(409).json({ message: 'A user with this email already exists.' });
     }
 
-    const cleanPhone = (parsed.data.phone || '').trim().replace(/\s+/g, '');
-    const defaultPass = cleanPhone || 'Mentor@123';
-    const passwordHash = await bcrypt.hash(parsed.data.password ?? defaultPass, 10);
+    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
     const user = await User.create({
       name: parsed.data.name,
       email: parsed.data.email,

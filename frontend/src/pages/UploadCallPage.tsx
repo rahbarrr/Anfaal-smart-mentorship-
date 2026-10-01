@@ -264,7 +264,7 @@ export function UploadCallPage() {
         } catch (_) {
           // Silently retry
         }
-      }, 2500);
+      }, 5000);
     },
     [],
   );

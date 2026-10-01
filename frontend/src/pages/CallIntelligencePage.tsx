@@ -268,7 +268,7 @@ export function CallIntelligencePage() {
           await loadData();
         }
       } catch (_) {}
-    }, 3000);
+    }, 5000);
   }, [callId, token, loadData]);
 
   useEffect(() => {

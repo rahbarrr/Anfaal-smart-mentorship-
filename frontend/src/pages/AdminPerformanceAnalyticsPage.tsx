@@ -49,7 +49,8 @@ export function AdminPerformanceAnalyticsPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
+    const timer = window.setTimeout(loadData, 300);
+    return () => window.clearTimeout(timer);
   }, [selectedMentor, selectedMentee, selectedStandard, fromDate, toDate]);
 
   const summary = data?.summary;

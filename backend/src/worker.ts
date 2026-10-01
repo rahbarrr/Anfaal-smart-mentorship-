@@ -1,10 +1,8 @@
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import mongoose from 'mongoose';
 import { connectDatabase } from './config/db.js';
 import { validateEnvironment } from './config/env.js';
 import { startCallWorker } from './queue/callWorker.js';
-
-dotenv.config();
 
 async function runWorker() {
   console.log('[Worker Service] Initializing Anfaal background worker (Render Worker)...');

@@ -114,7 +114,7 @@ export function BulkImportPage() {
         } catch (err) {
           console.error('Error polling status:', err);
         }
-      }, 1000);
+      }, 3000);
     }
     return () => clearInterval(interval);
   }, [isProcessing, currentJobId]);

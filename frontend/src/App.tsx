@@ -1,31 +1,32 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import './App.css';
 import { AdminLayout } from './layouts/AdminLayout';
 import { MentorLayout } from './layouts/MentorLayout';
 import { MenteeLayout } from './layouts/MenteeLayout';
-import { AdminDashboardPage } from './pages/AdminDashboardPage';
-import { MentorDashboardPage } from './pages/MentorDashboardPage';
-import { MenteeManagementPage } from './pages/MenteeManagementPage';
-import { MentorManagementPage } from './pages/MentorManagementPage';
-import { UploadCallPage } from './pages/UploadCallPage';
-import { MyCallsPage } from './pages/MyCallsPage';
-import { LoginPage } from './pages/LoginPage';
-import { AdminReviewPage } from './pages/AdminReviewPage';
-import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
-import { AdminMentorshipPage } from './pages/AdminMentorshipPage';
-import { AdminAssignmentsPage } from './pages/AdminAssignmentsPage';
-import { AdminReportsPage } from './pages/AdminReportsPage';
-import { MyMenteesPage } from './pages/MyMenteesPage';
-import { MenteeProfilePage } from './pages/MenteeProfilePage';
-import { MentorProfilePage } from './pages/MentorProfilePage';
-import { MenteeDashboardPage } from './pages/MenteeDashboardPage';
-import { DailyPerformanceFormPage } from './pages/DailyPerformanceFormPage';
-import { MenteePerformanceHistoryPage } from './pages/MenteePerformanceHistoryPage';
-import { AdminPerformanceAnalyticsPage } from './pages/AdminPerformanceAnalyticsPage';
-import { BulkImportPage } from './pages/BulkImportPage';
-import { CallIntelligencePage } from './pages/CallIntelligencePage';
-import { AdminCallsPage } from './pages/AdminCallsPage';
-import { MentorRegistrationPage } from './pages/MentorRegistrationPage';
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
+const MentorDashboardPage = lazy(() => import('./pages/MentorDashboardPage').then((m) => ({ default: m.MentorDashboardPage })));
+const MenteeManagementPage = lazy(() => import('./pages/MenteeManagementPage').then((m) => ({ default: m.MenteeManagementPage })));
+const MentorManagementPage = lazy(() => import('./pages/MentorManagementPage').then((m) => ({ default: m.MentorManagementPage })));
+const UploadCallPage = lazy(() => import('./pages/UploadCallPage').then((m) => ({ default: m.UploadCallPage })));
+const MyCallsPage = lazy(() => import('./pages/MyCallsPage').then((m) => ({ default: m.MyCallsPage })));
+const LoginPage = lazy(() => import('./pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const AdminReviewPage = lazy(() => import('./pages/AdminReviewPage').then((m) => ({ default: m.AdminReviewPage })));
+const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage').then((m) => ({ default: m.AdminAnalyticsPage })));
+const AdminMentorshipPage = lazy(() => import('./pages/AdminMentorshipPage').then((m) => ({ default: m.AdminMentorshipPage })));
+const AdminAssignmentsPage = lazy(() => import('./pages/AdminAssignmentsPage').then((m) => ({ default: m.AdminAssignmentsPage })));
+const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage').then((m) => ({ default: m.AdminReportsPage })));
+const MyMenteesPage = lazy(() => import('./pages/MyMenteesPage').then((m) => ({ default: m.MyMenteesPage })));
+const MenteeProfilePage = lazy(() => import('./pages/MenteeProfilePage').then((m) => ({ default: m.MenteeProfilePage })));
+const MentorProfilePage = lazy(() => import('./pages/MentorProfilePage').then((m) => ({ default: m.MentorProfilePage })));
+const MenteeDashboardPage = lazy(() => import('./pages/MenteeDashboardPage').then((m) => ({ default: m.MenteeDashboardPage })));
+const DailyPerformanceFormPage = lazy(() => import('./pages/DailyPerformanceFormPage').then((m) => ({ default: m.DailyPerformanceFormPage })));
+const MenteePerformanceHistoryPage = lazy(() => import('./pages/MenteePerformanceHistoryPage').then((m) => ({ default: m.MenteePerformanceHistoryPage })));
+const AdminPerformanceAnalyticsPage = lazy(() => import('./pages/AdminPerformanceAnalyticsPage').then((m) => ({ default: m.AdminPerformanceAnalyticsPage })));
+const BulkImportPage = lazy(() => import('./pages/BulkImportPage').then((m) => ({ default: m.BulkImportPage })));
+const CallIntelligencePage = lazy(() => import('./pages/CallIntelligencePage').then((m) => ({ default: m.CallIntelligencePage })));
+const AdminCallsPage = lazy(() => import('./pages/AdminCallsPage').then((m) => ({ default: m.AdminCallsPage })));
+const MentorRegistrationPage = lazy(() => import('./pages/MentorRegistrationPage').then((m) => ({ default: m.MentorRegistrationPage })));
 
 function getStoredUser() {
   const rawUser = localStorage.getItem('anfaal-user');
@@ -55,6 +56,7 @@ function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode;
 function App() {
   return (
     <BrowserRouter>
+      <Suspense fallback={<div className="page-loading">Loading…</div>}>
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/mentor/register" element={<MentorRegistrationPage />} />
@@ -119,6 +121,7 @@ function App() {
           <Route index element={<DailyPerformanceFormPage />} />
         </Route>
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

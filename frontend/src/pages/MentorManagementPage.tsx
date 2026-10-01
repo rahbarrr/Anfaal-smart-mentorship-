@@ -19,7 +19,7 @@ export function MentorManagementPage() {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ name: '', email: '', password: 'Mentor@123', phone: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' });
 
   // selection state
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -76,7 +76,7 @@ export function MentorManagementPage() {
     try {
       await createMentor(token, form);
       setShowModal(false);
-      setForm({ name: '', email: '', password: 'Mentor@123', phone: '' });
+      setForm({ name: '', email: '', password: '', phone: '' });
       loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create mentor.');

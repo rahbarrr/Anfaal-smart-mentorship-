@@ -21,8 +21,10 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      - key: RUN_WORKER
+        value: "false"
       - key: CLIENT_URL
-        value: https://anfaal-smart-mentorship.vercel.app
+        sync: false
       - key: REDIS_URL
         sync: false
       - key: AWS_REGION
@@ -45,3 +47,41 @@ services:
         value: admin@anfaalfoundation.com
       - key: BOOTSTRAP_ADMIN_PASSWORD
         sync: false
+
+  # Dedicated BullMQ worker. The API service must never process audio/AI inline.
+  - type: worker
+    name: anfaal-call-worker
+    runtime: node
+    rootDir: backend
+    plan: free
+    region: oregon
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: WORKER_CONCURRENCY
+        value: "3"
+      - key: DISABLE_REDIS
+        value: "false"
+      - key: AWS_REGION
+        value: ap-south-1
+      - key: AWS_ENDPOINT
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: STORAGE_BUCKET
+        value: anfaal-recordings
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_TRANSCRIPTION_MODEL
+        value: whisper-1
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
