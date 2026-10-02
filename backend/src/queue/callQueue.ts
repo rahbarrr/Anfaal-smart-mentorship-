@@ -80,9 +80,10 @@ export async function addCallProcessingJob(
       const bullJob = await queue.add(`process-${data.callId}`, data, {
         jobId: `call-${data.callId}-${Date.now()}`,
       });
+      console.log(`[Queue] Job enqueued successfully. BullMQ jobId=${bullJob.id}, callId=${data.callId}, mongoJobId=${data.jobId}`);
       return { enqueued: true, jobId: bullJob.id };
     } catch (queueErr) {
-      console.warn('[Queue] BullMQ enqueue failed, checking fallback:', queueErr instanceof Error ? queueErr.message : queueErr);
+      console.error('[Queue] BullMQ enqueue failed:', queueErr instanceof Error ? queueErr.message : queueErr);
       if (fallbackExecutor) {
         // Run asynchronously via fallback executor
         fallbackExecutor(data).catch((err) => {

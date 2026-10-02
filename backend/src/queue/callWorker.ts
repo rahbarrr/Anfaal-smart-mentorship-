@@ -267,10 +267,12 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
 export function startCallWorker(): Worker<CallProcessingJobData> {
   const connection = createRedisConnection();
 
+  console.log('[Worker] Connecting to Redis and registering call-processing queue listener...');
+
   const worker = new Worker<CallProcessingJobData>(
     'call-processing',
     async (job: Job<CallProcessingJobData>) => {
-      console.log(`[Worker] Processing job ${job.id} for call ${job.data.callId}`);
+      console.log(`[Worker] Picked up job ${job.id} for callId=${job.data.callId} (mongoJobId=${job.data.jobId})`);
       await processCallProcessingJob(job.data);
     },
     {
@@ -280,12 +282,23 @@ export function startCallWorker(): Worker<CallProcessingJobData> {
   );
 
   worker.on('completed', (job) => {
-    console.log(`[Worker] Job ${job.id} completed successfully`);
+    console.log(`[Worker] Job ${job.id} completed successfully for callId=${job.data.callId}`);
   });
 
   worker.on('failed', (job, err) => {
-    console.error(`[Worker] Job ${job?.id} failed:`, err.message);
+    console.error(`[Worker] Job ${job?.id} failed for callId=${job?.data?.callId}:`, err.message);
   });
+
+  worker.on('stalled', (jobId) => {
+    console.warn(`[Worker] Job ${jobId} stalled (will be retried automatically by BullMQ).`);
+  });
+
+  worker.on('error', (err) => {
+    console.error('[Worker] BullMQ worker error:', err.message);
+  });
+
+  // Log the canonical banner so Render logs confirm the worker is alive
+  console.log('BullMQ call worker is active and listening to queue: call-processing');
 
   return worker;
 }

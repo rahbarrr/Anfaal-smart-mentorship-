@@ -328,9 +328,20 @@ export async function getCallDetail(token: string, callId: string) {
 
 export async function getCallJobStatus(token: string, callId: string) {
   const response = await fetch(`${API_BASE_URL}/calls/${callId}/job`, {
-    headers: { Authorization: `Bearer ${token}` },
+    // Force a fresh network request every time — never use a cached 304
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
   });
-  if (!response.ok) throw new Error('Unable to load job status');
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const err = new Error(payload.message ?? `Job status request failed: ${response.status}`) as Error & { status: number };
+    err.status = response.status;
+    throw err;
+  }
   return response.json();
 }
 

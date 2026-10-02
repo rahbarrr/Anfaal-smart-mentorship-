@@ -245,9 +245,13 @@ export function UploadCallPage() {
       const token = localStorage.getItem('anfaal-token') ?? '';
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
+      let consecutiveErrors = 0;
+      const MAX_CONSECUTIVE_ERRORS = 8;
+
       pollTimerRef.current = setInterval(async () => {
         try {
           const job = await getCallJobStatus(token, callId);
+          consecutiveErrors = 0; // reset on success
           setJobStatus(job);
 
           if (job.status === 'COMPLETED') {
@@ -261,13 +265,22 @@ export function UploadCallPage() {
             clearInterval(pollTimerRef.current!);
             setFeedback({ msg: `Processing failed: ${job.error ?? 'Unknown error'}`, type: 'error' });
           }
-        } catch (_) {
-          // Silently retry
+        } catch (err) {
+          consecutiveErrors += 1;
+          // Surface the error to the user after repeated failures so the
+          // UI doesn't silently sit at 0% forever.
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            clearInterval(pollTimerRef.current!);
+            const msg = err instanceof Error ? err.message : 'Unable to reach the server';
+            setFeedback({ msg: `Status polling failed: ${msg}. Please refresh and try again.`, type: 'error' });
+          }
+          // Otherwise: transient network hiccup — keep retrying silently
         }
       }, 2500);
     },
     [],
   );
+
 
   useEffect(() => {
     return () => {

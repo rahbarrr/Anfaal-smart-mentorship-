@@ -779,9 +779,15 @@ router.post('/:id/retry', requireAuth, async (req: AuthRequest, res: Response) =
 
 // ──────────────────────────────────────────────────────────────────────────
 // 10. GET /api/calls/:id/job — Poll job status
+// Always returns fresh state — never cached by browser or CDN
 // ──────────────────────────────────────────────────────────────────────────
 router.get('/:id/job', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
+    // Prevent all HTTP caching so the frontend always gets the latest job state
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const job = await CallProcessingJob.findOne({ callId: req.params.id }).sort({ createdAt: -1 }).lean();
 
     if (!job) {

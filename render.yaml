@@ -1,6 +1,7 @@
 services:
   # ────────────────────────────────────────────────────────────────────────────
-  # Anfaal Backend Service (100% Free Tier — No credit card required)
+  # Anfaal API — Web Service
+  # Strictly handles HTTP requests. Does NOT run a BullMQ worker inline.
   # ────────────────────────────────────────────────────────────────────────────
   - type: web
     name: anfaal-api
@@ -17,6 +18,9 @@ services:
         value: production
       - key: PORT
         value: 10000
+      # Disable inline worker on the API process — dedicated worker handles this
+      - key: RUN_WORKER
+        value: "false"
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
@@ -45,3 +49,45 @@ services:
         value: admin@anfaalfoundation.com
       - key: BOOTSTRAP_ADMIN_PASSWORD
         sync: false
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Anfaal BullMQ Background Worker
+  # Consumes the `call-processing` Redis queue: transcription + AI summary.
+  # Must share the exact same REDIS_URL and MONGODB_URI as the API service.
+  # ────────────────────────────────────────────────────────────────────────────
+  - type: worker
+    name: anfaal-worker
+    runtime: node
+    rootDir: backend
+    plan: free
+    region: oregon
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm run worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Must be the same Redis instance as the API — shares the call-processing queue
+      - key: REDIS_URL
+        sync: false
+      # Must connect to the same MongoDB database as the API
+      - key: MONGODB_URI
+        sync: false
+      # Storage credentials — required to fetch audio buffers from S3 for transcription
+      - key: AWS_REGION
+        value: ap-south-1
+      - key: AWS_ENDPOINT
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: STORAGE_BUCKET
+        value: anfaal-recordings
+      # OpenAI credentials — required for Whisper transcription and GPT-4o summarization
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_TRANSCRIPTION_MODEL
+        value: whisper-1
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
