@@ -78,7 +78,6 @@ function shutdown(signal: string): Promise<void> {
 
 process.once('SIGINT', () => { void shutdown('SIGINT'); });
 process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
-
 async function runWorker() {
   console.log('[Worker Service] Initializing Anfaal BullMQ background worker...');
 
