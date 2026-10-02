@@ -356,8 +356,6 @@ export async function getCallJobStatus(token: string, callId: string) {
     cache: 'no-store',
     headers: {
       Authorization: `Bearer ${token}`,
-      'Cache-Control': 'no-cache',
-      Pragma: 'no-cache',
     },
   });
   if (!response.ok) {
