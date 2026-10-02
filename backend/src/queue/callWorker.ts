@@ -1,4 +1,5 @@
 import { Worker, Job } from 'bullmq';
+import { Redis } from 'ioredis';
 import { Call } from '../models/Call.js';
 import { CallProcessingJob } from '../models/CallProcessingJob.js';
 import { createStorageProvider } from '../services/storageService.js';
@@ -254,9 +255,7 @@ export async function processCallProcessingJob(
   }
 }
 
-export function startCallWorker(): Worker<CallProcessingJobData> {
-  const connection = createRedisConnection();
-
+export function startCallWorker(connection: Redis = createRedisConnection()): Worker<CallProcessingJobData> {
   const worker = new Worker<CallProcessingJobData>(
     QUEUE_NAMES.callProcessing,
     async (job: Job<CallProcessingJobData>) => {
