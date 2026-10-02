@@ -56,6 +56,7 @@ type AiSummary = {
 type JobStatus = {
   stage: string;
   status: string;
+  processingStatus?: string;
   progress: number;
   stageStatus: Record<string, string>;
   error?: string;
@@ -72,6 +73,8 @@ type CallData = {
   duration: number;
   reviewStatus: string;
   aiStatus: string;
+  processingStatus?: string;
+  recordingStatus?: string;
   recordingUrl?: string;
   recording?: {
     storageKey?: string;
@@ -174,6 +177,7 @@ export function CallIntelligencePage() {
   const { callId } = useParams<{ callId: string }>();
   const navigate = useNavigate();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isPollingRef = useRef(false);
 
   const [call, setCall] = useState<CallData | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
@@ -197,43 +201,154 @@ export function CallIntelligencePage() {
     try {
       const [detailRes, transcriptRes] = await Promise.all([
         getCallDetail(token, callId),
-        getCallTranscript(token, callId).catch(() => ({ text: '', segments: [] })),
+        getCallTranscript(token, callId).catch(() => ({ transcript: '', text: '', segments: [] })),
       ]);
-      setCall(detailRes.call);
-      setJob(detailRes.processingJob);
-      setTranscript({ text: transcriptRes.transcript ?? '', segments: transcriptRes.segments ?? [] });
+
+      const loadedCall: CallData | null = detailRes.call ?? null;
+      const loadedJob: JobStatus | null = detailRes.processingJob ?? null;
+      setCall(loadedCall);
+      setJob(loadedJob);
+
+      const transcriptText =
+        transcriptRes.transcript ||
+        (transcriptRes as any).text ||
+        loadedCall?.transcript ||
+        loadedCall?.transcription?.text ||
+        '';
+      const transcriptSegments =
+        transcriptRes.segments?.length
+          ? transcriptRes.segments
+          : (loadedCall?.transcription?.segments ?? []);
+
+      setTranscript({ text: transcriptText, segments: transcriptSegments });
 
       // Fetch short-lived presigned audio URL
       if (
-        detailRes.call?.recording?.storageKey ||
-        detailRes.call?.recordingUrl ||
-        detailRes.call?.recording?.url
+        loadedCall?.recording?.storageKey ||
+        loadedCall?.recordingUrl ||
+        loadedCall?.recording?.url
       ) {
         getCallAudioUrl(token, callId)
           .then((res) => setSignedAudioUrl(res.audioUrl))
           .catch(() => setSignedAudioUrl(null));
       }
 
-      const summary = detailRes.call?.aiSummary ?? {};
+      const summary: Partial<AiSummary> = loadedCall?.aiSummary ?? {};
       setEditedSummary({
-        shortSummary: summary.shortSummary ?? detailRes.call?.summary ?? '',
-        keyDiscussionPoints: summary.keyDiscussionPoints ?? detailRes.call?.keyDiscussionPoints ?? [],
+        shortSummary: summary.shortSummary ?? loadedCall?.summary ?? '',
+        keyDiscussionPoints: summary.keyDiscussionPoints ?? (loadedCall as any)?.keyDiscussionPoints ?? [],
         academicProgress: summary.academicProgress ?? '',
         personalDevelopment: summary.personalDevelopment ?? '',
         challenges: summary.challenges ?? [],
         achievements: summary.achievements ?? [],
-        actionItems: summary.actionItems ?? detailRes.call?.actionItems ?? [],
+        actionItems: summary.actionItems ?? (loadedCall as any)?.actionItems ?? [],
         mentorCommitments: summary.mentorCommitments ?? [],
         menteeCommitments: summary.menteeCommitments ?? [],
-        followUpTopics: summary.followUpTopics ?? detailRes.call?.followUpRecommendations ?? [],
-        topicsDiscussed: summary.topicsDiscussed ?? detailRes.call?.topicsDiscussed ?? [],
+        followUpTopics: summary.followUpTopics ?? (loadedCall as any)?.followUpRecommendations ?? [],
+        topicsDiscussed: summary.topicsDiscussed ?? (loadedCall as any)?.topicsDiscussed ?? [],
       });
+      return { call: loadedCall, job: loadedJob };
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load call');
+      return null;
     } finally {
       setLoading(false);
     }
   }, [callId, token]);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  const isCompleted = Boolean(
+    job?.status === 'COMPLETED' ||
+    job?.processingStatus === 'completed' ||
+    call?.processingStatus === 'completed' ||
+    call?.aiStatus === 'completed' ||
+    (Boolean(call?.summary || call?.aiSummary?.shortSummary) && Boolean(transcript.text || call?.transcript || call?.transcription?.text))
+  );
+
+  const isFailed = Boolean(
+    !isCompleted &&
+    (job?.status === 'FAILED' ||
+     job?.processingStatus === 'failed' ||
+     call?.processingStatus === 'failed' ||
+     call?.aiStatus === 'failed')
+  );
+
+  const isProcessing = Boolean(
+    !isCompleted &&
+    !isFailed &&
+    (job?.status === 'PROCESSING' ||
+     job?.status === 'PENDING' ||
+     job?.processingStatus === 'queued' ||
+     job?.processingStatus === 'processing' ||
+     call?.processingStatus === 'queued' ||
+     call?.processingStatus === 'processing' ||
+     call?.aiStatus === 'pending' ||
+     call?.aiStatus === 'processing')
+  );
+
+  const startPolling = useCallback(() => {
+    if (!callId) return;
+    stopPolling();
+
+    console.info(`[CALL_STATUS_POLL] Initializing polling for callId=${callId}`);
+
+    pollRef.current = setInterval(async () => {
+      if (isPollingRef.current) return;
+      isPollingRef.current = true;
+      try {
+        console.info(`[CALL_STATUS_POLL] Polling status for callId=${callId}`);
+        const jobData = await getCallJobStatus(token, callId);
+        console.info(`[CALL_STATUS_UPDATE] Received status for callId=${callId}: stage=${jobData.stage} status=${jobData.status} processingStatus=${jobData.processingStatus} progress=${jobData.progress}%`);
+        setJob(jobData);
+
+        const completed =
+          jobData.status === 'COMPLETED' ||
+          jobData.processingStatus === 'completed' ||
+          jobData.progress === 100;
+
+        const failed =
+          jobData.status === 'FAILED' ||
+          jobData.processingStatus === 'failed';
+
+        if (completed) {
+          console.info(`[CALL_PROCESSING_COMPLETED] Processing finished for callId=${callId}`);
+          stopPolling();
+          await loadData();
+        } else if (failed) {
+          console.info(`[CALL_PROCESSING_FAILED] Processing failed for callId=${callId}: ${jobData.error || 'Unknown error'}`);
+          stopPolling();
+          await loadData();
+        }
+      } catch (err) {
+        console.warn(`[CALL_STATUS_POLL] Status polling error for callId=${callId}:`, err);
+      } finally {
+        isPollingRef.current = false;
+      }
+    }, 3000);
+  }, [callId, token, stopPolling, loadData]);
+
+  // Initial load
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Manage polling lifecycle based on processing state
+  useEffect(() => {
+    if (isProcessing) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+    return () => {
+      stopPolling();
+    };
+  }, [isProcessing, startPolling, stopPolling]);
 
   const handleRetry = async () => {
     if (!callId) return;
@@ -242,11 +357,20 @@ export function CallIntelligencePage() {
     try {
       await retryCallProcessing(token, callId);
       setFeedback({ msg: 'Processing retried. Background pipeline has restarted.', type: 'success' });
-      setJob((prev) =>
-        prev
-          ? { ...prev, status: 'PENDING', processingStatus: 'queued', progress: 0, error: undefined }
-          : { stage: 'UPLOAD', status: 'PENDING', processingStatus: 'queued', progress: 0, stageStatus: {} },
-      );
+      setJob({
+        stage: 'UPLOAD',
+        status: 'PENDING',
+        processingStatus: 'queued',
+        progress: 0,
+        stageStatus: {
+          upload: 'COMPLETED',
+          audioProcessing: 'PENDING',
+          transcription: 'PENDING',
+          summary: 'PENDING',
+          mentorReview: 'PENDING',
+        },
+      });
+      setCall((prev) => prev ? { ...prev, processingStatus: 'queued', aiStatus: 'pending' } : prev);
       startPolling();
     } catch (err) {
       setFeedback({ msg: err instanceof Error ? err.message : 'Retry failed', type: 'error' });
@@ -254,33 +378,6 @@ export function CallIntelligencePage() {
       setIsRetrying(false);
     }
   };
-
-  // Poll if still processing
-  const startPolling = useCallback(() => {
-    if (!callId) return;
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(async () => {
-      try {
-        const jobData = await getCallJobStatus(token, callId);
-        setJob(jobData);
-        if (jobData.status === 'COMPLETED' || jobData.status === 'FAILED') {
-          clearInterval(pollRef.current!);
-          await loadData();
-        }
-      } catch (_) {}
-    }, 5000);
-  }, [callId, token, loadData]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  useEffect(() => {
-    if (job && (job.status === 'PROCESSING' || job.status === 'PENDING')) {
-      startPolling();
-    }
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [job?.status, startPolling]);
 
   const handleApprove = async () => {
     if (!callId) return;
@@ -336,7 +433,6 @@ export function CallIntelligencePage() {
     );
   }
 
-  const isProcessing = job?.status === 'PROCESSING' || job?.status === 'PENDING';
   const isApproved = call.reviewStatus === 'Approved';
   const hasTranscript = Boolean(transcript.text || transcript.segments.length);
 
@@ -351,7 +447,13 @@ export function CallIntelligencePage() {
           <span><Calendar size={14} /> {new Date(call.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
           <span><Clock size={14} /> {call.duration} mins</span>
           <span className={`status-badge ${isApproved ? 'status-approved' : isProcessing ? 'status-processing' : 'status-pending'}`}>
-            {isApproved ? <><CheckCircle size={12} /> Approved</> : isProcessing ? <><Loader size={12} className="spin" /> {job?.status === 'PENDING' ? 'Queued' : 'Processing'}</> : <><Sparkles size={12} /> Pending Review</>}
+            {isApproved ? (
+              <><CheckCircle size={12} /> Approved</>
+            ) : isProcessing ? (
+              <><Loader size={12} className="spin" /> {job?.status === 'PENDING' || job?.processingStatus === 'queued' ? 'Queued' : 'Processing'}</>
+            ) : (
+              <><Sparkles size={12} /> Pending Review</>
+            )}
           </span>
         </div>
       </div>
@@ -365,21 +467,21 @@ export function CallIntelligencePage() {
       )}
 
       {/* Processing state */}
-      {isProcessing && job && (
+      {isProcessing && (
         <div className="wizard-card processing-card" style={{ marginBottom: '1.5rem' }}>
           <div className="processing-header">
             <div className="processing-pulse" />
             <h2 className="wizard-card-title"><Brain size={20} /> AI is processing this call…</h2>
           </div>
           <div className="pipeline-bar-outer">
-            <div className="pipeline-bar-fill" style={{ width: `${job.progress}%` }} />
+            <div className="pipeline-bar-fill" style={{ width: `${job?.progress ?? 0}%` }} />
           </div>
-          <p className="pipeline-percent">{job.progress}% — {job.stage}</p>
+          <p className="pipeline-percent">{job?.progress ?? 0}% — {job?.stage ?? 'UPLOAD'}</p>
         </div>
       )}
 
       {/* Failed state with Retry button */}
-      {job?.status === 'FAILED' && (
+      {isFailed && (
         <div className="wizard-card" style={{ marginBottom: '1.5rem', borderLeft: '4px solid var(--danger)', background: 'rgba(239,68,68,0.04)' }}>
           <div className="call-failed-row">
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
@@ -389,7 +491,7 @@ export function CallIntelligencePage() {
                   Call Processing Failed
                 </h3>
                 <p style={{ margin: '6px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
-                  {job.error || 'An error occurred during audio transcription or AI summary generation.'}
+                  {job?.error || 'An error occurred during audio transcription or AI summary generation.'}
                 </p>
                 <div style={{ marginTop: 6, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                   {transcript.text ? 'Transcript is preserved. You can retry AI summarization.' : 'You can retry the processing pipeline.'}

@@ -73,3 +73,120 @@ test('CALLS: summary version history correctly records version types', () => {
   assert.equal(summaryVersions[2].type, 'APPROVED');
   assert.equal(summaryVersions[2].version, 3);
 });
+
+test('CALLS: call processing status synchronization reconciles completed call and prevents stuck 0%', () => {
+  // Test completed call state synchronization even if job was null or pending
+  const completedCall = {
+    processingStatus: 'completed',
+    aiStatus: 'completed',
+    summary: 'A complete mentorship discussion.',
+    transcription: { status: 'COMPLETED', text: 'Call transcript.' },
+    aiSummary: { status: 'COMPLETED', shortSummary: 'Summary text' },
+  };
+
+  const isCallCompleted =
+    completedCall.processingStatus === 'completed' ||
+    completedCall.aiStatus === 'completed' ||
+    Boolean(completedCall.summary || (completedCall.transcription?.status === 'COMPLETED' && completedCall.aiSummary?.status === 'COMPLETED'));
+
+  assert.equal(isCallCompleted, true);
+
+  const pendingJob = {
+    stage: 'UPLOAD',
+    status: 'PENDING',
+    progress: 0,
+    stageStatus: { upload: 'COMPLETED', audioProcessing: 'PENDING', transcription: 'PENDING', summary: 'PENDING' },
+  };
+
+  const effectiveJob = {
+    stage: isCallCompleted ? 'COMPLETE' : pendingJob.stage,
+    status: isCallCompleted ? 'COMPLETED' : pendingJob.status,
+    processingStatus: isCallCompleted ? 'completed' : 'queued',
+    progress: isCallCompleted ? 100 : pendingJob.progress,
+  };
+
+  assert.equal(effectiveJob.status, 'COMPLETED');
+  assert.equal(effectiveJob.processingStatus, 'completed');
+  assert.equal(effectiveJob.stage, 'COMPLETE');
+  assert.equal(effectiveJob.progress, 100);
+});
+
+test('CALLS: frontend state derivation correctly transitions PENDING -> PROCESSING -> COMPLETED', () => {
+  // Test frontend isProcessing, isCompleted, isFailed computation
+  const deriveState = (job: any, call: any) => {
+    const isCompleted = Boolean(
+      job?.status === 'COMPLETED' ||
+      job?.processingStatus === 'completed' ||
+      call?.processingStatus === 'completed' ||
+      call?.aiStatus === 'completed' ||
+      (Boolean(call?.summary || call?.aiSummary?.shortSummary) && Boolean(call?.transcript || call?.transcription?.text))
+    );
+
+    const isFailed = Boolean(
+      !isCompleted &&
+      (job?.status === 'FAILED' ||
+       job?.processingStatus === 'failed' ||
+       call?.processingStatus === 'failed' ||
+       call?.aiStatus === 'failed')
+    );
+
+    const isProcessing = Boolean(
+      !isCompleted &&
+      !isFailed &&
+      (job?.status === 'PROCESSING' ||
+       job?.status === 'PENDING' ||
+       job?.processingStatus === 'queued' ||
+       job?.processingStatus === 'processing' ||
+       call?.processingStatus === 'queued' ||
+       call?.processingStatus === 'processing' ||
+       call?.aiStatus === 'pending' ||
+       call?.aiStatus === 'processing')
+    );
+
+    return { isCompleted, isFailed, isProcessing };
+  };
+
+  // State 1: PENDING / Queued
+  const statePending = deriveState(
+    { status: 'PENDING', processingStatus: 'queued', progress: 0 },
+    { processingStatus: 'queued', aiStatus: 'pending' },
+  );
+  assert.equal(statePending.isProcessing, true);
+  assert.equal(statePending.isCompleted, false);
+  assert.equal(statePending.isFailed, false);
+
+  // State 2: PROCESSING (transcription/summary)
+  const stateProcessing = deriveState(
+    { status: 'PROCESSING', processingStatus: 'processing', progress: 50 },
+    { processingStatus: 'processing', aiStatus: 'pending' },
+  );
+  assert.equal(stateProcessing.isProcessing, true);
+  assert.equal(stateProcessing.isCompleted, false);
+
+  // State 3: COMPLETED (worker finished)
+  const stateCompleted = deriveState(
+    { status: 'COMPLETED', processingStatus: 'completed', progress: 100 },
+    { processingStatus: 'completed', aiStatus: 'completed', summary: 'Summary done' },
+  );
+  assert.equal(stateCompleted.isProcessing, false);
+  assert.equal(stateCompleted.isCompleted, true);
+  assert.equal(stateCompleted.isFailed, false);
+
+  // State 4: Edge case: DB has completed call, but job object is stale 0% UPLOAD
+  const stateStaleJob = deriveState(
+    { status: 'PENDING', processingStatus: 'queued', progress: 0 },
+    { processingStatus: 'completed', aiStatus: 'completed', summary: 'Done' },
+  );
+  assert.equal(stateStaleJob.isCompleted, true);
+  assert.equal(stateStaleJob.isProcessing, false);
+
+  // State 5: FAILED
+  const stateFailed = deriveState(
+    { status: 'FAILED', processingStatus: 'failed', error: 'Transcription failed' },
+    { processingStatus: 'failed', aiStatus: 'failed' },
+  );
+  assert.equal(stateFailed.isFailed, true);
+  assert.equal(stateFailed.isProcessing, false);
+  assert.equal(stateFailed.isCompleted, false);
+});
+

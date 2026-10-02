@@ -256,11 +256,14 @@ export function UploadCallPage() {
         if (pollInFlightRef.current || document.visibilityState === 'hidden') return;
         pollInFlightRef.current = true;
         try {
+          console.info(`[CALL_STATUS_POLL] Upload page polling callId=${callId}`);
           const job = await getCallJobStatus(token, callId);
+          console.info(`[CALL_STATUS_UPDATE] Upload page received status for callId=${callId}: stage=${job.stage} status=${job.status} progress=${job.progress}%`);
           consecutiveErrors = 0; // reset on success
           setJobStatus(job);
 
-          if (job.status === 'COMPLETED' || job.processingStatus === 'completed') {
+          if (job.status === 'COMPLETED' || job.processingStatus === 'completed' || job.progress === 100) {
+            console.info(`[CALL_PROCESSING_COMPLETED] Upload page processing completed for callId=${callId}`);
             clearInterval(pollTimerRef.current!);
             // Load full call detail for review
             const detail = await getCallDetail(token, callId);
@@ -268,6 +271,7 @@ export function UploadCallPage() {
             setEditedSummary(detail.call?.aiSummary ?? null);
             setCurrentStep(3);
           } else if (job.status === 'FAILED' || job.processingStatus === 'failed') {
+            console.info(`[CALL_PROCESSING_FAILED] Upload page processing failed for callId=${callId}: ${job.error}`);
             clearInterval(pollTimerRef.current!);
             setFeedback({ msg: job.error || 'Recording uploaded, but processing failed. You can retry processing.', type: 'error' });
           }
@@ -285,7 +289,7 @@ export function UploadCallPage() {
         } finally {
           pollInFlightRef.current = false;
         }
-      }, 5000);
+      }, 3000);
     },
     [],
   );
