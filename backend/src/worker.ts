@@ -83,16 +83,16 @@ async function runWorker() {
   console.log('[Worker Service] Initializing Anfaal BullMQ background worker...');
 
   try {
-    // Retained only while the legacy free Render Web Service hosts this worker.
-    // A real Render Background Worker must leave this disabled.
-    if (process.env.WORKER_HEALTHCHECK === 'true') {
+    // The current free Render worker is a legacy Web Service, which requires
+    // an open HTTP port. A future native Background Worker can disable this.
+    if (process.env.WORKER_HEALTHCHECK !== 'false') {
       healthServer = createWorkerHealthServer();
       const port = Number(process.env.PORT || 10000);
       await new Promise<void>((resolve, reject) => {
         healthServer!.once('error', reject);
         healthServer!.listen(port, '0.0.0.0', resolve);
       });
-      console.log(`[Worker Service] Legacy health server listening on 0.0.0.0:${port}.`);
+      console.log(`[Worker Service] Health server listening on 0.0.0.0:${port}.`);
     }
 
     validateEnvironment(true);
