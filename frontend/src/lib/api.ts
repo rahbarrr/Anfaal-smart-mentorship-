@@ -343,7 +343,8 @@ export async function updateCallSummary(token: string, callId: string, payload: 
 }
 
 export async function getCallDetail(token: string, callId: string) {
-  const response = await fetch(`${API_BASE_URL}/calls/${callId}`, {
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}?_t=${Date.now()}`, {
+    cache: 'no-store',
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error('Unable to load call detail');
@@ -351,7 +352,7 @@ export async function getCallDetail(token: string, callId: string) {
 }
 
 export async function getCallJobStatus(token: string, callId: string) {
-  const response = await fetch(`${API_BASE_URL}/calls/${callId}/status`, {
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}/status?_t=${Date.now()}`, {
     // Force a fresh network request every time — never use a cached 304
     cache: 'no-store',
     headers: {
@@ -368,7 +369,8 @@ export async function getCallJobStatus(token: string, callId: string) {
 }
 
 export async function getCallTranscript(token: string, callId: string) {
-  const response = await fetch(`${API_BASE_URL}/calls/${callId}/transcript`, {
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}/transcript?_t=${Date.now()}`, {
+    cache: 'no-store',
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error('Unable to load transcript');

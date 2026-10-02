@@ -560,6 +560,10 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
 // ──────────────────────────────────────────────────────────────────────────
 router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const call = await Call.findById(req.params.id).lean();
     if (!call) return res.status(404).json({ message: 'Call not found.' });
 
@@ -592,9 +596,55 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       if (u) mentorName = u.name;
     }
 
-    const job = await CallProcessingJob.findOne({ callId: String(call._id) })
+    const callObjectId = mongoose.Types.ObjectId.isValid(call._id) ? new mongoose.Types.ObjectId(call._id) : null;
+    const job = await CallProcessingJob.findOne({
+      $or: [{ callId: String(call._id) }, ...(callObjectId ? [{ callId: callObjectId }] : [])],
+    })
       .sort({ createdAt: -1 })
       .lean();
+
+    const isCallCompleted =
+      call.processingStatus === 'completed' ||
+      call.aiStatus === 'completed' ||
+      Boolean(call.summary || (call.transcription?.status === 'COMPLETED' && call.aiSummary?.status === 'COMPLETED'));
+
+    const effectiveJob = job
+      ? {
+          id: String(job._id),
+          stage: isCallCompleted ? 'COMPLETE' : job.stage,
+          status: isCallCompleted ? 'COMPLETED' : job.status,
+          processingStatus: isCallCompleted
+            ? 'completed'
+            : (job.status === 'COMPLETED' ? 'completed' : job.status === 'FAILED' ? 'failed' : job.status === 'PROCESSING' ? 'processing' : 'queued'),
+          progress: isCallCompleted ? 100 : job.progress,
+          stageStatus: isCallCompleted
+            ? {
+                upload: 'COMPLETED',
+                audioProcessing: 'COMPLETED',
+                transcription: 'COMPLETED',
+                summary: 'COMPLETED',
+                mentorReview: job.stageStatus?.mentorReview || 'READY',
+              }
+            : job.stageStatus,
+          error: job.error,
+        }
+      : isCallCompleted
+        ? {
+            id: `call-completed-${String(call._id)}`,
+            stage: 'COMPLETE' as const,
+            status: 'COMPLETED' as const,
+            processingStatus: 'completed' as const,
+            progress: 100,
+            stageStatus: {
+              upload: 'COMPLETED',
+              audioProcessing: 'COMPLETED',
+              transcription: 'COMPLETED',
+              summary: 'COMPLETED',
+              mentorReview: 'READY',
+            },
+            error: undefined,
+          }
+        : null;
 
     return res.json({
       call: {
@@ -604,16 +654,7 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
         menteeName: mentee?.name || 'Mentee',
         menteeStandard: mentee?.standard || '',
       },
-      processingJob: job
-        ? {
-            id: String(job._id),
-            stage: job.stage,
-            status: job.status,
-            progress: job.progress,
-            stageStatus: job.stageStatus,
-            error: job.error,
-          }
-        : null,
+      processingJob: effectiveJob,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to load call';
@@ -757,6 +798,10 @@ router.get('/:id/audio', requireAuth, async (req: AuthRequest, res: Response) =>
 // ──────────────────────────────────────────────────────────────────────────
 router.get('/:id/transcript', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     // Mentees restricted by default (Phase 1.10)
     if (req.user?.role === 'MENTEE') {
       return res.status(403).json({ message: 'Access denied: Mentees do not have access to call transcripts.' });
@@ -930,26 +975,85 @@ const handleCallProcessingStatus = async (req: AuthRequest, res: Response) => {
     if (!call) return res.status(404).json({ message: 'Call record not found.' });
 
     if (req.user.role === 'MENTOR') {
-      const mentorId = await getMentorProfileId(req.user.id);
-      if (call.mentorId !== req.user.id && call.mentorId !== mentorId) {
-        return res.status(403).json({ message: 'Access denied: You can only view your own call records.' });
+      const mentorProfile = await Mentor.findOne({ userId: req.user.id });
+      const allowedIds = [req.user.id, ...(mentorProfile ? [String(mentorProfile._id)] : [])];
+      const isCaller = allowedIds.includes(call.mentorId);
+      const isAssigned = mentorProfile
+        ? await Mentorship.findOne({ mentorId: String(mentorProfile._id), menteeId: call.menteeId, status: 'active' }).lean()
+        : null;
+      if (!isCaller && !isAssigned) {
+        return res.status(403).json({ message: 'Access denied: You are not assigned to this mentee or call.' });
       }
     }
 
-    const job = await CallProcessingJob.findOne({ callId }).sort({ createdAt: -1 }).lean();
-    const statusByJob = { PENDING: 'queued', PROCESSING: 'processing', COMPLETED: 'completed', FAILED: 'failed' } as const;
+    const callObjectId = mongoose.Types.ObjectId.isValid(callId) ? new mongoose.Types.ObjectId(callId) : null;
+    const job = await CallProcessingJob.findOne({
+      $or: [{ callId }, ...(callObjectId ? [{ callId: callObjectId }] : [])],
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const isCallCompleted =
+      call.processingStatus === 'completed' ||
+      call.aiStatus === 'completed' ||
+      Boolean(call.summary || (call.transcription?.status === 'COMPLETED' && call.aiSummary?.status === 'COMPLETED'));
+
+    const isCallFailed =
+      call.processingStatus === 'failed' ||
+      (job?.status === 'FAILED' && !['processing', 'completed'].includes(call.processingStatus));
+
+    let effectiveStatus: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' = 'PENDING';
+    let effectiveProcessingStatus: 'queued' | 'processing' | 'completed' | 'failed' = 'queued';
+    let effectiveStage: 'UPLOAD' | 'TRANSCRIPTION' | 'SUMMARY' | 'COMPLETE' = 'UPLOAD';
+    let effectiveProgress = 0;
+
+    if (isCallCompleted || job?.status === 'COMPLETED') {
+      effectiveStatus = 'COMPLETED';
+      effectiveProcessingStatus = 'completed';
+      effectiveStage = 'COMPLETE';
+      effectiveProgress = 100;
+    } else if (isCallFailed) {
+      effectiveStatus = 'FAILED';
+      effectiveProcessingStatus = 'failed';
+      effectiveStage = job?.stage ?? 'UPLOAD';
+      effectiveProgress = job?.progress ?? 0;
+    } else if (job?.status === 'PROCESSING' || call.processingStatus === 'processing') {
+      effectiveStatus = 'PROCESSING';
+      effectiveProcessingStatus = 'processing';
+      effectiveStage = job?.stage ?? (call.transcription?.status === 'COMPLETED' ? 'SUMMARY' : 'TRANSCRIPTION');
+      effectiveProgress = Math.max(job?.progress ?? 0, call.transcription?.status === 'COMPLETED' ? 50 : 15);
+    } else {
+      effectiveStatus = job?.status ?? 'PENDING';
+      effectiveProcessingStatus = 'queued';
+      effectiveStage = job?.stage ?? 'UPLOAD';
+      effectiveProgress = job?.progress ?? 0;
+    }
 
     return res.json({
       jobId: job ? String(job._id) : null,
       callId: String(call._id),
-      stage: job?.stage ?? 'UPLOAD',
-      status: job?.status ?? 'PENDING',
-      processingStatus: job ? statusByJob[job.status] : call.processingStatus || 'queued',
-      progress: job?.progress ?? 0,
-      stageStatus: job?.stageStatus ?? {},
+      stage: effectiveStage,
+      status: effectiveStatus,
+      processingStatus: effectiveProcessingStatus,
+      progress: effectiveProgress,
+      stageStatus: isCallCompleted
+        ? {
+            upload: 'COMPLETED',
+            audioProcessing: 'COMPLETED',
+            transcription: 'COMPLETED',
+            summary: 'COMPLETED',
+            mentorReview: job?.stageStatus?.mentorReview || 'READY',
+          }
+        : (job?.stageStatus ?? {
+            upload: 'COMPLETED',
+            audioProcessing: 'PENDING',
+            transcription: 'PENDING',
+            summary: 'PENDING',
+            mentorReview: 'PENDING',
+          }),
       error: job?.error ?? null,
       startedAt: job?.startedAt,
-      completedAt: job?.completedAt,
+      completedAt: isCallCompleted ? (job?.completedAt || new Date()) : job?.completedAt,
     });
   } catch (error) {
     console.error(`[CALL_STATUS_FAILED] callId=${callId} error=${error instanceof Error ? error.message : String(error)}`);
