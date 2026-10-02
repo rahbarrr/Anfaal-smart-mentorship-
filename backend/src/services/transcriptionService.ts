@@ -141,6 +141,8 @@ const SUPPORTED_AUDIO_MIME_TYPES: Record<string, string> = {
 };
 
 const SUPPORTED_WHISPER_EXTENSIONS = new Set(Object.values(SUPPORTED_AUDIO_MIME_TYPES));
+SUPPORTED_WHISPER_EXTENSIONS.add('mpeg');
+SUPPORTED_WHISPER_EXTENSIONS.add('mpga');
 const EXTENSION_TO_MIME_TYPE: Record<string, string> = {
   mp3: 'audio/mpeg',
   wav: 'audio/wav',

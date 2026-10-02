@@ -64,7 +64,8 @@ type JobStatus = {
 };
 
 const WIZARD_STEPS = ['Record Details', 'Upload Audio', 'AI Processing', 'Review & Approve'];
-const ACCEPTED_TYPES = '.mp3,.wav,.m4a,.mp4,audio/*,video/*';
+const SUPPORTED_RECORDING_EXTENSIONS = ['mp3', 'mpeg', 'mpga', 'wav', 'm4a', 'mp4', 'webm', 'ogg', 'oga', 'aac', 'flac'];
+const ACCEPTED_TYPES = SUPPORTED_RECORDING_EXTENSIONS.map((extension) => `.${extension}`).join(',');
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const SERVER_UPLOAD_FALLBACK_MAX_SIZE = 25 * 1024 * 1024;
 
@@ -75,7 +76,8 @@ function getRecordingMimeType(file: File): string {
   const mimeByExtension: Record<string, string> = {
     mp3: 'audio/mpeg', mpeg: 'audio/mpeg', mpga: 'audio/mpeg',
     wav: 'audio/wav', m4a: 'audio/mp4', mp4: 'audio/mp4',
-    ogg: 'audio/ogg', webm: 'audio/webm', aac: 'audio/aac',
+    ogg: 'audio/ogg', oga: 'audio/ogg', webm: 'audio/webm', aac: 'audio/aac',
+    flac: 'audio/flac',
   };
   if (file.type.startsWith('audio/') || file.type.startsWith('video/')) return file.type;
   return (extension && mimeByExtension[extension]) || 'audio/mpeg';
@@ -301,10 +303,11 @@ export function UploadCallPage() {
       setFeedback({ msg: 'This recording is larger than 25 MB. Compress or split it into smaller files before uploading.', type: 'error' });
       return;
     }
-    const supportedType = /\.(mp3|wav|m4a|mp4|webm|ogg|aac)$/i.test(file.name)
-      || ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/ogg', 'audio/webm', 'audio/aac', 'video/mp4', 'video/webm'].includes(file.type);
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    const supportedType = Boolean(extension && SUPPORTED_RECORDING_EXTENSIONS.includes(extension))
+      || ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/ogg', 'audio/webm', 'audio/aac', 'audio/flac', 'video/mp4', 'video/webm'].includes(file.type.toLowerCase());
     if (!supportedType) {
-      setFeedback({ msg: 'Unsupported recording format. Choose MP3, WAV, M4A, MP4, WebM, OGG, or AAC.', type: 'error' });
+      setFeedback({ msg: 'Unsupported recording format. Choose MP3, MPEG, MPGA, WAV, M4A, MP4, WebM, OGG, OGA, AAC, or FLAC.', type: 'error' });
       return;
     }
     setSelectedFile(file);
@@ -679,7 +682,7 @@ export function UploadCallPage() {
               <>
                 <Upload size={40} className="dropzone-icon" />
                 <p className="dropzone-heading">Drag & drop your recording here</p>
-                <p className="dropzone-hint">MP3, WAV, M4A, MP4, WebM — up to 100 MB</p>
+                <p className="dropzone-hint">MP3, MPEG, MPGA, WAV, M4A, MP4, WebM, OGG, AAC, FLAC — up to 25 MB</p>
                 <span className="btn btn-outline btn-sm">Browse Files</span>
               </>
             )}
