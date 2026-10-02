@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { Server } from 'node:http';
 import mongoose from 'mongoose';
 import { Redis } from 'ioredis';
 import { Worker } from 'bullmq';
@@ -6,10 +7,19 @@ import { connectDatabase } from './config/db.js';
 import { validateEnvironment } from './config/env.js';
 import { createRedisConnection } from './queue/callQueue.js';
 import { startCallWorker } from './queue/callWorker.js';
+import { createWorkerHealthServer } from './workerHealthServer.js';
 
+let healthServer: Server | undefined;
 let redisConnection: Redis | undefined;
 let callWorker: Worker | undefined;
 let shutdownPromise: Promise<void> | undefined;
+
+async function closeHealthServer(): Promise<void> {
+  if (!healthServer?.listening) return;
+  await new Promise<void>((resolve, reject) => {
+    healthServer!.close((error) => error ? reject(error) : resolve());
+  });
+}
 
 function shutdown(signal: string): Promise<void> {
   if (shutdownPromise) return shutdownPromise;
@@ -21,6 +31,14 @@ function shutdown(signal: string): Promise<void> {
       process.exit(1);
     }, 280000).unref();
     let failed = false;
+
+    try {
+      await closeHealthServer();
+      console.log('[Worker Service] Health server closed.');
+    } catch (error) {
+      failed = true;
+      console.error('[Worker Service] Failed to close health server:', error);
+    }
 
     try {
       if (callWorker) await callWorker.close();
@@ -65,6 +83,18 @@ async function runWorker() {
   console.log('[Worker Service] Initializing Anfaal BullMQ background worker...');
 
   try {
+    // Retained only while the legacy free Render Web Service hosts this worker.
+    // A real Render Background Worker must leave this disabled.
+    if (process.env.WORKER_HEALTHCHECK === 'true') {
+      healthServer = createWorkerHealthServer();
+      const port = Number(process.env.PORT || 10000);
+      await new Promise<void>((resolve, reject) => {
+        healthServer!.once('error', reject);
+        healthServer!.listen(port, '0.0.0.0', resolve);
+      });
+      console.log(`[Worker Service] Legacy health server listening on 0.0.0.0:${port}.`);
+    }
+
     validateEnvironment(true);
     await connectDatabase();
     console.log('[Worker Service] Connected to MongoDB Atlas.');
