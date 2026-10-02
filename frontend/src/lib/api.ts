@@ -146,6 +146,7 @@ export async function getPresignedUploadUrl(
   token: string,
   payload: { fileName: string; fileSize: number; mimeType: string; menteeId: string },
 ): Promise<{
+  callId: string;
   uploadUrl: string;
   storageKey: string;
   fileName: string;
@@ -187,6 +188,7 @@ export function uploadFileDirectToS3(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', uploadUrl);
+    xhr.timeout = 12 * 60 * 1000;
     xhr.setRequestHeader('Content-Type', mimeType || file.type || 'application/octet-stream');
 
     if (xhr.upload && onProgress) {
@@ -206,8 +208,9 @@ export function uploadFileDirectToS3(
       }
     };
 
-    xhr.onerror = () => reject(new Error('Network error occurred during direct S3 recording upload.'));
-    xhr.ontimeout = () => reject(new Error('Direct S3 upload timed out.'));
+    xhr.onerror = () => reject(new Error('Unable to upload the recording. Please check your internet connection and try again.'));
+    xhr.ontimeout = () => reject(new Error('The recording upload timed out. Please check your connection and try again.'));
+    xhr.onabort = () => reject(new Error('The recording upload was interrupted. Please try again.'));
 
     xhr.send(file);
   });
@@ -216,6 +219,7 @@ export function uploadFileDirectToS3(
 export async function completeCallUpload(
   token: string,
   payload: {
+    callId?: string;
     storageKey?: string;
     fileName?: string;
     fileSize?: number;
@@ -233,7 +237,15 @@ export async function completeCallUpload(
   });
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({}));
-    throw new Error(errorPayload.message ?? 'Unable to complete call session upload');
+    const error = new Error(errorPayload.message ?? 'Unable to complete call session upload') as Error & {
+      callId?: string;
+      recordingUploaded?: boolean;
+      processingStatus?: string;
+    };
+    error.callId = errorPayload.callId;
+    error.recordingUploaded = errorPayload.recordingUploaded;
+    error.processingStatus = errorPayload.processingStatus;
+    throw error;
   }
   return response.json();
 }
@@ -275,13 +287,14 @@ export async function retryCallProcessing(token: string, callId: string): Promis
 
 export async function uploadCall(
   token: string,
-  payload: { menteeId: string; duration: number; date?: string; mentorNotes?: string },
+  payload: { callId?: string; menteeId: string; duration: number; date?: string; mentorNotes?: string },
   file?: File | null,
 ) {
   const rawUser = localStorage.getItem('anfaal-user');
   const user = rawUser ? JSON.parse(rawUser) : null;
 
   const formData = new FormData();
+  if (payload.callId) formData.append('callId', payload.callId);
   formData.append('mentorId', user?.id ?? '');
   formData.append('menteeId', payload.menteeId);
   formData.append('duration', String(payload.duration));
@@ -296,7 +309,15 @@ export async function uploadCall(
   });
   if (!response.ok) {
     const payloadError = await response.json().catch(() => ({}));
-    throw new Error(payloadError.message ?? 'Unable to upload call');
+    const error = new Error(payloadError.message ?? 'Unable to upload call') as Error & {
+      callId?: string;
+      recordingUploaded?: boolean;
+      processingStatus?: string;
+    };
+    error.callId = payloadError.callId;
+    error.recordingUploaded = payloadError.recordingUploaded;
+    error.processingStatus = payloadError.processingStatus;
+    throw error;
   }
   return response.json();
 }
@@ -330,10 +351,21 @@ export async function getCallDetail(token: string, callId: string) {
 }
 
 export async function getCallJobStatus(token: string, callId: string) {
-  const response = await fetch(`${API_BASE_URL}/calls/${callId}/job`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}/status`, {
+    // Force a fresh network request every time — never use a cached 304
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
   });
-  if (!response.ok) throw new Error('Unable to load job status');
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const err = new Error(payload.message ?? `Job status request failed: ${response.status}`) as Error & { status: number };
+    err.status = response.status;
+    throw err;
+  }
   return response.json();
 }
 

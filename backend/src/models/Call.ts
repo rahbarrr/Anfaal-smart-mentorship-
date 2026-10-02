@@ -13,6 +13,13 @@ const callSchema = new Schema<CallDocument>(
       enum: ['pending', 'uploaded', 'processing', 'failed'],
       default: 'pending',
     },
+    uploadedAt: { type: Date },
+    processingStatus: {
+      type: String,
+      enum: ['queued', 'processing', 'completed', 'failed'],
+      default: 'queued',
+      index: true,
+    },
     recording: {
       storageKey: { type: String },
       fileName: { type: String },

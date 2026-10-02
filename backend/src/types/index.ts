@@ -141,6 +141,8 @@ export interface CallDocument {
   duration: number;
   recordingUrl?: string;
   recordingStatus: 'pending' | 'uploaded' | 'processing' | 'failed';
+  uploadedAt?: Date;
+  processingStatus: 'queued' | 'processing' | 'completed' | 'failed';
   recording?: CallRecordingData;
   transcript?: string;
   transcription?: CallTranscriptionData;

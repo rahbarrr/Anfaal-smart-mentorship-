@@ -1,6 +1,7 @@
 services:
   # ────────────────────────────────────────────────────────────────────────────
-  # Anfaal Backend Service (100% Free Tier — No credit card required)
+  # Anfaal API — Web Service
+  # Strictly handles HTTP requests. Does NOT run a BullMQ worker inline.
   # ────────────────────────────────────────────────────────────────────────────
   - type: web
     name: anfaal-api
@@ -17,6 +18,9 @@ services:
         value: production
       - key: PORT
         value: 10000
+      # Disable inline worker on the API process — dedicated worker handles this
+      - key: RUN_WORKER
+        value: "false"
       - key: MONGODB_URI
         sync: false
       - key: JWT_SECRET
@@ -67,6 +71,8 @@ services:
         value: production
       - key: MONGODB_URI
         sync: false
+      - key: JWT_SECRET
+        generateValue: true
       - key: REDIS_URL
         sync: false
       - key: WORKER_CONCURRENCY

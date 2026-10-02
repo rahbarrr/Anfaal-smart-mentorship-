@@ -1,4 +1,5 @@
 import { Worker, Job } from 'bullmq';
+import { Redis } from 'ioredis';
 import { Call } from '../models/Call.js';
 import { CallProcessingJob } from '../models/CallProcessingJob.js';
 import { createStorageProvider } from '../services/storageService.js';
@@ -9,9 +10,14 @@ import { CallProcessingJobData, createRedisConnection, QUEUE_NAMES } from './cal
 import { boundedText } from '../services/chunking.js';
 import { invalidateCache } from '../services/cacheService.js';
 
-export async function processCallProcessingJob(data: CallProcessingJobData): Promise<void> {
+export async function processCallProcessingJob(
+  data: CallProcessingJobData,
+  attemptsMade = 0,
+  attempts = 1,
+): Promise<void> {
   const { callId, jobId, mentorNotes, skipTranscription } = data;
   const pipelineStartedAt = Date.now();
+  let currentStage: 'transcription' | 'summary' = 'transcription';
 
   const updateJob = async (fields: Record<string, unknown>) => {
     await CallProcessingJob.findByIdAndUpdate(jobId, { $set: fields });
@@ -19,15 +25,25 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
 
   const call = await Call.findById(callId);
   if (!call) {
+    console.error(`[CALL_PROCESSING_FAILED] callId=${callId} error=call_not_found`);
     await updateJob({
       status: 'FAILED',
-      error: `Call with ID ${callId} not found.`,
+      error: 'Call record was not found. Please contact support.',
       completedAt: new Date(),
     });
     return;
   }
+  const shouldSkipTranscription = Boolean(
+    skipTranscription || (call.transcription?.status === 'COMPLETED' && (call.transcription?.text || call.transcript)),
+  );
 
   try {
+    console.info(`[CALL_PROCESSING_START] callId=${callId} attempt=${attemptsMade + 1}`);
+    await Call.findByIdAndUpdate(callId, {
+      $set: {
+        processingStatus: 'processing',
+      },
+    });
     await updateJob({
       stage: 'TRANSCRIPTION',
       status: 'PROCESSING',
@@ -35,6 +51,7 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
       'stageStatus.audioProcessing': 'PROCESSING',
       'stageStatus.transcription': 'PENDING',
       startedAt: new Date(),
+      error: '',
     });
 
     let transcriptText = call.transcript || call.transcription?.text || '';
@@ -42,8 +59,8 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
     let transcriptionDuration = call.transcription?.duration;
 
     // ── Stage 1: Transcription ────────────────────────────────────────────────
-    if (!skipTranscription) {
-      const storageKey = call.recording?.storageKey;
+    if (!shouldSkipTranscription) {
+      const storageKey = call.recording?.storageKey || data.storageKey;
       if (!storageKey) {
         // No audio uploaded (e.g. notes only session)
         await updateJob({
@@ -72,13 +89,14 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
           });
 
           const transcriptionStartedAt = Date.now();
+          console.info(`[CALL_TRANSCRIPTION_START] callId=${callId}`);
           const transcriptionService = createTranscriptionService();
           const result = await transcriptionService.transcribe({
             buffer: audioBuffer,
             originalname: fileName,
             mimetype: mimeType,
           });
-          console.info(`[Worker] Transcription completed in ${Date.now() - transcriptionStartedAt}ms for call ${callId}`);
+          console.info(`[CALL_TRANSCRIPTION_SUCCESS] callId=${callId} durationMs=${Date.now() - transcriptionStartedAt}`);
 
           transcriptText = result.text;
           segments = (result.segments ?? []).map((s) => ({
@@ -107,34 +125,8 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
             'stageStatus.transcription': 'COMPLETED',
           });
         } catch (transcriptionErr) {
-          const errMsg = transcriptionErr instanceof Error ? transcriptionErr.message : String(transcriptionErr);
-          console.error(`[Worker] Transcription failed for call ${callId}:`, errMsg);
-
-          await Call.findByIdAndUpdate(callId, {
-            $set: {
-              'transcription.status': 'FAILED',
-              recordingStatus: 'failed',
-            },
-          });
-
-          await updateJob({
-            status: 'FAILED',
-            progress: 50,
-            'stageStatus.transcription': 'FAILED',
-            error: `Transcription error: ${errMsg}`,
-            completedAt: new Date(),
-          });
-
-          logAuditEvent({
-            userId: call.mentorId,
-            userRole: 'MENTOR',
-            action: 'PROCESSING_FAILED',
-            targetType: 'CALL',
-            targetId: callId,
-            details: `Transcription failed: ${errMsg}`,
-          });
-
-          return; // Stop pipeline on transcription failure
+          currentStage = 'transcription';
+          throw transcriptionErr;
         }
       }
     } else {
@@ -147,6 +139,8 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
     }
 
     // ── Stage 2: AI Summarization ─────────────────────────────────────────────
+    currentStage = 'summary';
+    console.info(`[CALL_SUMMARY_START] callId=${callId}`);
     await updateJob({
       stage: 'SUMMARY',
       progress: 60,
@@ -168,7 +162,7 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
           duration: refreshedCall?.duration,
         },
       });
-      console.info(`[Worker] AI summary completed in ${Date.now() - summaryStartedAt}ms for call ${callId}`);
+      console.info(`[CALL_SUMMARY_SUCCESS] callId=${callId} durationMs=${Date.now() - summaryStartedAt}`);
 
       const versionEntry = {
         version: (refreshedCall?.summaryVersions?.length ?? 0) + 1,
@@ -200,6 +194,7 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
           'aiSummary.followUpTopics': summaryResult.followUpTopics,
           'aiSummary.topicsDiscussed': summaryResult.topicsDiscussed,
           'aiSummary.generatedAt': new Date(),
+          processingStatus: 'completed',
           reviewStatus: 'Pending Review',
           'mentorReview.status': 'Pending Review',
         },
@@ -216,44 +211,36 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
       });
       await invalidateCache('dashboard:summary');
 
-      console.info(`[Worker] Total processing time for call ${callId}: ${Date.now() - pipelineStartedAt}ms`);
+      console.info(`[CALL_PROCESSING_COMPLETE] callId=${callId} durationMs=${Date.now() - pipelineStartedAt}`);
     } catch (summaryErr) {
-      const errMsg = summaryErr instanceof Error ? summaryErr.message : String(summaryErr);
-      console.error(`[Worker] AI Summary failed for call ${callId}:`, errMsg);
-
-      // Preserve transcript, mark only AI summary as FAILED
-      await Call.findByIdAndUpdate(callId, {
-        $set: {
-          'aiSummary.status': 'FAILED',
-          aiStatus: 'failed',
-        },
-      });
-
-      await updateJob({
-        status: 'FAILED',
-        progress: 75,
-        'stageStatus.summary': 'FAILED',
-        error: `AI summary error: ${errMsg}`,
-        completedAt: new Date(),
-      });
-
-      logAuditEvent({
-        userId: call.mentorId,
-        userRole: 'MENTOR',
-        action: 'PROCESSING_FAILED',
-        targetType: 'CALL',
-        targetId: callId,
-        details: `AI Summary failed: ${errMsg}`,
-      });
+      currentStage = 'summary';
+      throw summaryErr;
     }
   } catch (fatalErr) {
     const errMsg = fatalErr instanceof Error ? fatalErr.message : String(fatalErr);
-    console.error(`[Worker] Fatal pipeline error for call ${callId}:`, errMsg);
+    const willRetry = attemptsMade + 1 < attempts;
+    const safeError = currentStage === 'transcription'
+      ? 'Transcription failed. Processing will retry.'
+      : 'AI summary failed. Processing will retry.';
+    const finalError = currentStage === 'transcription'
+      ? 'Transcription failed. Please retry processing.'
+      : 'AI summary failed. Please retry processing.';
+    console.error(`[CALL_PROCESSING_FAILED] callId=${callId} stage=${currentStage} attempt=${attemptsMade + 1}/${attempts} retry=${willRetry} error=${errMsg}`);
+
+    await Call.findByIdAndUpdate(callId, {
+      $set: {
+        processingStatus: willRetry ? 'queued' : 'failed',
+        ...(currentStage === 'transcription'
+          ? { 'transcription.status': willRetry ? 'PENDING' : 'FAILED' }
+          : { 'aiSummary.status': willRetry ? 'PENDING' : 'FAILED', aiStatus: willRetry ? 'pending' : 'failed' }),
+      },
+    });
 
     await updateJob({
-      status: 'FAILED',
-      error: `Fatal pipeline error: ${errMsg}`,
-      completedAt: new Date(),
+      status: willRetry ? 'PENDING' : 'FAILED',
+      [`stageStatus.${currentStage}`]: willRetry ? 'PENDING' : 'FAILED',
+      error: willRetry ? safeError : finalError,
+      ...(willRetry ? {} : { completedAt: new Date() }),
     });
 
     logAuditEvent({
@@ -262,19 +249,18 @@ export async function processCallProcessingJob(data: CallProcessingJobData): Pro
       action: 'PROCESSING_FAILED',
       targetType: 'CALL',
       targetId: callId,
-      details: `Processing failed: ${errMsg}`,
+      details: finalError,
     });
+    throw fatalErr;
   }
 }
 
-export function startCallWorker(): Worker<CallProcessingJobData> {
-  const connection = createRedisConnection();
-
+export function startCallWorker(connection: Redis = createRedisConnection()): Worker<CallProcessingJobData> {
   const worker = new Worker<CallProcessingJobData>(
     QUEUE_NAMES.callProcessing,
     async (job: Job<CallProcessingJobData>) => {
       console.log(`[Worker] Processing job ${job.id} for call ${job.data.callId}`);
-      await processCallProcessingJob(job.data);
+      await processCallProcessingJob(job.data, job.attemptsMade, Number(job.opts.attempts || 1));
     },
     {
       connection,
@@ -287,12 +273,23 @@ export function startCallWorker(): Worker<CallProcessingJobData> {
   });
 
   worker.on('completed', (job) => {
-    console.log(`[Worker] Job ${job.id} completed successfully`);
+    console.log(`[Worker] Job ${job.id} completed successfully for callId=${job.data.callId}`);
   });
 
   worker.on('failed', (job, err) => {
-    console.error(`[Worker] Job ${job?.id} failed:`, err.message);
+    console.error(`[CALL_PROCESSING_FAILED] callId=${job?.data.callId ?? 'unknown'} jobId=${job?.id ?? 'unknown'} error=${err.message}`);
   });
+
+  worker.on('stalled', (jobId) => {
+    console.warn(`[Worker] Job ${jobId} stalled (will be retried automatically by BullMQ).`);
+  });
+
+  worker.on('error', (err) => {
+    console.error('[Worker] BullMQ worker error:', err.message);
+  });
+
+  // Log the canonical banner so Render logs confirm the worker is alive
+  console.log('BullMQ call worker is active and listening to queue: call-processing');
 
   return worker;
 }
