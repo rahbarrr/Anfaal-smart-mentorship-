@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { RealTranscriptionService, MockTranscriptionService } from '../services/transcriptionService.js';
+import { MAX_TRANSCRIPTION_FILE_BYTES, RealTranscriptionService, MockTranscriptionService } from '../services/transcriptionService.js';
 import { RealAiSummaryService, MockAiSummaryService } from '../services/aiSummaryService.js';
 
 test('PROCESSING: Mock transcription returns diarized transcript with timestamps and speakers', async () => {
@@ -29,6 +29,26 @@ test('PROCESSING: Real transcription service fails if audio buffer is empty', as
     },
     { message: /Audio recording buffer is empty/ },
   );
+});
+
+test('PROCESSING: oversized audio is rejected before calling the transcription API', async () => {
+  const service = new RealTranscriptionService();
+  const previousApiKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = 'test-key';
+
+  try {
+    await assert.rejects(
+      service.transcribe({
+        buffer: Buffer.alloc(MAX_TRANSCRIPTION_FILE_BYTES + 1),
+        originalname: 'recording.mp3',
+        mimetype: 'audio/mpeg',
+      }),
+      { message: /larger than 25 MB/ },
+    );
+  } finally {
+    if (previousApiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousApiKey;
+  }
 });
 
 test('PROCESSING: Real transcription service throws error in production when API key is missing', async () => {

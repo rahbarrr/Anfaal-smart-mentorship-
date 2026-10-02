@@ -3,7 +3,7 @@ import { Redis } from 'ioredis';
 import { Call } from '../models/Call.js';
 import { CallProcessingJob } from '../models/CallProcessingJob.js';
 import { createStorageProvider } from '../services/storageService.js';
-import { createTranscriptionService } from '../services/transcriptionService.js';
+import { createTranscriptionService, isNonRetryableTranscriptionError } from '../services/transcriptionService.js';
 import { createAiSummaryService } from '../services/aiSummaryService.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { CallProcessingJobData, createRedisConnection, QUEUE_NAMES } from './callQueue.js';
@@ -218,7 +218,7 @@ export async function processCallProcessingJob(
     }
   } catch (fatalErr) {
     const errMsg = fatalErr instanceof Error ? fatalErr.message : String(fatalErr);
-    const willRetry = attemptsMade + 1 < attempts;
+    const willRetry = !isNonRetryableTranscriptionError(fatalErr) && attemptsMade + 1 < attempts;
     const safeError = currentStage === 'transcription'
       ? 'Transcription failed. Processing will retry.'
       : 'AI summary failed. Processing will retry.';
@@ -264,7 +264,7 @@ export function startCallWorker(connection: Redis = createRedisConnection()): Wo
     },
     {
       connection,
-      concurrency: Math.max(1, Number(process.env.WORKER_CONCURRENCY || 3)),
+      concurrency: 1,
     },
   );
 

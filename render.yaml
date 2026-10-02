@@ -60,6 +60,7 @@ services:
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm run worker
     autoDeploy: true
+    maxShutdownDelaySeconds: 300
     envVars:
       - key: NODE_ENV
         value: production
@@ -70,7 +71,7 @@ services:
       - key: REDIS_URL
         sync: false
       - key: WORKER_CONCURRENCY
-        value: "3"
+        value: "1"
       - key: DISABLE_REDIS
         value: "false"
       - key: AWS_REGION
