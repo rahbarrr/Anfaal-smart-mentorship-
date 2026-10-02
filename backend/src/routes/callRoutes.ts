@@ -30,9 +30,20 @@ const ALLOWED_MIME_TYPES = [
   'audio/ogg',
   'audio/webm',
   'audio/aac',
+  'audio/flac',
   'video/mp4',
   'video/webm',
 ];
+const ALLOWED_RECORDING_EXTENSIONS = new Set(['mp3', 'mpeg', 'mpga', 'wav', 'm4a', 'mp4', 'webm', 'ogg', 'oga', 'aac', 'flac']);
+
+function hasAllowedRecordingExtension(fileName: string): boolean {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  return Boolean(extension && ALLOWED_RECORDING_EXTENSIONS.has(extension));
+}
+
+function isAllowedRecording(fileName: string, mimeType: string): boolean {
+  return ALLOWED_MIME_TYPES.includes(mimeType.toLowerCase()) || hasAllowedRecordingExtension(fileName);
+}
 
 // OpenAI accepts transcription inputs up to 25 MiB. Reject oversized uploads
 // before storage and queueing so a recording never waits forever at 0%.
@@ -44,11 +55,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_MULTER_FALLBACK_SIZE_BYTES },
   fileFilter: (_req, file, cb) => {
-    if (
-  ALLOWED_MIME_TYPES.includes(file.mimetype) ||
-  file.originalname.match(/\.(mp3|wav|m4a|mp4|webm|ogg|aac)$/i) ||
-  file.mimetype === 'application/octet-stream'
-) {
+    if (isAllowedRecording(file.originalname, file.mimetype)) {
   cb(null, true);
 } else {
       cb(new Error(`Unsupported file type: ${file.mimetype}`));
@@ -60,9 +67,7 @@ const upload = multer({
 const presignUploadSchema = z.object({
   fileName: z.string().min(1).max(255),
   fileSize: z.number().min(1).max(MAX_RECORDING_SIZE_BYTES),
-  mimeType: z.string().refine((m) => ALLOWED_MIME_TYPES.includes(m) || m.startsWith('audio/'), {
-    message: 'Invalid or unsupported audio MIME type.',
-  }),
+  mimeType: z.string(),
   menteeId: z.string().min(1),
 });
 
@@ -123,6 +128,9 @@ router.post('/presign-upload', requireAuth, async (req: AuthRequest, res: Respon
     }
 
     const { fileName, fileSize, mimeType, menteeId } = parsed.data;
+    if (!isAllowedRecording(fileName, mimeType)) {
+      return res.status(400).json({ message: 'Unsupported recording format. Supported formats include MP3, MPEG, MPGA, WAV, M4A, MP4, WebM, OGG, OGA, AAC, and FLAC.' });
+    }
 
     // Mentor authorization check
     if (req.user.role === 'MENTOR') {
