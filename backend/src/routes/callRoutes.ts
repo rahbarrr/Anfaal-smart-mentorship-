@@ -797,6 +797,11 @@ router.post('/:id/retry', requireAuth, async (req: AuthRequest, res: Response) =
 // ──────────────────────────────────────────────────────────────────────────
 router.get('/:id/job', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
+    // Job state is polled frequently and must never be served from browser/CDN cache.
+    // Express otherwise may emit 304, which has no JSON body for the frontend to parse.
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     const job = await CallProcessingJob.findOne({ callId: req.params.id }).sort({ createdAt: -1 }).lean();
 
     if (!job) {
