@@ -25,6 +25,22 @@ export interface TranscriptionService {
   transcribe(input: TranscriptInput): Promise<TranscriptionResult>;
 }
 
+// The OpenAI Transcriptions API accepts source files up to 25 MiB. Keep this
+// guard close to the provider call so direct uploads cannot bypass the UI.
+export const MAX_TRANSCRIPTION_FILE_BYTES = 25 * 1024 * 1024;
+
+export class NonRetryableTranscriptionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NonRetryableTranscriptionError';
+  }
+}
+
+export function isNonRetryableTranscriptionError(error: unknown): boolean {
+  return error instanceof NonRetryableTranscriptionError
+    || (error instanceof Error && /recordings? larger than 25 MB|unsupported audio MIME type|unsupported audio format/i.test(error.message));
+}
+
 export class MockTranscriptionService implements TranscriptionService {
   async transcribe(input: TranscriptInput): Promise<TranscriptionResult> {
     const mockSegments: TranscriptSegment[] = [
@@ -189,6 +205,12 @@ export class RealTranscriptionService implements TranscriptionService {
 
     if (!buffer || buffer.length === 0) {
       throw new Error('Audio recording buffer is empty.');
+    }
+
+    if (buffer.length > MAX_TRANSCRIPTION_FILE_BYTES) {
+      throw new NonRetryableTranscriptionError(
+        'This recording is larger than 25 MB and cannot be transcribed. Compress or split it into files smaller than 25 MB, then upload again.',
+      );
     }
 
     if (!apiKey) {

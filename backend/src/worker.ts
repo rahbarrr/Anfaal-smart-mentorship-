@@ -27,9 +27,9 @@ function shutdown(signal: string): Promise<void> {
   shutdownPromise = (async () => {
     console.log(`[Worker Service] Received ${signal}. Initiating graceful shutdown...`);
     const forceExitTimer = setTimeout(() => {
-      console.error('[Worker Service] Graceful shutdown timed out after 15 seconds, forcing exit.');
+      console.error('[Worker Service] Graceful shutdown timed out after 280 seconds, forcing exit.');
       process.exit(1);
-    }, 15000).unref();
+    }, 280000).unref();
     let failed = false;
 
     try {
@@ -79,16 +79,20 @@ function shutdown(signal: string): Promise<void> {
 process.once('SIGINT', () => { void shutdown('SIGINT'); });
 process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
 async function runWorker() {
-  console.log('[Worker Service] Initializing Anfaal BullMQ Web Service...');
+  console.log('[Worker Service] Initializing Anfaal BullMQ background worker...');
 
   try {
-    healthServer = createWorkerHealthServer();
-    const port = Number(process.env.PORT || 10000);
-    await new Promise<void>((resolve, reject) => {
-      healthServer!.once('error', reject);
-      healthServer!.listen(port, '0.0.0.0', resolve);
-    });
-    console.log(`[Worker Service] Health server listening on 0.0.0.0:${port}.`);
+    // The current free Render worker is a legacy Web Service, which requires
+    // an open HTTP port. A future native Background Worker can disable this.
+    if (process.env.WORKER_HEALTHCHECK !== 'false') {
+      healthServer = createWorkerHealthServer();
+      const port = Number(process.env.PORT || 10000);
+      await new Promise<void>((resolve, reject) => {
+        healthServer!.once('error', reject);
+        healthServer!.listen(port, '0.0.0.0', resolve);
+      });
+      console.log(`[Worker Service] Health server listening on 0.0.0.0:${port}.`);
+    }
 
     validateEnvironment(true);
     await connectDatabase();
@@ -105,4 +109,3 @@ async function runWorker() {
 }
 
 void runWorker();
-

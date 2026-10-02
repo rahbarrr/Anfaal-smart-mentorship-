@@ -65,7 +65,7 @@ type JobStatus = {
 
 const WIZARD_STEPS = ['Record Details', 'Upload Audio', 'AI Processing', 'Review & Approve'];
 const ACCEPTED_TYPES = '.mp3,.wav,.m4a,.mp4,audio/*,video/*';
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
+const MAX_FILE_SIZE = 25 * 1024 * 1024;
 const SERVER_UPLOAD_FALLBACK_MAX_SIZE = 25 * 1024 * 1024;
 
 // Browsers and mobile share sheets may report an empty or generic MIME type
@@ -269,8 +269,17 @@ export function UploadCallPage() {
             clearInterval(pollTimerRef.current!);
             setFeedback({ msg: job.error || 'Recording uploaded, but processing failed. You can retry processing.', type: 'error' });
           }
-        } catch (_) {
-          // Silently retry
+        } catch (error) {
+          consecutiveErrors += 1;
+          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+            clearInterval(pollTimerRef.current!);
+            setFeedback({
+              msg: error instanceof Error
+                ? `Unable to check processing status: ${error.message}`
+                : 'Unable to check processing status. Please retry processing.',
+              type: 'error',
+            });
+          }
         } finally {
           pollInFlightRef.current = false;
         }
@@ -289,7 +298,7 @@ export function UploadCallPage() {
   const handleFileSelect = (file: File | null) => {
     if (!file) return;
     if (file.size > MAX_FILE_SIZE) {
-      setFeedback({ msg: 'File is too large. Maximum size is 100 MB.', type: 'error' });
+      setFeedback({ msg: 'This recording is larger than 25 MB. Compress or split it into smaller files before uploading.', type: 'error' });
       return;
     }
     const supportedType = /\.(mp3|wav|m4a|mp4|webm|ogg|aac)$/i.test(file.name)

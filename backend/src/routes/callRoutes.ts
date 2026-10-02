@@ -34,7 +34,9 @@ const ALLOWED_MIME_TYPES = [
   'video/webm',
 ];
 
-const MAX_RECORDING_SIZE_BYTES = 250 * 1024 * 1024; // 250 MB for direct S3 upload validation
+// OpenAI accepts transcription inputs up to 25 MiB. Reject oversized uploads
+// before storage and queueing so a recording never waits forever at 0%.
+const MAX_RECORDING_SIZE_BYTES = 25 * 1024 * 1024;
 const MAX_MULTER_FALLBACK_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB limit for legacy multipart upload to protect server memory
 
 // ─── Multer (for fallback multipart uploads only) ───────────────────────────
