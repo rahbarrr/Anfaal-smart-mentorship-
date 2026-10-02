@@ -1,5 +1,6 @@
+import 'dotenv/config';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import crypto from 'node:crypto';
 import express, { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -15,23 +16,20 @@ import dailyPerformanceRoutes from './routes/dailyPerformanceRoutes.js';
 import bulkImportRoutes from './routes/bulkImportRoutes.js';
 import { checkRedisHealth } from './queue/callQueue.js';
 
-dotenv.config();
-
 const app = express();
 
 // Enable trust proxy for Render / Cloudflare environment
 app.set('trust proxy', 1);
 
 const isProduction = process.env.NODE_ENV === 'production';
+const jsonBodyLimit = process.env.JSON_BODY_LIMIT || '2mb';
+const urlEncodedBodyLimit = process.env.URLENCODED_BODY_LIMIT || '2mb';
 const rawOrigins = (process.env.CLIENT_URL || '')
   .split(',')
   .map((u) => u.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 
-const allowedOrigins = new Set([
-  'https://anfaal-smart-mentorship.vercel.app',
-  ...rawOrigins,
-]);
+const allowedOrigins = new Set(rawOrigins);
 
 app.use(
   cors({
@@ -46,13 +44,8 @@ app.use(
         return callback(null, true);
       }
 
-      // Allow any Vercel preview or production deployment domain for this app
-      if (/^https:\/\/([a-zA-Z0-9_-]+\.)?vercel\.app$/.test(cleanOrigin)) {
-        return callback(null, true);
-      }
-
       // Allow local development
-      if (!isProduction || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(cleanOrigin)) {
+      if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(cleanOrigin)) {
         return callback(null, true);
       }
 
@@ -65,15 +58,22 @@ app.use(
   }),
 );
 app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const requestId = req.header('X-Request-ID')?.slice(0, 128) || crypto.randomUUID();
+  res.setHeader('X-Request-ID', requestId);
+  res.locals.requestId = requestId;
+  next();
+});
+app.use(express.json({ limit: jsonBodyLimit, strict: true }));
+app.use(express.urlencoded({ extended: false, limit: urlEncodedBodyLimit }));
 app.use(morgan('dev'));
 
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 1000,
+  windowMs: Number(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
+  max: Number(process.env.GLOBAL_RATE_LIMIT_MAX || (isProduction ? 300 : 1000)),
   standardHeaders: true,
   legacyHeaders: false,
+  message: { message: 'Too many requests. Please try again later.' },
 });
 app.use(limiter);
 

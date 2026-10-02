@@ -5,8 +5,8 @@ import { loginWithEmail } from '../lib/api';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@anfaalfoundation.com');
-  const [password, setPassword] = useState('Admin@123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -136,7 +136,7 @@ export function LoginPage() {
                 <input
                   className="input"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter password (default is phone number or MAKID)"
+                  placeholder="Enter your password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
@@ -171,29 +171,6 @@ export function LoginPage() {
               </button>
             </div>
 
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12 }}>
-              <button
-                type="button"
-                onClick={() => { setEmail('admin@anfaalfoundation.com'); setPassword('AdminP@ssw0rd2026!'); }}
-                style={{ fontSize: '0.78rem', background: '#f0eaed', border: '1px solid #d8d0d3', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
-              >
-                Demo Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('8767326868'); setPassword('8767326868'); }}
-                style={{ fontSize: '0.78rem', background: '#f0eaed', border: '1px solid #d8d0d3', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}
-              >
-                Demo Mentor
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('MAC101'); setPassword('MAC101'); }}
-                style={{ fontSize: '0.78rem', background: 'rgba(143,63,102,0.12)', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '4px 10px', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}
-              >
-                Demo Mentee
-              </button>
-            </div>
 
             <div style={{ textAlign: 'center', marginTop: 16, fontSize: '0.84rem', color: '#6a6568', background: 'rgba(143,63,102,0.06)', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(143,63,102,0.12)' }}>
               🔒 <strong>Mentors:</strong> Sign in with Phone Number. <strong>Mentees:</strong> Sign in with MAKID.

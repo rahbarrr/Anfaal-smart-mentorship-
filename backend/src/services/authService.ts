@@ -69,27 +69,7 @@ export async function loginUser({ email, password }: LoginPayload) {
     throw new Error('Invalid MAKID, email, phone number, or password');
   }
 
-  let passwordMatches = await bcrypt.compare(password, user.passwordHash);
-
-  // If password comparison failed and user is a mentee, check if password is MAKID, phone, or Mentee@123
-  if (!passwordMatches && user.role === 'MENTEE') {
-    if (user.makid && password.toUpperCase() === user.makid) {
-      passwordMatches = true;
-    } else if (password === 'Mentee@123') {
-      passwordMatches = true;
-    }
-  }
-
-  // If password comparison failed and password looks like phone number, try alternate phone representations
-  if (!passwordMatches && /\d{8,}/.test(password)) {
-    const passDigits = password.replace(/\D/g, '');
-    const passLast10 = passDigits.slice(-10);
-    if (await bcrypt.compare(passLast10, user.passwordHash)) {
-      passwordMatches = true;
-    } else if (await bcrypt.compare(`+91${passLast10}`, user.passwordHash)) {
-      passwordMatches = true;
-    }
-  }
+  const passwordMatches = await bcrypt.compare(password, user.passwordHash);
 
   if (!passwordMatches) {
     throw new Error('Invalid MAKID, email, phone number, or password');
@@ -111,6 +91,9 @@ export async function loginUser({ email, password }: LoginPayload) {
     mentorApprovalStatus = mentorDoc?.mentorApprovalStatus ?? 'APPROVED';
   }
 
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) throw new Error('Authentication is not configured.');
+
   const token = jwt.sign(
     {
       id: String(user._id),
@@ -119,7 +102,7 @@ export async function loginUser({ email, password }: LoginPayload) {
       menteeId,
       mentorApprovalStatus,
     },
-    process.env.JWT_SECRET ?? 'development-secret',
+    jwtSecret,
     { expiresIn: '7d' },
   );
 

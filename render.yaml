@@ -26,7 +26,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CLIENT_URL
-        value: https://anfaal-smart-mentorship.vercel.app
+        sync: false
       - key: REDIS_URL
         sync: false
       - key: AWS_REGION
@@ -50,13 +50,9 @@ services:
       - key: BOOTSTRAP_ADMIN_PASSWORD
         sync: false
 
-  # ────────────────────────────────────────────────────────────────────────────
-  # Anfaal BullMQ Background Worker
-  # Consumes the `call-processing` Redis queue: transcription + AI summary.
-  # Must share the exact same REDIS_URL and MONGODB_URI as the API service.
-  # ────────────────────────────────────────────────────────────────────────────
+  # Dedicated BullMQ worker. The API service must never process audio/AI inline.
   - type: worker
-    name: anfaal-worker
+    name: anfaal-call-worker
     runtime: node
     rootDir: backend
     plan: free
@@ -67,13 +63,16 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      # Must be the same Redis instance as the API — shares the call-processing queue
-      - key: REDIS_URL
-        sync: false
-      # Must connect to the same MongoDB database as the API
       - key: MONGODB_URI
         sync: false
-      # Storage credentials — required to fetch audio buffers from S3 for transcription
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_URL
+        sync: false
+      - key: WORKER_CONCURRENCY
+        value: "3"
+      - key: DISABLE_REDIS
+        value: "false"
       - key: AWS_REGION
         value: ap-south-1
       - key: AWS_ENDPOINT
@@ -84,7 +83,6 @@ services:
         sync: false
       - key: STORAGE_BUCKET
         value: anfaal-recordings
-      # OpenAI credentials — required for Whisper transcription and GPT-4o summarization
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_TRANSCRIPTION_MODEL

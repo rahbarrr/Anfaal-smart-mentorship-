@@ -14,6 +14,7 @@ import { User } from '../models/User.js';
 import { createStorageProvider, S3StorageProvider } from '../services/storageService.js';
 import { enqueueCallProcessingJob } from '../services/callProcessingService.js';
 import { logAuditEvent } from '../services/auditService.js';
+import mongoose from 'mongoose';
 
 const router = Router();
 
@@ -64,6 +65,7 @@ const presignUploadSchema = z.object({
 });
 
 const completeUploadSchema = z.object({
+  callId: z.string().regex(/^[a-f\d]{24}$/i).optional(),
   storageKey: z.string().optional(),
   fileName: z.string().optional(),
   fileSize: z.number().optional(),
@@ -104,6 +106,7 @@ async function verifyMentorMenteeAccess(mentorUserId: string, menteeId: string):
 // 1. POST /api/calls/presign-upload — direct private S3 upload URL
 // ──────────────────────────────────────────────────────────────────────────
 router.post('/presign-upload', requireAuth, async (req: AuthRequest, res: Response) => {
+  const callId = String(new mongoose.Types.ObjectId());
   try {
     if (req.user?.role !== 'MENTOR' && req.user?.role !== 'ADMIN') {
       return res.status(403).json({ message: 'Only mentors and administrators can upload call recordings.' });
@@ -131,14 +134,15 @@ router.post('/presign-upload', requireAuth, async (req: AuthRequest, res: Respon
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
-    const uniqueId = crypto.randomUUID().slice(0, 10);
     // Secure private S3 object key
-    const storageKey = `calls/${year}/${month}/call_${uniqueId}/${cleanName}`;
+    const storageKey = `calls/${year}/${month}/call_${callId}/${cleanName}`;
 
     const storageProvider = createStorageProvider();
     const uploadUrl = await storageProvider.getPresignedUploadUrl(storageKey, mimeType, 900); // 15 mins expiry
+    console.info(`[CALL_UPLOAD_START] callId=${callId} menteeId=${menteeId} fileSize=${fileSize}`);
 
     return res.json({
+      callId,
       uploadUrl,
       storageKey,
       fileName: cleanName,
@@ -147,8 +151,8 @@ router.post('/presign-upload', requireAuth, async (req: AuthRequest, res: Respon
       expiresIn: 900,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to generate presigned upload URL';
-    return res.status(500).json({ message });
+    console.error(`[CALL_UPLOAD_FAILED] callId=${callId} phase=prepare error=${error instanceof Error ? error.message : String(error)}`);
+    return res.status(503).json({ message: 'Unable to prepare the recording upload. Please try again.' });
   }
 });
 
@@ -169,7 +173,7 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
       });
     }
 
-    const { storageKey, fileName, fileSize, mimeType, menteeId, duration, date, mentorNotes } = parsed.data;
+    const { callId: requestedCallId, storageKey, fileName, fileSize, mimeType, menteeId, duration, date, mentorNotes } = parsed.data;
 
     if (req.user.role === 'MENTOR') {
       const isAuthorized = await verifyMentorMenteeAccess(req.user.id, menteeId);
@@ -180,9 +184,24 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
 
     const mentorId = req.user.role === 'MENTOR' ? await getMentorProfileId(req.user.id) : req.user.id;
     const hasRecording = Boolean(storageKey);
+    const callId = requestedCallId || String(new mongoose.Types.ObjectId());
+
+    const existingCall = await Call.findOne({ _id: callId, mentorId, menteeId }).lean();
+    if (existingCall) {
+      const existingJob = await CallProcessingJob.findOne({ callId }).sort({ createdAt: -1 }).lean();
+      return res.status(202).json({
+        success: true,
+        callId,
+        jobId: existingJob ? String(existingJob._id) : undefined,
+        status: existingCall.processingStatus || 'queued',
+        processingStatus: existingCall.processingStatus || 'queued',
+        message: 'Recording upload was already received.',
+      });
+    }
 
     // Create the Call document
     const call = await Call.create({
+      _id: callId,
       mentorId,
       menteeId,
       date: date ? new Date(date) : new Date(),
@@ -196,6 +215,8 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
           }
         : undefined,
       recordingStatus: hasRecording ? 'uploaded' : 'pending',
+      ...(hasRecording ? { uploadedAt: new Date() } : {}),
+      processingStatus: 'queued',
       reviewStatus: 'Draft',
       aiStatus: 'pending',
       'transcription.status': 'PENDING',
@@ -207,8 +228,8 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
     const job = await CallProcessingJob.create({
       callId: String(call._id),
       stage: 'UPLOAD',
-      status: 'PROCESSING',
-      progress: 5,
+      status: 'PENDING',
+      progress: 0,
       stageStatus: {
         upload: 'COMPLETED',
         audioProcessing: 'PENDING',
@@ -216,16 +237,37 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
         summary: 'PENDING',
         mentorReview: 'PENDING',
       },
-      startedAt: new Date(),
     });
 
-    // Enqueue background processing job to BullMQ
-    await enqueueCallProcessingJob({
-      callId: String(call._id),
-      jobId: String(job._id),
-      mentorNotes,
-      skipTranscription: !hasRecording,
-    });
+    console.info(`[CALL_UPLOAD_SUCCESS] callId=${callId} storageKey=${storageKey || 'none'}`);
+
+    try {
+      await enqueueCallProcessingJob({
+        callId,
+        jobId: String(job._id),
+        mentorId,
+        menteeId,
+        storageKey,
+        mentorNotes,
+        skipTranscription: !hasRecording,
+      });
+    } catch (queueError) {
+      console.error(`[CALL_JOB_CREATE_FAILED] callId=${callId} error=${queueError instanceof Error ? queueError.message : String(queueError)}`);
+      const safeMessage = 'Recording uploaded, but processing could not be queued. Please retry processing.';
+      await Promise.all([
+        Call.findByIdAndUpdate(callId, { $set: { processingStatus: 'failed' } }),
+        CallProcessingJob.findByIdAndUpdate(job._id, {
+          $set: { status: 'FAILED', error: 'Processing could not be queued. Please retry processing.', completedAt: new Date() },
+        }),
+      ]);
+      return res.status(503).json({
+        success: false,
+        callId,
+        processingStatus: 'failed',
+        recordingUploaded: hasRecording,
+        message: safeMessage,
+      });
+    }
 
     const menteeDoc = await Mentee.findById(menteeId).lean();
 
@@ -256,15 +298,17 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
       });
     }
 
-    return res.status(201).json({
-      message: 'Call record created and processing job enqueued.',
-      callId: String(call._id),
+    return res.status(202).json({
+      success: true,
+      message: 'Recording uploaded successfully. Processing has started.',
+      callId,
       jobId: String(job._id),
-      status: 'PROCESSING',
+      status: 'queued',
+      processingStatus: 'queued',
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to complete call upload';
-    return res.status(500).json({ message });
+    console.error(`[CALL_UPLOAD_FAILED] phase=finalize error=${error instanceof Error ? error.message : String(error)}`);
+    return res.status(500).json({ message: 'Unable to finish the recording upload. Please try again.' });
   }
 });
 
@@ -272,6 +316,7 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
 // 3. POST /api/calls/upload — backward-compatible fallback upload route
 // ──────────────────────────────────────────────────────────────────────────
 router.post('/upload', requireAuth, upload.single('recording'), async (req: AuthRequest, res: Response) => {
+  let callId = String(new mongoose.Types.ObjectId());
   try {
     if (req.user?.role !== 'MENTOR' && req.user?.role !== 'ADMIN') {
       return res.status(403).json({ message: 'Only mentors can upload call records.' });
@@ -279,19 +324,38 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
 
     const mentorId = req.user.role === 'MENTOR' ? await getMentorProfileId(req.user.id) : req.user.id;
     const { menteeId, duration, date, mentorNotes } = req.body;
+    if (req.body.callId) {
+      if (!mongoose.Types.ObjectId.isValid(req.body.callId)) {
+        return res.status(400).json({ message: 'Invalid call ID.' });
+      }
+      callId = String(req.body.callId);
+    }
 
     if (!menteeId || !duration) {
       return res.status(400).json({ message: 'menteeId and duration are required.' });
+    }
+
+    const existingCall = await Call.findOne({ _id: callId, mentorId, menteeId }).lean();
+    if (existingCall) {
+      const existingJob = await CallProcessingJob.findOne({ callId }).sort({ createdAt: -1 }).lean();
+      return res.status(202).json({
+        success: true,
+        callId,
+        jobId: existingJob ? String(existingJob._id) : undefined,
+        status: existingCall.processingStatus || 'queued',
+        processingStatus: existingCall.processingStatus || 'queued',
+        message: 'Recording upload was already received.',
+      });
     }
 
     let storageKey: string | undefined;
     let fileName: string | undefined;
 
     if (req.file) {
+      console.info(`[CALL_UPLOAD_START] callId=${callId} fileSize=${req.file.size}`);
       const storageProvider = createStorageProvider();
       const cleanName = sanitizeFileName(req.file.originalname);
-      const uniqueId = crypto.randomUUID().slice(0, 10);
-      const customKey = `calls/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/call_${uniqueId}/${cleanName}`;
+      const customKey = `calls/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/call_${callId}/${cleanName}`;
 
       const uploadResult = await storageProvider.uploadFile(
         {
@@ -308,6 +372,7 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
     }
 
     const call = await Call.create({
+      _id: callId,
       mentorId,
       menteeId,
       duration: Number(duration),
@@ -321,6 +386,8 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
           }
         : undefined,
       recordingStatus: storageKey ? 'uploaded' : 'pending',
+      ...(storageKey ? { uploadedAt: new Date() } : {}),
+      processingStatus: 'queued',
       reviewStatus: 'Draft',
       aiStatus: 'pending',
       mentorNotes: mentorNotes || '',
@@ -329,8 +396,8 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
     const job = await CallProcessingJob.create({
       callId: String(call._id),
       stage: 'UPLOAD',
-      status: 'PROCESSING',
-      progress: 5,
+      status: 'PENDING',
+      progress: 0,
       stageStatus: {
         upload: 'COMPLETED',
         audioProcessing: 'PENDING',
@@ -338,15 +405,35 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
         summary: 'PENDING',
         mentorReview: 'PENDING',
       },
-      startedAt: new Date(),
     });
 
-    await enqueueCallProcessingJob({
-      callId: String(call._id),
-      jobId: String(job._id),
-      mentorNotes,
-      skipTranscription: !storageKey,
-    });
+    console.info(`[CALL_UPLOAD_SUCCESS] callId=${callId} storageKey=${storageKey || 'none'}`);
+    try {
+      await enqueueCallProcessingJob({
+        callId,
+        jobId: String(job._id),
+        mentorId,
+        menteeId,
+        storageKey,
+        mentorNotes,
+        skipTranscription: !storageKey,
+      });
+    } catch (queueError) {
+      console.error(`[CALL_JOB_CREATE_FAILED] callId=${callId} error=${queueError instanceof Error ? queueError.message : String(queueError)}`);
+      await Promise.all([
+        Call.findByIdAndUpdate(callId, { $set: { processingStatus: 'failed' } }),
+        CallProcessingJob.findByIdAndUpdate(job._id, {
+          $set: { status: 'FAILED', error: 'Processing could not be queued. Please retry processing.', completedAt: new Date() },
+        }),
+      ]);
+      return res.status(503).json({
+        success: false,
+        callId,
+        processingStatus: 'failed',
+        recordingUploaded: Boolean(storageKey),
+        message: 'Recording uploaded, but processing could not be queued. Please retry processing.',
+      });
+    }
 
     const menteeDoc = await Mentee.findById(menteeId).lean();
     logAuditEvent({
@@ -362,14 +449,16 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
     });
 
     return res.status(202).json({
-      message: 'Upload accepted. Background processing enqueued.',
-      callId: String(call._id),
+      success: true,
+      message: 'Recording uploaded successfully. Processing has started.',
+      callId,
       jobId: String(job._id),
-      status: 'PROCESSING',
+      status: 'queued',
+      processingStatus: 'queued',
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to upload call';
-    return res.status(500).json({ message });
+    console.error(`[CALL_UPLOAD_FAILED] callId=${callId} phase=upload error=${error instanceof Error ? error.message : String(error)}`);
+    return res.status(500).json({ message: 'Unable to upload the recording. Please check your connection and try again.' });
   }
 });
 
@@ -389,32 +478,42 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
       filter = { menteeId: { $in: menteeIds } };
     }
 
-    const calls = await Call.find(filter).sort({ date: -1 }).lean();
+    const requestedLimit = Number(req.query.limit || 25);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 100) : 25;
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+    if (cursor) {
+      try {
+        const decoded = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { date: string; id: string };
+        if (!decoded.date || !mongoose.isValidObjectId(decoded.id)) throw new Error('invalid');
+        const cursorDate = new Date(decoded.date);
+        if (Number.isNaN(cursorDate.getTime())) throw new Error('invalid');
+        filter.$or = [{ date: { $lt: cursorDate } }, { date: cursorDate, _id: { $lt: decoded.id } }];
+      } catch {
+        return res.status(400).json({ message: 'Invalid calls cursor.' });
+      }
+    }
 
-    const menteeCache = new Map<string, string>();
-    const mentorCache = new Map<string, string>();
+    const calls = await Call.find(filter).sort({ date: -1, _id: -1 }).limit(limit + 1).lean();
+    const page = calls.slice(0, limit);
+    const menteeIds = [...new Set(page.map((call) => call.menteeId))];
+    const mentorIds = [...new Set(page.map((call) => call.mentorId))];
+    const [mentees, mentorProfiles, directUsers] = await Promise.all([
+      Mentee.find({ _id: { $in: menteeIds } }, { name: 1 }).lean(),
+      Mentor.find({ _id: { $in: mentorIds } }, { userId: 1 }).lean(),
+      User.find({ _id: { $in: mentorIds } }, { name: 1 }).lean(),
+    ]);
+    const menteeNames = new Map(mentees.map((mentee) => [String(mentee._id), mentee.name]));
+    const mentorUsers = await User.find({ _id: { $in: mentorProfiles.map((profile) => profile.userId) } }, { name: 1 }).lean();
+    const mentorNames = new Map<string, string>();
+    mentorProfiles.forEach((profile) => {
+      const user = mentorUsers.find((candidate) => String(candidate._id) === String(profile.userId));
+      mentorNames.set(String(profile._id), user?.name || 'Mentor');
+    });
+    directUsers.forEach((user) => mentorNames.set(String(user._id), user.name));
 
-    const enrichedCalls = await Promise.all(
-      calls.map(async (call) => {
-        let menteeName = menteeCache.get(call.menteeId);
-        if (!menteeName) {
-          const mentee = await Mentee.findById(call.menteeId).lean();
-          menteeName = mentee?.name || 'Mentee';
-          menteeCache.set(call.menteeId, menteeName);
-        }
-
-        let mentorName = mentorCache.get(call.mentorId);
-        if (!mentorName) {
-          const mentorProfile = await Mentor.findById(call.mentorId).lean();
-          if (mentorProfile) {
-            const u = await User.findById(mentorProfile.userId).lean();
-            mentorName = u?.name || 'Mentor';
-          } else {
-            const u = await User.findById(call.mentorId).lean();
-            mentorName = u?.name || 'Mentor';
-          }
-          mentorCache.set(call.mentorId, mentorName);
-        }
+    const enrichedCalls = page.map((call) => {
+        const menteeName = menteeNames.get(String(call.menteeId)) || 'Mentee';
+        const mentorName = mentorNames.get(String(call.mentorId)) || 'Mentor';
 
         return {
           id: String(call._id),
@@ -432,10 +531,14 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
           topicsDiscussed: call.topicsDiscussed ?? [],
           hasRecording: Boolean(call.recording?.storageKey || call.recordingUrl || call.recording?.url),
         };
-      }),
-    );
+      });
 
-    return res.json({ calls: enrichedCalls });
+    const last = page[page.length - 1];
+    const nextCursor = calls.length > limit && last
+      ? Buffer.from(JSON.stringify({ date: new Date(last.date).toISOString(), id: String(last._id) })).toString('base64url')
+      : null;
+
+    return res.json({ calls: enrichedCalls, nextCursor, hasMore: Boolean(nextCursor) });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to load calls';
     return res.status(500).json({ message });
@@ -710,9 +813,13 @@ router.post('/:id/retry', requireAuth, async (req: AuthRequest, res: Response) =
       }
     }
 
-    // Duplicate simultaneous processing prevention
+    // Avoid duplicate work while allowing calls abandoned by an unavailable worker to recover.
     const existingJob = await CallProcessingJob.findOne({ callId: req.params.id }).sort({ createdAt: -1 });
-    if (existingJob && existingJob.status === 'PROCESSING') {
+    const activeJobAgeMs = existingJob
+      ? Date.now() - new Date(existingJob.updatedAt || existingJob.startedAt || existingJob.createdAt).getTime()
+      : Number.POSITIVE_INFINITY;
+    const staleJobTimeoutMs = Math.max(60_000, Number(process.env.CALL_JOB_STALE_TIMEOUT_MS || 30 * 60 * 1000));
+    if (existingJob && ['PROCESSING', 'PENDING'].includes(existingJob.status) && activeJobAgeMs < staleJobTimeoutMs) {
       return res.status(409).json({ message: 'Processing is already currently in progress for this call.' });
     }
 
@@ -725,8 +832,8 @@ router.post('/:id/retry', requireAuth, async (req: AuthRequest, res: Response) =
     const newJob = await CallProcessingJob.create({
       callId: String(call._id),
       stage: skipTranscription ? 'SUMMARY' : 'TRANSCRIPTION',
-      status: 'PROCESSING',
-      progress: skipTranscription ? 50 : 10,
+      status: 'PENDING',
+      progress: skipTranscription ? 50 : 0,
       stageStatus: {
         upload: 'COMPLETED',
         audioProcessing: skipTranscription ? 'COMPLETED' : 'PROCESSING',
@@ -734,26 +841,39 @@ router.post('/:id/retry', requireAuth, async (req: AuthRequest, res: Response) =
         summary: 'PENDING',
         mentorReview: 'PENDING',
       },
-      startedAt: new Date(),
     });
 
     // Reset call status
     await Call.findByIdAndUpdate(req.params.id, {
       $set: {
-        recordingStatus: 'processing',
-        aiStatus: 'processing',
-        ...(skipTranscription ? {} : { 'transcription.status': 'PROCESSING' }),
+        recordingStatus: 'uploaded',
+        processingStatus: 'queued',
+        aiStatus: 'pending',
+        ...(skipTranscription ? {} : { 'transcription.status': 'PENDING' }),
         'aiSummary.status': 'PENDING',
       },
     });
 
-    // Enqueue job to BullMQ
-    await enqueueCallProcessingJob({
-      callId: String(call._id),
-      jobId: String(newJob._id),
-      mentorNotes: call.mentorNotes,
-      skipTranscription,
-    });
+    try {
+      await enqueueCallProcessingJob({
+        callId: String(call._id),
+        jobId: String(newJob._id),
+        mentorId: call.mentorId,
+        menteeId: call.menteeId,
+        storageKey: call.recording?.storageKey,
+        mentorNotes: call.mentorNotes,
+        skipTranscription,
+      });
+    } catch (queueError) {
+      console.error(`[CALL_JOB_CREATE_FAILED] callId=${call._id} error=${queueError instanceof Error ? queueError.message : String(queueError)}`);
+      await Promise.all([
+        Call.findByIdAndUpdate(call._id, { $set: { processingStatus: 'failed', recordingStatus: 'uploaded' } }),
+        CallProcessingJob.findByIdAndUpdate(newJob._id, {
+          $set: { status: 'FAILED', error: 'Processing could not be queued. Please retry processing.', completedAt: new Date() },
+        }),
+      ]);
+      return res.status(503).json({ message: 'Recording is saved, but processing could not be queued. Please retry.' });
+    }
 
     logAuditEvent({
       userId: req.user.id,
@@ -766,14 +886,15 @@ router.post('/:id/retry', requireAuth, async (req: AuthRequest, res: Response) =
       ipAddress: req.ip,
     });
 
-    return res.status(200).json({
+    return res.status(202).json({
       message: 'Processing retried successfully.',
       jobId: String(newJob._id),
-      status: 'PROCESSING',
+      status: 'queued',
+      processingStatus: 'queued',
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to retry call processing';
-    return res.status(500).json({ message });
+    console.error(`[CALL_JOB_CREATE_FAILED] callId=${req.params.id} phase=retry error=${error instanceof Error ? error.message : String(error)}`);
+    return res.status(500).json({ message: 'Unable to retry processing. Please try again.' });
   }
 });
 
@@ -781,35 +902,54 @@ router.post('/:id/retry', requireAuth, async (req: AuthRequest, res: Response) =
 // 10. GET /api/calls/:id/job — Poll job status
 // Always returns fresh state — never cached by browser or CDN
 // ──────────────────────────────────────────────────────────────────────────
-router.get('/:id/job', requireAuth, async (req: AuthRequest, res: Response) => {
+const handleCallProcessingStatus = async (req: AuthRequest, res: Response) => {
+  const callId = String(req.params.id);
   try {
     // Prevent all HTTP caching so the frontend always gets the latest job state
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.set('Pragma', 'no-cache');
     res.set('Expires', '0');
 
-    const job = await CallProcessingJob.findOne({ callId: req.params.id }).sort({ createdAt: -1 }).lean();
+    if (!mongoose.Types.ObjectId.isValid(callId)) {
+      return res.status(400).json({ message: 'Invalid call ID.' });
+    }
+    if (req.user?.role !== 'MENTOR' && req.user?.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Only mentors and administrators can view processing status.' });
+    }
+    const call = await Call.findById(callId).lean();
+    if (!call) return res.status(404).json({ message: 'Call record not found.' });
 
-    if (!job) {
-      return res.status(404).json({ message: 'No processing job found for this call.' });
+    if (req.user.role === 'MENTOR') {
+      const mentorId = await getMentorProfileId(req.user.id);
+      if (call.mentorId !== req.user.id && call.mentorId !== mentorId) {
+        return res.status(403).json({ message: 'Access denied: You can only view your own call records.' });
+      }
     }
 
+    const job = await CallProcessingJob.findOne({ callId }).sort({ createdAt: -1 }).lean();
+    const statusByJob = { PENDING: 'queued', PROCESSING: 'processing', COMPLETED: 'completed', FAILED: 'failed' } as const;
+
     return res.json({
-      jobId: String(job._id),
-      callId: job.callId,
-      stage: job.stage,
-      status: job.status,
-      progress: job.progress,
-      stageStatus: job.stageStatus,
-      error: job.error ?? null,
-      startedAt: job.startedAt,
-      completedAt: job.completedAt,
+      jobId: job ? String(job._id) : null,
+      callId: String(call._id),
+      stage: job?.stage ?? 'UPLOAD',
+      status: job?.status ?? 'PENDING',
+      processingStatus: job ? statusByJob[job.status] : call.processingStatus || 'queued',
+      progress: job?.progress ?? 0,
+      stageStatus: job?.stageStatus ?? {},
+      error: job?.error ?? null,
+      startedAt: job?.startedAt,
+      completedAt: job?.completedAt,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to fetch job status';
-    return res.status(500).json({ message });
+    console.error(`[CALL_STATUS_FAILED] callId=${callId} error=${error instanceof Error ? error.message : String(error)}`);
+    return res.status(500).json({ message: 'Unable to load recording status. Please try again.' });
   }
-});
+};
+
+
+router.get('/:id/status', requireAuth, handleCallProcessingStatus);
+router.get('/:id/job', requireAuth, handleCallProcessingStatus);
 
 // ──────────────────────────────────────────────────────────────────────────
 // 11. POST /api/calls/:id/approve — Mentor approves summary

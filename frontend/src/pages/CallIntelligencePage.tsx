@@ -244,8 +244,8 @@ export function CallIntelligencePage() {
       setFeedback({ msg: 'Processing retried. Background pipeline has restarted.', type: 'success' });
       setJob((prev) =>
         prev
-          ? { ...prev, status: 'PROCESSING', error: undefined }
-          : { stage: 'UPLOAD', status: 'PROCESSING', progress: 10, stageStatus: {} },
+          ? { ...prev, status: 'PENDING', processingStatus: 'queued', progress: 0, error: undefined }
+          : { stage: 'UPLOAD', status: 'PENDING', processingStatus: 'queued', progress: 0, stageStatus: {} },
       );
       startPolling();
     } catch (err) {
@@ -268,7 +268,7 @@ export function CallIntelligencePage() {
           await loadData();
         }
       } catch (_) {}
-    }, 3000);
+    }, 5000);
   }, [callId, token, loadData]);
 
   useEffect(() => {
@@ -276,7 +276,7 @@ export function CallIntelligencePage() {
   }, [loadData]);
 
   useEffect(() => {
-    if (job && job.status === 'PROCESSING') {
+    if (job && (job.status === 'PROCESSING' || job.status === 'PENDING')) {
       startPolling();
     }
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
@@ -336,7 +336,7 @@ export function CallIntelligencePage() {
     );
   }
 
-  const isProcessing = job?.status === 'PROCESSING';
+  const isProcessing = job?.status === 'PROCESSING' || job?.status === 'PENDING';
   const isApproved = call.reviewStatus === 'Approved';
   const hasTranscript = Boolean(transcript.text || transcript.segments.length);
 
@@ -351,7 +351,7 @@ export function CallIntelligencePage() {
           <span><Calendar size={14} /> {new Date(call.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
           <span><Clock size={14} /> {call.duration} mins</span>
           <span className={`status-badge ${isApproved ? 'status-approved' : isProcessing ? 'status-processing' : 'status-pending'}`}>
-            {isApproved ? <><CheckCircle size={12} /> Approved</> : isProcessing ? <><Loader size={12} className="spin" /> Processing</> : <><Sparkles size={12} /> Pending Review</>}
+            {isApproved ? <><CheckCircle size={12} /> Approved</> : isProcessing ? <><Loader size={12} className="spin" /> {job?.status === 'PENDING' ? 'Queued' : 'Processing'}</> : <><Sparkles size={12} /> Pending Review</>}
           </span>
         </div>
       </div>

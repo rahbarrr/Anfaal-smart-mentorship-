@@ -35,24 +35,27 @@ router.get('/dashboard-summary', requireAuth, requireRole('ADMIN'), async (_req:
 
 router.get('/analytics-summary', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res: Response) => {
   try {
-    const calls = await Call.find().lean();
-    const totalCalls = calls.length;
-    const approvedCalls = calls.filter((call) => call.reviewStatus === 'Approved').length;
-    const rejectedCalls = calls.filter((call) => call.reviewStatus === 'Rejected').length;
-    const pendingCalls = calls.filter((call) => call.reviewStatus === 'Pending Review').length;
-    const averageDuration = totalCalls > 0 ? calls.reduce((sum, call) => sum + (call.duration ?? 0), 0) / totalCalls : 0;
-
-    const topicTotals = new Map<string, number>();
-    for (const call of calls) {
-      for (const topic of call.topicsDiscussed ?? []) {
-        topicTotals.set(topic, (topicTotals.get(topic) ?? 0) + 1);
-      }
-    }
-
-    const topTopics = [...topicTotals.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, count]) => ({ name, count }));
+    const [counts, duration, topics] = await Promise.all([
+      Call.aggregate<{ _id: string; count: number }>([
+        { $group: { _id: '$reviewStatus', count: { $sum: 1 } } },
+      ]),
+      Call.aggregate<{ _id: null; totalCalls: number; averageDuration: number }>([
+        { $group: { _id: null, totalCalls: { $sum: 1 }, averageDuration: { $avg: { $ifNull: ['$duration', 0] } } } },
+      ]),
+      Call.aggregate<{ _id: string; count: number }>([
+        { $unwind: '$topicsDiscussed' },
+        { $group: { _id: '$topicsDiscussed', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 5 },
+      ]),
+    ]);
+    const countMap = new Map(counts.map((entry) => [entry._id, entry.count]));
+    const totalCalls = duration[0]?.totalCalls ?? 0;
+    const approvedCalls = countMap.get('Approved') ?? 0;
+    const rejectedCalls = countMap.get('Rejected') ?? 0;
+    const pendingCalls = countMap.get('Pending Review') ?? 0;
+    const averageDuration = duration[0]?.averageDuration ?? 0;
+    const topTopics = topics.map((topic) => ({ name: topic._id, count: topic.count }));
 
     return res.json({
       totalCalls,

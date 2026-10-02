@@ -51,6 +51,7 @@ type AiSummary = {
 type JobStatus = {
   stage: 'UPLOAD' | 'TRANSCRIPTION' | 'SUMMARY' | 'COMPLETE';
   status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  processingStatus?: 'queued' | 'processing' | 'completed' | 'failed';
   progress: number;
   stageStatus: {
     upload: string;
@@ -202,6 +203,7 @@ export function UploadCallPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollInFlightRef = useRef(false);
 
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -249,34 +251,30 @@ export function UploadCallPage() {
       const MAX_CONSECUTIVE_ERRORS = 8;
 
       pollTimerRef.current = setInterval(async () => {
+        if (pollInFlightRef.current || document.visibilityState === 'hidden') return;
+        pollInFlightRef.current = true;
         try {
           const job = await getCallJobStatus(token, callId);
           consecutiveErrors = 0; // reset on success
           setJobStatus(job);
 
-          if (job.status === 'COMPLETED') {
+          if (job.status === 'COMPLETED' || job.processingStatus === 'completed') {
             clearInterval(pollTimerRef.current!);
             // Load full call detail for review
             const detail = await getCallDetail(token, callId);
             setCallDetail(detail.call);
             setEditedSummary(detail.call?.aiSummary ?? null);
             setCurrentStep(3);
-          } else if (job.status === 'FAILED') {
+          } else if (job.status === 'FAILED' || job.processingStatus === 'failed') {
             clearInterval(pollTimerRef.current!);
-            setFeedback({ msg: `Processing failed: ${job.error ?? 'Unknown error'}`, type: 'error' });
+            setFeedback({ msg: job.error || 'Recording uploaded, but processing failed. You can retry processing.', type: 'error' });
           }
-        } catch (err) {
-          consecutiveErrors += 1;
-          // Surface the error to the user after repeated failures so the
-          // UI doesn't silently sit at 0% forever.
-          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-            clearInterval(pollTimerRef.current!);
-            const msg = err instanceof Error ? err.message : 'Unable to reach the server';
-            setFeedback({ msg: `Status polling failed: ${msg}. Please refresh and try again.`, type: 'error' });
-          }
-          // Otherwise: transient network hiccup — keep retrying silently
+        } catch (_) {
+          // Silently retry
+        } finally {
+          pollInFlightRef.current = false;
         }
-      }, 2500);
+      }, 5000);
     },
     [],
   );
@@ -292,6 +290,12 @@ export function UploadCallPage() {
     if (!file) return;
     if (file.size > MAX_FILE_SIZE) {
       setFeedback({ msg: 'File is too large. Maximum size is 100 MB.', type: 'error' });
+      return;
+    }
+    const supportedType = /\.(mp3|wav|m4a|mp4|webm|ogg|aac)$/i.test(file.name)
+      || ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/ogg', 'audio/webm', 'audio/aac', 'video/mp4', 'video/webm'].includes(file.type);
+    if (!supportedType) {
+      setFeedback({ msg: 'Unsupported recording format. Choose MP3, WAV, M4A, MP4, WebM, OGG, or AAC.', type: 'error' });
       return;
     }
     setSelectedFile(file);
@@ -312,10 +316,11 @@ export function UploadCallPage() {
     setFeedback(null);
     try {
       await retryCallProcessing(token, createdCallId);
+      setFeedback({ msg: 'Processing restarted. You can leave this page while it runs.', type: 'success' });
       setJobStatus((prev) =>
         prev
-          ? { ...prev, status: 'PROCESSING', error: undefined }
-          : { stage: 'UPLOAD', status: 'PROCESSING', progress: 10, stageStatus: { upload: 'COMPLETED', audioProcessing: 'PROCESSING', transcription: 'PENDING', summary: 'PENDING', mentorReview: 'PENDING' } },
+          ? { ...prev, status: 'PENDING', processingStatus: 'queued', progress: 0, error: undefined }
+          : { stage: 'UPLOAD', status: 'PENDING', processingStatus: 'queued', progress: 0, stageStatus: { upload: 'COMPLETED', audioProcessing: 'PENDING', transcription: 'PENDING', summary: 'PENDING', mentorReview: 'PENDING' } },
       );
       startPolling(createdCallId);
     } catch (err) {
@@ -345,6 +350,7 @@ export function UploadCallPage() {
       let fileName: string | undefined;
       let fileSize: number | undefined;
       let mimeType: string | undefined;
+      let callId: string | undefined;
       let result: { callId: string } | undefined;
 
       if (selectedFile) {
@@ -356,6 +362,7 @@ export function UploadCallPage() {
           menteeId: form.menteeId,
         });
 
+        callId = presignRes.callId;
         storageKey = presignRes.storageKey;
         fileName = presignRes.fileName;
         fileSize = presignRes.fileSize;
@@ -367,8 +374,9 @@ export function UploadCallPage() {
             setUploadProgress(pct);
           });
         } catch (error) {
-          const isS3Forbidden = error instanceof Error && /direct s3 upload failed with status 403/i.test(error.message);
-          if (!isS3Forbidden || selectedFile.size > SERVER_UPLOAD_FALLBACK_MAX_SIZE) {
+          const canFallback = error instanceof Error
+            && /direct s3 upload failed with status 403|unable to upload the recording|upload timed out|upload was interrupted/i.test(error.message);
+          if (!canFallback || selectedFile.size > SERVER_UPLOAD_FALLBACK_MAX_SIZE) {
             throw error;
           }
 
@@ -379,6 +387,7 @@ export function UploadCallPage() {
           result = await uploadCall(
             token,
             {
+              callId: presignRes.callId,
               menteeId: form.menteeId,
               duration: form.duration,
               date: form.date,
@@ -392,6 +401,7 @@ export function UploadCallPage() {
       if (!result) {
         setUploadStatusText('Finalizing call session & queueing background AI pipeline…');
         result = await completeCallUpload(token, {
+          callId,
           storageKey,
           fileName,
           fileSize,
@@ -406,8 +416,9 @@ export function UploadCallPage() {
       setCreatedCallId(result.callId);
       setJobStatus({
         stage: 'UPLOAD',
-        status: 'PROCESSING',
-        progress: 5,
+        status: 'PENDING',
+        processingStatus: 'queued',
+        progress: 0,
         stageStatus: {
           upload: 'COMPLETED',
           audioProcessing: 'PENDING',
@@ -416,9 +427,33 @@ export function UploadCallPage() {
           mentorReview: 'PENDING',
         },
       });
+      setFeedback({ msg: 'Recording uploaded successfully.', type: 'success' });
+      setUploadStatusText('Processing recording...');
       startPolling(result.callId);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Upload failed.';
+      const uploadError = error as Error & { callId?: string; recordingUploaded?: boolean; processingStatus?: string };
+      if (uploadError.callId && uploadError.recordingUploaded) {
+        setCreatedCallId(uploadError.callId);
+        setCurrentStep(2);
+        setUploadStatusText('Recording uploaded. Processing could not start.');
+        setFeedback({ msg: uploadError.message || 'Recording uploaded, but processing failed. You can retry processing.', type: 'error' });
+        try {
+          setJobStatus(await getCallJobStatus(token, uploadError.callId));
+        } catch {
+          setJobStatus({
+            stage: 'UPLOAD',
+            status: 'FAILED',
+            processingStatus: 'failed',
+            progress: 0,
+            stageStatus: { upload: 'COMPLETED', audioProcessing: 'PENDING', transcription: 'PENDING', summary: 'PENDING', mentorReview: 'PENDING' },
+          });
+        }
+        return;
+      }
+      const rawMessage = error instanceof Error ? error.message : '';
+      const msg = /connection is closed|networkerror|fetch failed|econnreset/i.test(rawMessage)
+        ? 'Unable to upload the recording. Please check your internet connection and try again.'
+        : rawMessage || 'Unable to upload the recording. Please check your internet connection and try again.';
       setFeedback({ msg, type: 'error' });
       setCurrentStep(1);
     } finally {
@@ -461,6 +496,19 @@ export function UploadCallPage() {
   };
 
   const selectedMenteeName = mentees.find((m) => m.id === form.menteeId)?.name ?? 'Unknown Mentee';
+  const processingLabel = !createdCallId
+    ? 'Uploading recording...'
+    : jobStatus?.processingStatus === 'queued'
+    ? 'Waiting for processing'
+    : jobStatus?.processingStatus === 'completed'
+      ? 'Recording processed successfully'
+      : jobStatus?.processingStatus === 'failed'
+        ? 'Processing failed — Retry'
+        : jobStatus?.stageStatus.transcription === 'PROCESSING'
+          ? 'Transcribing recording...'
+          : jobStatus?.stageStatus.summary === 'PROCESSING'
+            ? 'Generating AI summary...'
+            : 'Processing recording...';
 
   return (
     <div className="upload-call-page">
@@ -675,7 +723,7 @@ export function UploadCallPage() {
           <div className="processing-header">
             <div className="processing-pulse" />
             <h2 className="wizard-card-title">
-              <Brain size={22} /> AI is processing your call…
+              <Brain size={22} /> {processingLabel}
             </h2>
           </div>
           {uploadStatusText && (
@@ -695,7 +743,11 @@ export function UploadCallPage() {
             </div>
           )}
           <p className="processing-subtitle">
-            This typically takes 1–5 minutes depending on recording length. You can stay on this page or come back later.
+            {!createdCallId
+              ? 'Uploading your recording to secure storage. Keep this page open until the upload finishes.'
+              : jobStatus?.processingStatus === 'queued'
+                ? 'Your recording is saved and waiting for a worker. You can leave this page while it waits.'
+                : 'Transcription and summarization run in the background. You can leave this page and return later.'}
           </p>
           {jobStatus && <PipelineProgress job={jobStatus} />}
           {jobStatus?.status === 'FAILED' && (

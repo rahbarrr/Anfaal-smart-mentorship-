@@ -4,8 +4,11 @@ import { Mentor } from '../models/Mentor.js';
 import { User } from '../models/User.js';
 import { DailyPerformance } from '../models/DailyPerformance.js';
 import { CallProcessingJob } from '../models/CallProcessingJob.js';
+import { getCachedJson, setCachedJson } from './cacheService.js';
 
-export async function getDashboardSummary() {
+export async function getDashboardSummary(): Promise<Record<string, unknown>> {
+  const cached = await getCachedJson<Record<string, unknown>>('dashboard:summary');
+  if (cached) return cached;
   const [
     mentorCount,
     menteeCount,
@@ -35,41 +38,39 @@ export async function getDashboardSummary() {
     DailyPerformance.find().sort({ createdAt: -1 }).limit(5).lean(),
   ]);
 
-  // Resolve mentor and mentee names for recent calls
-  const recentCalls = await Promise.all(
-    recentCallsDocs.map(async (c) => {
-      const mentee = await Mentee.findById(c.menteeId).lean();
-      let mentorName = 'Mentor';
-      const mentorProfile = await Mentor.findById(c.mentorId).lean();
-      if (mentorProfile) {
-        const u = await User.findById(mentorProfile.userId).lean();
-        if (u) mentorName = u.name;
-      } else {
-        const u = await User.findById(c.mentorId).lean();
-        if (u) mentorName = u.name;
-      }
+  const recentMenteeIds = [...new Set([...recentCallsDocs.map((c) => c.menteeId), ...recentPerformanceDocs.map((p) => p.menteeId)])];
+  const recentMentorIds = [...new Set(recentCallsDocs.map((c) => c.mentorId))];
+  const [recentMentees, recentMentors, directUsers] = await Promise.all([
+    Mentee.find({ _id: { $in: recentMenteeIds } }, { name: 1 }).lean(),
+    Mentor.find({ _id: { $in: recentMentorIds } }, { userId: 1 }).lean(),
+    User.find({ _id: { $in: recentMentorIds } }, { name: 1 }).lean(),
+  ]);
+  const menteeNames = new Map(recentMentees.map((m) => [String(m._id), m.name]));
+  const mentorUsers = await User.find({ _id: { $in: recentMentors.map((m) => m.userId) } }, { name: 1 }).lean();
+  const mentorNames = new Map<string, string>();
+  recentMentors.forEach((m) => mentorNames.set(String(m._id), mentorUsers.find((u) => String(u._id) === String(m.userId))?.name || 'Mentor'));
+  directUsers.forEach((u) => mentorNames.set(String(u._id), u.name));
+
+  const recentCalls = recentCallsDocs.map((c) => {
       return {
         id: String(c._id),
         date: c.date,
         duration: c.duration,
-        mentorName,
-        menteeName: mentee?.name || 'Mentee',
+        mentorName: mentorNames.get(String(c.mentorId)) || 'Mentor',
+        menteeName: menteeNames.get(String(c.menteeId)) || 'Mentee',
         reviewStatus: c.reviewStatus,
         aiStatus: c.aiStatus,
         summary: c.aiSummary?.shortSummary || c.summary || 'Summary processing…',
         hasRecording: Boolean(c.recordingUrl || c.recording?.url),
       };
-    }),
-  );
+    });
 
   // Resolve mentee names for recent performance
-  const recentProgress = await Promise.all(
-    recentPerformanceDocs.map(async (p) => {
-      const mentee = await Mentee.findById(p.menteeId).lean();
+  const recentProgress = recentPerformanceDocs.map((p) => {
       return {
         id: String(p._id),
         menteeId: p.menteeId,
-        menteeName: mentee?.name || 'Mentee',
+        menteeName: menteeNames.get(String(p.menteeId)) || 'Mentee',
         date: p.date,
         studyMinutes: p.studyMinutes,
         quranRuku: p.quran?.ruku || 0,
@@ -77,8 +78,7 @@ export async function getDashboardSummary() {
         needsMentorHelp: p.needsMentorHelp,
         mentorHelpNote: p.mentorHelpNote,
       };
-    }),
-  );
+    });
 
   // Build factual Attention Required indicators
   const attentionItems: Array<{ type: string; title: string; description: string; link: string }> = [];
@@ -100,17 +100,18 @@ export async function getDashboardSummary() {
   }
 
   const helpRequests = await DailyPerformance.find({ needsMentorHelp: true }).sort({ createdAt: -1 }).limit(3).lean();
+  const helpMentees = await Mentee.find({ _id: { $in: helpRequests.map((h) => h.menteeId) } }, { name: 1 }).lean();
+  const helpNames = new Map(helpMentees.map((m) => [String(m._id), m.name]));
   for (const h of helpRequests) {
-    const mentee = await Mentee.findById(h.menteeId).lean();
     attentionItems.push({
       type: 'NEEDS_HELP',
-      title: `${mentee?.name || 'Mentee'} Requested Mentor Assistance`,
+      title: `${helpNames.get(String(h.menteeId)) || 'Mentee'} Requested Mentor Assistance`,
       description: h.mentorHelpNote || 'Student flagged a difficulty in today’s daily reflection.',
       link: `/admin/performance`,
     });
   }
 
-  return {
+  const result = {
     totalMentors: mentorCount,
     totalMentees: menteeCount,
     callsThisMonth,
@@ -122,4 +123,6 @@ export async function getDashboardSummary() {
     recentProgress,
     attentionItems,
   };
+  await setCachedJson('dashboard:summary', result, 30);
+  return result;
 }

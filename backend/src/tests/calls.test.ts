@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createStorageProvider, MockStorageProvider } from '../services/storageService.js';
+import { withTimeout } from '../queue/callQueue.js';
+
+test('CALLS: queue enqueue timeout rejects instead of holding the upload request open', async () => {
+  await assert.rejects(
+    withTimeout(new Promise<void>(() => {}), 5, 'Queue unavailable'),
+    /Queue unavailable/,
+  );
+});
 
 test('CALLS: storage provider generates unique private storageKey with date prefix', async () => {
   const provider = createStorageProvider();

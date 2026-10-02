@@ -1,19 +1,15 @@
+import 'dotenv/config';
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
 import app from './app.js';
 import { connectDatabase } from './config/db.js';
 import { validateEnvironment } from './config/env.js';
 import { ensureDefaultAdmin, ensureDefaultMentor, ensureDefaultMenteeUser } from './services/seedService.js';
 
-dotenv.config();
-
-const port = Number(process.env.PORT || 10000);
+const port = Number(process.env.PORT || 5000);
 
 async function startServer() {
   try {
     validateEnvironment(false);
-
-    let callWorker: any = null;
 
     const server = app.listen(port, '0.0.0.0', () => {
       console.log(`[API Service] Anfaal API listening on 0.0.0.0:${port} (env: ${process.env.NODE_ENV || 'development'})`);
@@ -27,25 +23,12 @@ async function startServer() {
           isConnected = true;
 
           const isProduction = process.env.NODE_ENV === 'production';
-          if (!isProduction) {
+          if (!isProduction && process.env.SEED_DEMO_DATA === 'true') {
             await ensureDefaultAdmin();
             await ensureDefaultMentor();
             await ensureDefaultMenteeUser();
-          } else {
-            const adminEmail = process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@anfaalfoundation.com';
-            const adminPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD || 'AdminP@ssw0rd2026!';
-            await ensureDefaultAdmin(adminEmail, adminPassword);
-          }
-
-          // Start background worker in-process once database connects
-          if (process.env.RUN_WORKER !== 'false' && !callWorker) {
-            try {
-              const { startCallWorker } = await import('./queue/callWorker.js');
-              callWorker = startCallWorker();
-              console.log('[Worker Service] BullMQ background worker started in background process.');
-            } catch (workerErr) {
-              console.warn('[Worker Service] Note: BullMQ worker initialization:', workerErr instanceof Error ? workerErr.message : workerErr);
-            }
+          } else if (isProduction && process.env.DISABLE_BOOTSTRAP_ADMIN !== 'true') {
+            await ensureDefaultAdmin();
           }
         } catch (dbErr: any) {
           console.error('[API Service] MongoDB connection attempt failed:', dbErr.message);
@@ -62,14 +45,6 @@ async function startServer() {
     // Graceful shutdown handling for Render deployments & restarts
     const shutdown = async (signal: string) => {
       console.log(`[API Service] Received ${signal}. Shutting down gracefully...`);
-      if (callWorker) {
-        try {
-          await callWorker.close();
-          console.log('[Worker Service] BullMQ worker closed.');
-        } catch {
-          // ignore
-        }
-      }
       server.close(async () => {
         try {
           await mongoose.disconnect();

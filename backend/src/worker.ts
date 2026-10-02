@@ -1,64 +1,109 @@
-import dotenv from 'dotenv';
+import 'dotenv/config';
+import { Server } from 'node:http';
 import mongoose from 'mongoose';
+import { Redis } from 'ioredis';
+import { Worker } from 'bullmq';
 import { connectDatabase } from './config/db.js';
 import { validateEnvironment } from './config/env.js';
+import { createRedisConnection } from './queue/callQueue.js';
 import { startCallWorker } from './queue/callWorker.js';
+import { createWorkerHealthServer } from './workerHealthServer.js';
 
-dotenv.config();
+let healthServer: Server | undefined;
+let redisConnection: Redis | undefined;
+let callWorker: Worker | undefined;
+let shutdownPromise: Promise<void> | undefined;
+
+async function closeHealthServer(): Promise<void> {
+  if (!healthServer?.listening) return;
+  await new Promise<void>((resolve, reject) => {
+    healthServer!.close((error) => error ? reject(error) : resolve());
+  });
+}
+
+function shutdown(signal: string): Promise<void> {
+  if (shutdownPromise) return shutdownPromise;
+
+  shutdownPromise = (async () => {
+    console.log(`[Worker Service] Received ${signal}. Initiating graceful shutdown...`);
+    const forceExitTimer = setTimeout(() => {
+      console.error('[Worker Service] Graceful shutdown timed out after 15 seconds, forcing exit.');
+      process.exit(1);
+    }, 15000).unref();
+    let failed = false;
+
+    try {
+      await closeHealthServer();
+      console.log('[Worker Service] Health server closed.');
+    } catch (error) {
+      failed = true;
+      console.error('[Worker Service] Failed to close health server:', error);
+    }
+
+    try {
+      if (callWorker) await callWorker.close();
+      console.log('[Worker Service] BullMQ worker closed.');
+    } catch (error) {
+      failed = true;
+      console.error('[Worker Service] Failed to close BullMQ worker:', error);
+    }
+
+    try {
+      if (redisConnection && redisConnection.status !== 'end') {
+        if (redisConnection.status === 'ready') await redisConnection.quit();
+        else redisConnection.disconnect();
+      }
+      console.log('[Worker Service] Redis connection closed.');
+    } catch (error) {
+      failed = true;
+      redisConnection?.disconnect();
+      console.error('[Worker Service] Failed to close Redis connection:', error);
+    }
+
+    try {
+      await mongoose.disconnect();
+      console.log('[Worker Service] MongoDB disconnected.');
+    } catch (error) {
+      failed = true;
+      console.error('[Worker Service] Failed to disconnect MongoDB:', error);
+    }
+
+    clearTimeout(forceExitTimer);
+    process.exitCode = failed ? 1 : 0;
+    console.log('[Worker Service] Graceful shutdown complete.');
+  })();
+
+  return shutdownPromise;
+}
+
+process.once('SIGINT', () => { void shutdown('SIGINT'); });
+process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
 
 async function runWorker() {
-  console.log('[Worker Service] Initializing Anfaal background worker (Render Worker)...');
+  console.log('[Worker Service] Initializing Anfaal BullMQ Web Service...');
 
   try {
-    // Validate all required environment variables for the worker service
-    validateEnvironment(true);
+    healthServer = createWorkerHealthServer();
+    const port = Number(process.env.PORT || 10000);
+    await new Promise<void>((resolve, reject) => {
+      healthServer!.once('error', reject);
+      healthServer!.listen(port, '0.0.0.0', resolve);
+    });
+    console.log(`[Worker Service] Health server listening on 0.0.0.0:${port}.`);
 
+    validateEnvironment(true);
     await connectDatabase();
     console.log('[Worker Service] Connected to MongoDB Atlas.');
 
-    const worker = startCallWorker();
+    redisConnection = createRedisConnection();
+    callWorker = startCallWorker(redisConnection);
     console.log('[Worker Service] BullMQ call worker is active and listening to queue: call-processing');
-
-    const shutdown = async (signal: string) => {
-      console.log(`[Worker Service] Received ${signal}. Initiating graceful shutdown...`);
-      try {
-        console.log('[Worker Service] Closing BullMQ worker (finishing active jobs)...');
-        await worker.close();
-        console.log('[Worker Service] BullMQ worker closed.');
-
-        console.log('[Worker Service] Disconnecting from MongoDB...');
-        await mongoose.disconnect();
-        console.log('[Worker Service] MongoDB disconnected. Graceful shutdown complete.');
-
-        process.exit(0);
-      } catch (err) {
-        console.error('[Worker Service] Error during graceful shutdown:', err);
-        process.exit(1);
-      }
-    };
-
-    // Safety timeout: force exit if worker fails to stop within 15 seconds
-    const setupTimeout = () => {
-      setTimeout(() => {
-        console.error('[Worker Service] Graceful shutdown timed out after 15 seconds, forcing exit.');
-        process.exit(1);
-      }, 15000).unref();
-    };
-
-    process.on('SIGINT', () => {
-      setupTimeout();
-      shutdown('SIGINT');
-    });
-
-    process.on('SIGTERM', () => {
-      setupTimeout();
-      shutdown('SIGTERM');
-    });
   } catch (err) {
-    console.error('[Worker Service] Fatal error during worker startup:', err);
-    process.exit(1);
+    console.error('[Worker Service] Fatal error during startup:', err);
+    await shutdown('startup failure');
+    process.exitCode = 1;
   }
 }
 
-runWorker();
+void runWorker();
 
