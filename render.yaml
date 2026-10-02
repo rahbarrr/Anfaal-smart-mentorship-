@@ -55,7 +55,9 @@ services:
         value: "true"
 
   # Dedicated BullMQ worker. The API service must never process audio/AI inline.
-  - type: worker
+  # Free Render plans do not provide native background-worker services.
+  # Run the BullMQ consumer as a web service with its lightweight health port.
+  - type: web
     name: anfaal-call-worker
     runtime: node
     rootDir: backend
@@ -63,6 +65,7 @@ services:
     region: oregon
     buildCommand: npm install --include=dev && npm run build
     startCommand: npm run worker
+    healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: NODE_ENV
