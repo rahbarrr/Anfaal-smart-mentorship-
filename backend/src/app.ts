@@ -29,7 +29,12 @@ const rawOrigins = (process.env.CLIENT_URL || '')
   .map((u) => u.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 
-const allowedOrigins = new Set(rawOrigins);
+// Always allow the canonical Anfaal Vercel deployment regardless of CLIENT_URL config
+const ALWAYS_ALLOWED_ORIGINS = new Set([
+  'https://anfaal-smart-mentorship.vercel.app',
+]);
+
+const allowedOrigins = new Set([...ALWAYS_ALLOWED_ORIGINS, ...rawOrigins]);
 
 app.use(
   cors({
@@ -41,6 +46,12 @@ app.use(
 
       // Allow if explicit in allowedOrigins
       if (allowedOrigins.has(cleanOrigin)) {
+        return callback(null, true);
+      }
+
+      // Allow any Vercel preview or production deployment URL for this project
+      if (/^https:\/\/([a-zA-Z0-9_-]+-)?anfaal[a-zA-Z0-9_-]*\.vercel\.app$/.test(cleanOrigin)
+        || /^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(cleanOrigin)) {
         return callback(null, true);
       }
 
