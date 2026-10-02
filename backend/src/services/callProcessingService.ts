@@ -11,14 +11,18 @@ export async function enqueueCallProcessingJob(data: CallProcessingJobData): Pro
   // In production, the API service must NOT execute long-running transcription or AI summarization directly.
   // It strictly enqueues to the Redis BullMQ queue for the dedicated Render Background Worker.
   if (isProduction && process.env.ALLOW_INLINE_PROCESSING !== 'true') {
-    return addCallProcessingJob(data);
+    const result = await addCallProcessingJob(data);
+    console.info(`[CALL_JOB_CREATED] callId=${data.callId} jobId=${result.jobId ?? data.jobId}`);
+    return result;
   }
 
-  return addCallProcessingJob(data, async (jobData) => {
+  const result = await addCallProcessingJob(data, async (jobData) => {
     // Fallback executor strictly for local development/test when Redis is not running
-    console.log('[CallProcessing] Running job via fallback in-process handler for call:', jobData.callId);
+    console.info(`[CALL_PROCESSING_START] callId=${jobData.callId} mode=local-fallback`);
     await processCallProcessingJob(jobData);
   });
+  console.info(`[CALL_JOB_CREATED] callId=${data.callId} jobId=${result.jobId ?? data.jobId}`);
+  return result;
 }
 
 /**

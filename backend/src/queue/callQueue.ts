@@ -4,6 +4,9 @@ import { Redis } from 'ioredis';
 export interface CallProcessingJobData {
   callId: string;
   jobId: string;
+  mentorId?: string;
+  menteeId?: string;
+  storageKey?: string;
   mentorNotes?: string;
   skipTranscription?: boolean;
 }
@@ -40,6 +43,22 @@ export function createRedisConnection(): Redis {
   });
 
   return client;
+}
+
+export function withTimeout<T>(operation: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+    operation.then(
+      (value) => {
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
 }
 
 let redisConnection: Redis | null = null;
@@ -94,12 +113,13 @@ export async function addCallProcessingJob(
 
   if (queue) {
     try {
-      const bullJob = await queue.add(`process-${data.callId}`, data, {
-        jobId: `call-${data.callId}-${Date.now()}`,
-      });
+      const enqueueTimeoutMs = Math.max(1000, Number(process.env.QUEUE_ENQUEUE_TIMEOUT_MS || 10000));
+      const bullJob = await withTimeout(queue.add('process-call-recording', data, {
+        jobId: `call-${data.jobId}`,
+      }), enqueueTimeoutMs, 'Timed out while connecting to the processing queue.');
       return { enqueued: true, jobId: bullJob.id };
     } catch (queueErr) {
-      console.warn('[Queue] BullMQ enqueue failed, checking fallback:', queueErr instanceof Error ? queueErr.message : queueErr);
+      console.error(`[CALL_JOB_CREATE_FAILED] callId=${data.callId} error=${queueErr instanceof Error ? queueErr.message : String(queueErr)}`);
       if (fallbackExecutor) {
         // Run asynchronously via fallback executor
         fallbackExecutor(data).catch((err) => {
