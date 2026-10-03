@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getMenteeProfile, getMenteePerformance, getMenteePerformanceAnalytics, getMenteeAiInsights } from '../lib/api';
-import { ArrowLeft, PhoneCall, BookOpen, Calendar, CheckSquare, AlertCircle, MessageSquare, Sparkles, TrendingUp, HelpCircle, BarChart3 } from 'lucide-react';
+import { ArrowLeft, PhoneCall, BookOpen, Calendar, CheckSquare, AlertCircle, MessageSquare, Sparkles, TrendingUp, HelpCircle, BarChart3, Clock, BookMarked, Star, CircleDot } from 'lucide-react';
 import type { PerformanceAnalyticsData, AiInsightsResult } from '../types';
 
 type MenteeProfile = {
@@ -372,44 +372,50 @@ export function MenteeProfilePage() {
       {/* ── Daily Performance Tab (Requirements 9, 10, 11, 12, 13, 14) ─── */}
       {activeTab === 'performance' && (
         <div className="profile-performance-flow">
-          {/* Section 9: Today's Performance */}
-          <div className="summary-card today-perf-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-              <div>
-                <div className="eyebrow" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Calendar size={15} /> Mentee Daily Performance
+          {/* Section 9: Today's Performance (Polished Status Card) */}
+          <div className="today-status-card">
+            <div className="today-status-header">
+              <div className="today-status-title-group">
+                <div className="today-status-eyebrow">
+                  <Calendar size={14} className="metric-icon" />
+                  <span>Mentee Daily Performance</span>
                 </div>
-                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, margin: '2px 0 0' }}>Today's Performance</h3>
+                <h3 className="today-status-title">Today's Performance</h3>
               </div>
-              <span className="muted" style={{ fontSize: '0.85rem' }}>
-                {perfData?.today?.date ? new Date(perfData.today.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'No entry for today yet'}
-              </span>
+              <div className={`today-status-badge ${perfData?.today ? 'submitted' : 'pending'}`}>
+                <span className="status-badge-dot" />
+                <span>
+                  {perfData?.today
+                    ? `Submitted • ${new Date(perfData.today.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`
+                    : 'Status: Not submitted'}
+                </span>
+              </div>
             </div>
 
             {perfData?.today ? (
               <div>
                 <div className="today-perf-metrics-grid">
                   <div>
-                    <div className="muted" style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>Study</div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
+                    <div className="muted" style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Study</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
                       {formatDuration(perfData.today.studyMinutes)}
                     </div>
                   </div>
                   <div>
-                    <div className="muted" style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>Quran</div>
+                    <div className="muted" style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Quran</div>
                     <div style={{ fontSize: '1rem', fontWeight: 700, marginTop: 2 }}>
                       {perfData.today.quran?.ruku ?? 0} Ruku • {perfData.today.quran?.ayat ?? 0} Ayat
                     </div>
                     <div className="muted" style={{ fontSize: '0.75rem' }}>{perfData.today.quran?.pages ?? 0} Pages</div>
                   </div>
                   <div>
-                    <div className="muted" style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>Reading</div>
-                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
+                    <div className="muted" style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Reading</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
                       {formatDuration(perfData.today.readingMinutes)}
                     </div>
                   </div>
                   <div>
-                    <div className="muted" style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>Overall</div>
+                    <div className="muted" style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Overall</div>
                     <div style={{ fontSize: '1.15rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                       <span>{MOOD_MAP[perfData.today.dayRating]?.emoji ?? '🙂'}</span>
                       <span style={{ fontSize: '0.9rem' }}>{MOOD_MAP[perfData.today.dayRating]?.label ?? 'Good'}</span>
@@ -440,43 +446,112 @@ export function MenteeProfilePage() {
                 )}
               </div>
             ) : (
-              <div style={{ background: '#fff', padding: 20, borderRadius: 16, border: '1px solid var(--border)', textAlign: 'center' }}>
-                <p className="muted" style={{ margin: 0, fontSize: '0.92rem' }}>
-                  No daily performance entry submitted by {mentee.name} for today yet.
+              <div className="today-status-empty-box">
+                <div className="today-status-indicator-row">
+                  <CircleDot size={16} className="status-indicator-icon" />
+                  <span className="status-indicator-title">No entry for today</span>
+                </div>
+                <p className="today-status-desc">
+                  {mentee?.name
+                    ? `No daily performance has been submitted by ${mentee.name} today.`
+                    : 'No daily performance has been submitted for today yet.'}
                 </p>
               </div>
             )}
           </div>
 
-          {/* Section 14: Weekly Mentorship View */}
+          {/* Section 14: Weekly Mentorship View (Compact Metric Cards) */}
           <div style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
-            <div className="eyebrow" style={{ marginBottom: 4 }}>Overview</div>
-            <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: 14 }}>Weekly Progress</h3>
-            <div className="card-grid">
-              <div className="dashboard-card">
-                <div className="label">Study Time</div>
-                <div className="value">{perfData?.weekly?.totalStudyHoursFormatted ?? '0h 0m'}</div>
-                <div className="change">This past week</div>
+            <div className="weekly-section-header">
+              <div className="eyebrow" style={{ marginBottom: 2 }}>Overview</div>
+              <h3 className="weekly-section-title">Weekly Progress</h3>
+              <p className="weekly-section-subtitle">Your activity and consistency this week</p>
+            </div>
+
+            <div className="metric-grid">
+              {/* Card 1: Study Time */}
+              <div className="metric-card">
+                <div className="metric-card-top">
+                  <div className="metric-card-label">
+                    <Clock size={14} className="metric-icon" />
+                    <span>Study Time</span>
+                  </div>
+                </div>
+                <div className="metric-card-value">
+                  {perfData?.weekly?.totalStudyHoursFormatted ?? '0h 0m'}
+                </div>
+                <div className="metric-card-footer">
+                  <span className="metric-card-desc">
+                    {(perfData?.weekly?.totalStudyMinutes ?? 0) > 0 ? 'This past week' : 'No study time logged yet'}
+                  </span>
+                </div>
               </div>
-              <div className="dashboard-card">
-                <div className="label">Quran Recitation</div>
-                <div className="value" style={{ fontSize: '1.25rem' }}>
+
+              {/* Card 2: Quran Recitation */}
+              <div className="metric-card">
+                <div className="metric-card-top">
+                  <div className="metric-card-label">
+                    <BookOpen size={14} className="metric-icon" />
+                    <span>Quran Recitation</span>
+                  </div>
+                </div>
+                <div className="metric-card-value">
                   {perfData?.weekly?.quran?.ruku ?? 0} Ruku • {perfData?.weekly?.quran?.pages ?? 0} pgs
                 </div>
-                <div className="change">{perfData?.weekly?.quran?.ayat ?? 0} Ayat logged</div>
-              </div>
-              <div className="dashboard-card">
-                <div className="label">Reading Time</div>
-                <div className="value">{formatDuration(perfData?.weekly?.totalReadingMinutes ?? 0)}</div>
-                <div className="change">General reading</div>
-              </div>
-              <div className="dashboard-card">
-                <div className="label">Average Day Rating</div>
-                <div className="value" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {perfData?.weekly?.averageDayRating ? `${perfData.weekly.averageDayRating} / 5` : '—'}
-                  <span>{perfData?.weekly?.averageDayRating ? MOOD_MAP[Math.round(perfData.weekly.averageDayRating)]?.emoji : ''}</span>
+                <div className="metric-card-footer">
+                  <span className="metric-card-desc">
+                    {(perfData?.weekly?.quran?.ruku ?? 0) > 0 || (perfData?.weekly?.quran?.pages ?? 0) > 0 || (perfData?.weekly?.quran?.ayat ?? 0) > 0
+                      ? `${perfData?.weekly?.quran?.ayat ?? 0} Ayat logged`
+                      : 'No recitation logged yet'}
+                  </span>
                 </div>
-                <div className="change">Days submitted: {perfData?.weekly?.daysSubmitted ?? 0} / 7</div>
+              </div>
+
+              {/* Card 3: Reading Time */}
+              <div className="metric-card">
+                <div className="metric-card-top">
+                  <div className="metric-card-label">
+                    <BookMarked size={14} className="metric-icon" />
+                    <span>Reading Time</span>
+                  </div>
+                </div>
+                <div className="metric-card-value">
+                  {formatDuration(perfData?.weekly?.totalReadingMinutes ?? 0)}
+                </div>
+                <div className="metric-card-footer">
+                  <span className="metric-card-desc">
+                    {(perfData?.weekly?.totalReadingMinutes ?? 0) > 0 ? 'General reading' : 'No reading time logged yet'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card 4: Average Day Rating */}
+              <div className="metric-card">
+                <div className="metric-card-top">
+                  <div className="metric-card-label">
+                    <Star size={14} className="metric-icon" />
+                    <span>Average Day Rating</span>
+                  </div>
+                </div>
+                <div className="metric-card-value">
+                  {perfData?.weekly?.averageDayRating ? `${perfData.weekly.averageDayRating} / 5` : '—'}
+                  {perfData?.weekly?.averageDayRating ? (
+                    <span className="metric-card-emoji">{MOOD_MAP[Math.round(perfData.weekly.averageDayRating)]?.emoji}</span>
+                  ) : null}
+                </div>
+                <div className="metric-card-footer">
+                  <span className="metric-card-desc">
+                    {perfData?.weekly?.daysSubmitted ? `${perfData.weekly.daysSubmitted} of 7 days submitted` : '0 of 7 days submitted'}
+                  </span>
+                  <div className="day-dots-indicator" aria-label={`${perfData?.weekly?.daysSubmitted ?? 0} of 7 days submitted`} title={`${perfData?.weekly?.daysSubmitted ?? 0} of 7 days submitted`}>
+                    {Array.from({ length: 7 }).map((_, i) => (
+                      <span
+                        key={i}
+                        className={`day-dot ${i < (perfData?.weekly?.daysSubmitted ?? 0) ? 'active' : ''}`}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

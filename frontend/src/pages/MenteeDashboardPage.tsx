@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarCheck, Sparkles, CheckCircle2, Edit3, ArrowRight, History } from 'lucide-react';
+import { CalendarCheck, CheckCircle2, Edit3, ArrowRight, History, Clock, BookOpen, BookMarked, Star, CircleDot } from 'lucide-react';
 import { getTodayPerformance, getWeeklyPerformance } from '../lib/api';
 
 const MOOD_MAP: Record<number, { emoji: string; label: string }> = {
@@ -38,37 +38,45 @@ export function MenteeDashboardPage() {
   const moodInfo = todayRecord ? (MOOD_MAP[todayRecord.dayRating] ?? { emoji: '🙂', label: 'Good' }) : null;
 
   return (
-    <div className="mentee-dashboard" style={{ display: 'grid', gap: 24, paddingBottom: 60, minWidth: 0, width: '100%', maxWidth: '100%' }}>
+    <div className="mentee-dashboard" style={{ display: 'grid', gap: 24, paddingBottom: 24, minWidth: 0, width: '100%', maxWidth: '100%' }}>
       {loadError && <div className="alert alert-error" role="alert">{loadError}</div>}
       {/* ── Today's Progress Hero Card (Requirement 8) ────────────────────── */}
-      <div className="summary-card today-perf-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20, minWidth: 0, width: '100%' }}>
-          <div>
-            <div className="eyebrow" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <CalendarCheck size={16} /> Daily Performance
+      <div className="today-status-card">
+        <div className="today-status-header">
+          <div className="today-status-title-group">
+            <div className="today-status-eyebrow">
+              <CalendarCheck size={14} className="metric-icon" />
+              <span>Daily Performance</span>
             </div>
-            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, margin: '4px 0 0', color: 'var(--text-primary)' }}>
+            <h2 className="today-status-title" style={{ fontSize: '1.45rem' }}>
               Today's Progress
             </h2>
           </div>
 
-          {todayRecord ? (
-            <button
-              className="btn-secondary"
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: '0.92rem' }}
-              onClick={() => navigate('/mentee/daily')}
-            >
-              <Edit3 size={16} /> Edit Today's Entry
-            </button>
-          ) : (
-            <button
-              className="btn-primary"
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: '1rem', padding: '12px 24px' }}
-              onClick={() => navigate('/mentee/daily')}
-            >
-              + Record Today's Progress
-            </button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div className={`today-status-badge ${todayRecord ? 'submitted' : 'pending'}`}>
+              <span className="status-badge-dot" />
+              <span>{todayRecord ? 'Submitted' : 'Status: Not submitted'}</span>
+            </div>
+
+            {todayRecord ? (
+              <button
+                className="btn-secondary"
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: '0.86rem', padding: '6px 14px' }}
+                onClick={() => navigate('/mentee/daily')}
+              >
+                <Edit3 size={15} /> Edit Today's Entry
+              </button>
+            ) : (
+              <button
+                className="btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: '0.9rem', padding: '8px 18px' }}
+                onClick={() => navigate('/mentee/daily')}
+              >
+                + Record Today's Progress
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Info Grid */}
@@ -76,41 +84,41 @@ export function MenteeDashboardPage() {
           <div style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
             <div className="today-perf-metrics-grid">
               <div>
-                <div className="muted" style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>Study</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary)', marginTop: 4 }}>
+                <div className="muted" style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Study</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
                   {formatDuration(todayRecord.studyMinutes)}
                 </div>
               </div>
 
               <div>
-                <div className="muted" style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>Quran</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, marginTop: 4, color: 'var(--text-primary)' }}>
+                <div className="muted" style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Quran</div>
+                <div style={{ fontSize: '1rem', fontWeight: 700, marginTop: 2, color: 'var(--text-primary)' }}>
                   {todayRecord.quran?.ruku ?? 0} Ruku • {todayRecord.quran?.ayat ?? 0} Ayat
                 </div>
-                <div className="muted" style={{ fontSize: '0.78rem' }}>
+                <div className="muted" style={{ fontSize: '0.75rem' }}>
                   {todayRecord.quran?.pages ?? 0} Pages
                 </div>
               </div>
 
               <div>
-                <div className="muted" style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>Reading</div>
-                <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
+                <div className="muted" style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Reading</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
                   {formatDuration(todayRecord.readingMinutes)}
                 </div>
               </div>
 
               <div>
-                <div className="muted" style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>Day Experience</div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <div className="muted" style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Day Experience</div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                   <span>{moodInfo?.emoji}</span>
-                  <span style={{ fontSize: '0.95rem' }}>{moodInfo?.label}</span>
+                  <span style={{ fontSize: '0.9rem' }}>{moodInfo?.label}</span>
                 </div>
               </div>
             </div>
 
             {todayRecord.dailyReflection && (
-              <div style={{ marginTop: 14, padding: '12px 16px', background: 'rgba(255,255,255,0.7)', borderRadius: 12, border: '1px solid var(--border)' }}>
-                <span className="muted" style={{ fontSize: '0.8rem', fontWeight: 700 }}>Reflection: </span>
+              <div style={{ marginTop: 12, padding: '10px 14px', background: '#fff', borderRadius: 12, border: '1px solid var(--border)' }}>
+                <span className="muted" style={{ fontSize: '0.78rem', fontWeight: 700 }}>Reflection: </span>
                 <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)', fontStyle: 'italic' }}>
                   "{todayRecord.dailyReflection}"
                 </span>
@@ -118,47 +126,108 @@ export function MenteeDashboardPage() {
             )}
           </div>
         ) : (
-          <div style={{ background: '#fff', padding: '24px 20px', borderRadius: 18, border: '1px solid var(--border)', textAlign: 'center' }}>
-            <Sparkles size={32} color="var(--primary)" style={{ margin: '0 auto 10px' }} />
-            <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>You haven't recorded your progress today</div>
-            <p className="muted" style={{ fontSize: '0.9rem', maxWidth: 460, margin: '6px auto 16px' }}>
-              Take a moment to record your study hours, Quran recitation, and general reading. It takes less than 2 minutes!
+          <div className="today-status-empty-box">
+            <div className="today-status-indicator-row">
+              <CircleDot size={16} className="status-indicator-icon" />
+              <span className="status-indicator-title">No entry for today</span>
+            </div>
+            <p className="today-status-desc">
+              No daily performance has been submitted for today yet. Take a moment to log your study hours, recitation, and reading!
             </p>
-            <button className="btn-primary" onClick={() => navigate('/mentee/daily')}>
-              + Record Today's Progress
-            </button>
           </div>
         )}
       </div>
 
       {/* ── Weekly Consistency & Progress Section ─────────────────────────── */}
-      <div className="card-grid">
-        <div className="dashboard-card">
-          <div className="label">Days Submitted</div>
-          <div className="value" style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            {weeklySummary?.daysSubmitted ?? 0} <span style={{ fontSize: '1rem', fontWeight: 500, color: 'var(--text-secondary)' }}>/ 7 days</span>
+      <div style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
+        <div className="weekly-section-header">
+          <div className="eyebrow" style={{ marginBottom: 2 }}>Overview</div>
+          <h3 className="weekly-section-title">Weekly Progress</h3>
+          <p className="weekly-section-subtitle">Your activity and consistency this week</p>
+        </div>
+
+        <div className="metric-grid">
+          {/* Card 1: Study Time */}
+          <div className="metric-card">
+            <div className="metric-card-top">
+              <div className="metric-card-label">
+                <Clock size={14} className="metric-icon" />
+                <span>Study Time</span>
+              </div>
+            </div>
+            <div className="metric-card-value">
+              {weeklySummary?.totalStudyHoursFormatted ?? '0h 0m'}
+            </div>
+            <div className="metric-card-footer">
+              <span className="metric-card-desc">
+                {(weeklySummary?.totalStudyHours ?? 0) > 0 ? 'This past week' : 'No study time logged yet'}
+              </span>
+            </div>
           </div>
-          <div className="change">This past week</div>
-        </div>
 
-        <div className="dashboard-card">
-          <div className="label">Weekly Study Time</div>
-          <div className="value">{weeklySummary?.totalStudyHoursFormatted ?? '0h 0m'}</div>
-          <div className="change">Total focused learning</div>
-        </div>
-
-        <div className="dashboard-card">
-          <div className="label">Weekly Quran Recitation</div>
-          <div className="value" style={{ fontSize: '1.3rem' }}>
-            {weeklySummary?.quran?.ruku ?? 0} Ruku • {weeklySummary?.quran?.pages ?? 0} pgs
+          {/* Card 2: Quran Recitation */}
+          <div className="metric-card">
+            <div className="metric-card-top">
+              <div className="metric-card-label">
+                <BookOpen size={14} className="metric-icon" />
+                <span>Quran Recitation</span>
+              </div>
+            </div>
+            <div className="metric-card-value">
+              {weeklySummary?.quran?.ruku ?? 0} Ruku • {weeklySummary?.quran?.pages ?? 0} pgs
+            </div>
+            <div className="metric-card-footer">
+              <span className="metric-card-desc">
+                {(weeklySummary?.quran?.ruku ?? 0) > 0 || (weeklySummary?.quran?.pages ?? 0) > 0 || (weeklySummary?.quran?.ayat ?? 0) > 0
+                  ? `${weeklySummary?.quran?.ayat ?? 0} Ayat completed`
+                  : 'No recitation logged yet'}
+              </span>
+            </div>
           </div>
-          <div className="change">{weeklySummary?.quran?.ayat ?? 0} Ayat completed</div>
-        </div>
 
-        <div className="dashboard-card">
-          <div className="label">General Reading</div>
-          <div className="value">{formatDuration(weeklySummary?.totalReadingMinutes ?? 0)}</div>
-          <div className="change">Personal knowledge building</div>
+          {/* Card 3: Reading Time */}
+          <div className="metric-card">
+            <div className="metric-card-top">
+              <div className="metric-card-label">
+                <BookMarked size={14} className="metric-icon" />
+                <span>Reading Time</span>
+              </div>
+            </div>
+            <div className="metric-card-value">
+              {formatDuration(weeklySummary?.totalReadingMinutes ?? 0)}
+            </div>
+            <div className="metric-card-footer">
+              <span className="metric-card-desc">
+                {(weeklySummary?.totalReadingMinutes ?? 0) > 0 ? 'General reading' : 'No reading time logged yet'}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 4: Consistency / Days Submitted */}
+          <div className="metric-card">
+            <div className="metric-card-top">
+              <div className="metric-card-label">
+                <Star size={14} className="metric-icon" />
+                <span>Consistency</span>
+              </div>
+            </div>
+            <div className="metric-card-value" style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+              {weeklySummary?.daysSubmitted ?? 0} <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-secondary)' }}>/ 7 days</span>
+            </div>
+            <div className="metric-card-footer">
+              <span className="metric-card-desc">
+                {weeklySummary?.daysSubmitted ? `${weeklySummary.daysSubmitted} of 7 days submitted` : '0 of 7 days submitted'}
+              </span>
+              <div className="day-dots-indicator" aria-label={`${weeklySummary?.daysSubmitted ?? 0} of 7 days submitted`} title={`${weeklySummary?.daysSubmitted ?? 0} of 7 days submitted`}>
+                {Array.from({ length: 7 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={`day-dot ${i < (weeklySummary?.daysSubmitted ?? 0) ? 'active' : ''}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

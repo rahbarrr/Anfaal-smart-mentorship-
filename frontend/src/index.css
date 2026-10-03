@@ -729,11 +729,135 @@ tr:last-child td { border-bottom: none; }
   flex-shrink: 0;
 }
 
-/* ── Today's Performance Card & Metrics Grid ─────────────────────────────── */
+/* ── Today's Performance Card & Metrics Grid (Polished Redesign) ───────────── */
+.today-status-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 24px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.today-status-card:hover {
+  border-color: rgba(143, 63, 102, 0.2);
+}
+
+.today-status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.today-status-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.today-status-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.today-status-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.today-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.today-status-badge.pending {
+  background: rgba(217, 119, 6, 0.08);
+  color: #b45309;
+  border: 1px solid rgba(217, 119, 6, 0.22);
+}
+
+.today-status-badge.submitted {
+  background: rgba(16, 185, 129, 0.08);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.22);
+}
+
+.status-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* Empty status indicator box */
+.today-status-empty-box {
+  background: #fcfbfc;
+  border: 1px solid rgba(143, 63, 102, 0.1);
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.today-status-indicator-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator-icon {
+  color: #b45309;
+  flex-shrink: 0;
+}
+
+.status-indicator-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.today-status-desc {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.45;
+  padding-left: 24px;
+}
+
 .today-perf-card {
-  background: linear-gradient(135deg, rgba(143,63,102,0.08), rgba(143,63,102,0.02));
-  padding: 24px 20px;
-  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  padding: 22px 24px;
+  border-radius: 16px;
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -744,14 +868,195 @@ tr:last-child td { border-bottom: none; }
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  background: #fff;
-  padding: 16px;
-  border-radius: 16px;
+  background: #fbf9fa;
+  padding: 14px 16px;
+  border-radius: 12px;
   border: 1px solid var(--border);
   width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+}
+
+/* ── Weekly Progress Section Header ───────────────────────────────────────── */
+.weekly-section-header {
+  margin-bottom: 14px;
+  min-width: 0;
+  width: 100%;
+}
+
+.weekly-section-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 2px 0 2px;
+  letter-spacing: -0.02em;
+}
+
+.weekly-section-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.35;
+}
+
+/* ── Metric Grid & Cards (Compact, informative SaaS layout) ───────────────── */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+}
+
+@media (min-width: 1100px) {
+  .metric-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .metric-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+.metric-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  min-height: 124px;
+  max-height: 148px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.metric-card:hover {
+  border-color: rgba(143, 63, 102, 0.25);
+  box-shadow: 0 4px 12px rgba(143, 63, 102, 0.06);
+}
+
+.metric-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metric-card-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.metric-card-label .metric-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.metric-card-value {
+  font-size: clamp(1.4rem, 2.2vw, 1.65rem);
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 6px 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-card-emoji {
+  font-size: 1.15rem;
+}
+
+.metric-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.metric-card-desc {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Subtle 7-day indicator dots */
+.day-dots-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.day-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e6dfe2;
+  transition: all 0.2s ease;
+}
+
+.day-dot.active {
+  background: var(--primary);
+  box-shadow: 0 0 0 1.5px rgba(143, 63, 102, 0.25);
+}
+
+@media (max-width: 640px) {
+  .today-status-card {
+    padding: 18px 16px;
+    border-radius: 14px;
+  }
+  .today-status-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .today-status-title {
+    font-size: 1.2rem;
+  }
+  .today-status-desc {
+    padding-left: 0;
+  }
+  .metric-card {
+    min-height: 116px;
+    padding: 14px 16px;
+  }
+  .metric-card-value {
+    font-size: 1.38rem;
+  }
+  .metric-card-label {
+    font-size: 0.72rem;
+  }
+  .metric-card-desc {
+    font-size: 0.8rem;
+  }
 }
 
 /* ── Profile Header Card ─────────────────────────────────────────────────── */
@@ -989,7 +1294,7 @@ tr:last-child td { border-bottom: none; }
 
   /* ── Main panel ────────────────────────────────────────────────────────── */
   .main-panel {
-    padding: 12px 16px calc(80px + env(safe-area-inset-bottom, 12px));
+    padding: 12px 16px calc(90px + env(safe-area-inset-bottom, 12px));
     min-width: 0;
     max-width: 100%;
     width: 100%;
