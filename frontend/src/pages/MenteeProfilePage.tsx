@@ -56,6 +56,7 @@ export function MenteeProfilePage() {
   const [mentee, setMentee] = useState<MenteeProfile | null>(null);
   const [calls, setCalls] = useState<CallRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'calls' | 'summary' | 'performance'>('overview');
 
   const user = (() => {
@@ -84,19 +85,20 @@ export function MenteeProfilePage() {
         setMentee(res.mentee ?? null);
         setCalls(res.calls ?? []);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         setMentee(null);
         setCalls([]);
+        setLoadError(error instanceof Error ? error.message : 'Unable to load mentee profile.');
       })
       .finally(() => setIsLoading(false));
 
     getMenteePerformance(menteeId)
       .then((res) => setPerfData(res))
-      .catch(() => {});
+      .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : 'Unable to load performance data.'));
 
     getMenteePerformanceAnalytics(menteeId)
       .then((res) => setAnalyticsData(res))
-      .catch(() => {});
+      .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : 'Unable to load performance analytics.'));
   }, [menteeId]);
 
   const handleGenerateAiInsights = async () => {
@@ -124,7 +126,7 @@ export function MenteeProfilePage() {
   if (!mentee) {
     return (
       <div className="summary-card" style={{ textAlign: 'center', padding: 40 }}>
-        <p>Mentee not found.</p>
+        <p>{loadError ?? 'Mentee not found.'}</p>
         <button className="btn-secondary" style={{ marginTop: 16 }} onClick={() => navigate(-1)}>Go back</button>
       </div>
     );
@@ -143,6 +145,7 @@ export function MenteeProfilePage() {
   return (
     <>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      {loadError && <div className="alert alert-error" role="alert" style={{ marginBottom: 16 }}>{loadError}</div>}
 
       {/* Back button */}
       <button

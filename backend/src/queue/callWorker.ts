@@ -3,12 +3,25 @@ import { Redis } from 'ioredis';
 import { Call } from '../models/Call.js';
 import { CallProcessingJob } from '../models/CallProcessingJob.js';
 import { createStorageProvider } from '../services/storageService.js';
-import { createTranscriptionService, isNonRetryableTranscriptionError } from '../services/transcriptionService.js';
+import { createTranscriptionService, MAX_TRANSCRIPTION_FILE_BYTES } from '../services/transcriptionService.js';
 import { createAiSummaryService } from '../services/aiSummaryService.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { CallProcessingJobData, createRedisConnection, QUEUE_NAMES } from './callQueue.js';
 import { boundedText } from '../services/chunking.js';
 import { invalidateCache } from '../services/cacheService.js';
+import { transcribeAudioInChunks } from '../services/chunkedTranscriptionService.js';
+import { classifyProcessingError } from '../services/processingErrorService.js';
+
+export function isJobRunnable(status: string): boolean {
+  return status === 'PENDING' || status === 'PROCESSING';
+}
+
+class JobFencedError extends Error {
+  constructor() {
+    super('Processing job was superseded by recovery.');
+    this.name = 'JobFencedError';
+  }
+}
 
 export async function processCallProcessingJob(
   data: CallProcessingJobData,
@@ -19,8 +32,30 @@ export async function processCallProcessingJob(
   const pipelineStartedAt = Date.now();
   let currentStage: 'transcription' | 'summary' = 'transcription';
 
+  // Recovery can replace a stale database job while the original BullMQ
+  // delivery is still active. Fence that old delivery before it touches the
+  // call or sends another transcription request.
+  const existingJob = await CallProcessingJob.findById(jobId).select('status createdAt').lean();
+  if (!existingJob || !isJobRunnable(existingJob.status)) {
+    console.warn(`[CALL_PROCESSING_SKIPPED] callId=${callId} jobId=${jobId} reason=job_fenced`);
+    return;
+  }
+
   const updateJob = async (fields: Record<string, unknown>) => {
-    await CallProcessingJob.findByIdAndUpdate(jobId, { $set: fields });
+    const updated = await CallProcessingJob.findOneAndUpdate(
+      { _id: jobId, status: { $in: ['PENDING', 'PROCESSING'] } },
+      { $set: { ...fields, heartbeatAt: new Date() } },
+      { new: true },
+    ).select('_id');
+    if (!updated) throw new JobFencedError();
+  };
+
+  const assertJobActive = async () => {
+    const activeJob = await CallProcessingJob.findOne({
+      _id: jobId,
+      status: { $in: ['PENDING', 'PROCESSING'] },
+    }).select('_id').lean();
+    if (!activeJob) throw new JobFencedError();
   };
 
   const call = await Call.findById(callId);
@@ -39,6 +74,7 @@ export async function processCallProcessingJob(
 
   try {
     console.info(`[CALL_PROCESSING_START] callId=${callId} attempt=${attemptsMade + 1}`);
+    await assertJobActive();
     await Call.findByIdAndUpdate(callId, {
       $set: {
         processingStatus: 'processing',
@@ -52,6 +88,7 @@ export async function processCallProcessingJob(
       'stageStatus.transcription': 'PENDING',
       startedAt: new Date(),
       error: '',
+      'timings.queueWaitMs': existingJob.createdAt ? Math.max(0, Date.now() - new Date(existingJob.createdAt).getTime()) : 0,
     });
 
     let transcriptText = call.transcript || call.transcription?.text || '';
@@ -73,10 +110,11 @@ export async function processCallProcessingJob(
           const storageProvider = createStorageProvider();
           const audioLoadStartedAt = Date.now();
           const audioBuffer = await storageProvider.getObjectBuffer(storageKey);
+          const audioLoadMs = Date.now() - audioLoadStartedAt;
           const fileName = call.recording?.fileName || 'recording.m4a';
           const mimeType = call.recording?.mimeType || 'audio/mpeg';
 
-          console.info(`[Worker] Audio loaded in ${Date.now() - audioLoadStartedAt}ms: ${audioBuffer?.length ?? 0} bytes, file=${fileName}, mime=${mimeType}`);
+          console.info(`[Worker] Audio loaded in ${audioLoadMs}ms: ${audioBuffer?.length ?? 0} bytes, file=${fileName}, mime=${mimeType}`);
 
           if (!audioBuffer || audioBuffer.length === 0) {
             throw new Error('Audio file retrieved from storage is empty.');
@@ -86,17 +124,73 @@ export async function processCallProcessingJob(
             progress: 25,
             'stageStatus.audioProcessing': 'COMPLETED',
             'stageStatus.transcription': 'PROCESSING',
+            'timings.audioLoadMs': audioLoadMs,
           });
 
           const transcriptionStartedAt = Date.now();
-          console.info(`[CALL_TRANSCRIPTION_START] callId=${callId}`);
-          const transcriptionService = createTranscriptionService();
-          const result = await transcriptionService.transcribe({
-            buffer: audioBuffer,
-            originalname: fileName,
-            mimetype: mimeType,
-          });
+          const chunked = process.env.CHUNKED_TRANSCRIPTION === 'true'
+            || (call.recording?.fileSize ?? 0) > MAX_TRANSCRIPTION_FILE_BYTES;
+          const configuredChunkConcurrency = Number(process.env.TRANSCRIPTION_CONCURRENCY || 4);
+          const configuredMaxConcurrency = Number(process.env.TRANSCRIPTION_MAX_CONCURRENCY || 6);
+          const maxChunkConcurrency = Number.isFinite(configuredMaxConcurrency) && configuredMaxConcurrency > 0
+            ? Math.floor(configuredMaxConcurrency)
+            : 6;
+          const chunkConcurrency = Number.isFinite(configuredChunkConcurrency) && configuredChunkConcurrency > 0
+            ? Math.min(Math.floor(configuredChunkConcurrency), maxChunkConcurrency)
+            : 1;
+          const configuredChunkSeconds = Number(process.env.TRANSCRIPTION_CHUNK_SECONDS || 90);
+          const chunkSeconds = Number.isFinite(configuredChunkSeconds) && configuredChunkSeconds > 0
+            ? configuredChunkSeconds
+            : 90;
+          const configuredChunkAttempts = Number(process.env.TRANSCRIPTION_CHUNK_ATTEMPTS || 3);
+          const chunkAttempts = Number.isFinite(configuredChunkAttempts) && configuredChunkAttempts > 0
+            ? Math.floor(configuredChunkAttempts)
+            : 3;
+          let failedChunks = 0;
+          console.info(`[CALL_TRANSCRIPTION_START] callId=${callId} mode=${chunked ? 'chunked' : 'single-file'} concurrency=${chunked ? chunkConcurrency : 1} chunkSeconds=${chunked ? chunkSeconds : 0}`);
+          const result = chunked
+            ? await transcribeAudioInChunks({
+              buffer: audioBuffer,
+              originalname: fileName,
+              mimetype: mimeType,
+              concurrency: chunkConcurrency,
+              chunkSeconds,
+              maxAttempts: chunkAttempts,
+              onChunksPrepared: async (total, durationSeconds) => {
+                await updateJob({
+                  progress: 25,
+                  chunkProgress: { total, completed: 0, failed: 0 },
+                  'timings.audioDurationSeconds': durationSeconds,
+                });
+              },
+              onChunkCompleted: async (_chunk, completed, total) => {
+                if (_chunk.error) failedChunks += 1;
+                const transcriptionProgress = 25 + Math.round((completed / Math.max(total, 1)) * 25);
+                await updateJob({
+                  progress: transcriptionProgress,
+                  chunkProgress: {
+                    total,
+                    completed,
+                    failed: failedChunks,
+                    lastChunkAt: new Date(),
+                  },
+                  'stageStatus.audioProcessing': 'COMPLETED',
+                  'stageStatus.transcription': completed === total && !_chunk.error ? 'COMPLETED' : 'PROCESSING',
+                });
+              },
+            })
+            : await createTranscriptionService().transcribe({
+              buffer: audioBuffer,
+              originalname: fileName,
+              mimetype: mimeType,
+            });
+          const transcriptionMs = Date.now() - transcriptionStartedAt;
           console.info(`[CALL_TRANSCRIPTION_SUCCESS] callId=${callId} durationMs=${Date.now() - transcriptionStartedAt}`);
+
+          if ('partial' in result && result.partial) {
+            const failedChunkIndexes = result.chunks.filter((chunk) => chunk.error).map((chunk) => chunk.index).join(', ');
+            throw new Error(`Transcription failed for audio chunk(s): ${failedChunkIndexes || 'unknown'}.`);
+          }
 
           transcriptText = result.text;
           segments = (result.segments ?? []).map((s) => ({
@@ -107,6 +201,16 @@ export async function processCallProcessingJob(
           }));
           transcriptionDuration = result.duration;
 
+          if ('preparationMs' in result) {
+            await updateJob({
+              'timings.audioPreparationMs': result.preparationMs,
+              'timings.chunkCount': result.chunkCount,
+              'timings.chunkSeconds': result.chunkSeconds,
+              'timings.transcriptionConcurrency': chunkConcurrency,
+            });
+          }
+
+          await assertJobActive();
           await Call.findByIdAndUpdate(callId, {
             $set: {
               transcript: transcriptText,
@@ -123,6 +227,7 @@ export async function processCallProcessingJob(
           await updateJob({
             progress: 50,
             'stageStatus.transcription': 'COMPLETED',
+            'timings.transcriptionMs': transcriptionMs,
           });
         } catch (transcriptionErr) {
           currentStage = 'transcription';
@@ -140,6 +245,7 @@ export async function processCallProcessingJob(
 
     // ── Stage 2: AI Summarization ─────────────────────────────────────────────
     currentStage = 'summary';
+    await assertJobActive();
     console.info(`[CALL_SUMMARY_START] callId=${callId}`);
     await updateJob({
       stage: 'SUMMARY',
@@ -163,6 +269,9 @@ export async function processCallProcessingJob(
         },
       });
       console.info(`[CALL_SUMMARY_SUCCESS] callId=${callId} durationMs=${Date.now() - summaryStartedAt}`);
+      const summaryMs = Date.now() - summaryStartedAt;
+
+      await assertJobActive();
 
       const versionEntry = {
         version: (refreshedCall?.summaryVersions?.length ?? 0) + 1,
@@ -207,18 +316,26 @@ export async function processCallProcessingJob(
         progress: 100,
         'stageStatus.summary': 'COMPLETED',
         'stageStatus.mentorReview': 'READY',
+        'timings.summaryMs': summaryMs,
+        'timings.totalMs': Date.now() - pipelineStartedAt,
         completedAt: new Date(),
       });
       await invalidateCache('dashboard:summary');
 
       console.info(`[CALL_PROCESSING_COMPLETE] callId=${callId} durationMs=${Date.now() - pipelineStartedAt}`);
+      console.info(`[CALL_PERFORMANCE] callId=${callId} totalMs=${Date.now() - pipelineStartedAt} queueWaitMs=${existingJob.createdAt ? Math.max(0, Date.now() - new Date(existingJob.createdAt).getTime()) : 0}`);
     } catch (summaryErr) {
       currentStage = 'summary';
       throw summaryErr;
     }
   } catch (fatalErr) {
+    if (fatalErr instanceof JobFencedError) {
+      console.warn(`[CALL_PROCESSING_SKIPPED] callId=${callId} jobId=${jobId} reason=job_fenced_during_processing`);
+      return;
+    }
     const errMsg = fatalErr instanceof Error ? fatalErr.message : String(fatalErr);
-    const willRetry = !isNonRetryableTranscriptionError(fatalErr) && attemptsMade + 1 < attempts;
+    const errorClassification = classifyProcessingError(fatalErr, currentStage);
+    const willRetry = errorClassification.retryable && attemptsMade + 1 < attempts;
     const safeError = currentStage === 'transcription'
       ? 'Transcription failed. Processing will retry.'
       : 'AI summary failed. Processing will retry.';
@@ -240,6 +357,7 @@ export async function processCallProcessingJob(
       status: willRetry ? 'PENDING' : 'FAILED',
       [`stageStatus.${currentStage}`]: willRetry ? 'PENDING' : 'FAILED',
       error: willRetry ? safeError : finalError,
+      errorCode: errorClassification.code,
       ...(willRetry ? {} : { completedAt: new Date() }),
     });
 
@@ -256,6 +374,11 @@ export async function processCallProcessingJob(
 }
 
 export function startCallWorker(connection: Redis = createRedisConnection()): Worker<CallProcessingJobData> {
+  const configuredConcurrency = Number(process.env.WORKER_CONCURRENCY || 1);
+  const concurrency = Number.isFinite(configuredConcurrency) && configuredConcurrency > 0
+    ? Math.floor(configuredConcurrency)
+    : 1;
+
   const worker = new Worker<CallProcessingJobData>(
     QUEUE_NAMES.callProcessing,
     async (job: Job<CallProcessingJobData>) => {
@@ -264,7 +387,7 @@ export function startCallWorker(connection: Redis = createRedisConnection()): Wo
     },
     {
       connection,
-      concurrency: 1,
+      concurrency,
     },
   );
 
@@ -289,7 +412,7 @@ export function startCallWorker(connection: Redis = createRedisConnection()): Wo
   });
 
   // Log the canonical banner so Render logs confirm the worker is alive
-  console.log('BullMQ call worker is active and listening to queue: call-processing');
+  console.log(`BullMQ call worker is active and listening to queue: call-processing (concurrency=${concurrency})`);
 
   return worker;
 }

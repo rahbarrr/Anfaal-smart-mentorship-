@@ -64,6 +64,7 @@ export function MentorDashboardPage() {
   const [calls, setCalls] = useState<any[]>([]);
   const [mentees, setMentees] = useState<AssignedMentee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem('anfaal-token');
@@ -77,7 +78,7 @@ export function MentorDashboardPage() {
         setCalls(callRes.calls ?? []);
         setMentees(menteeRes.mentees ?? []);
       })
-      .catch(() => {})
+      .catch((error) => setLoadError(error instanceof Error ? error.message : 'Unable to load mentor dashboard data.'))
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -96,6 +97,7 @@ export function MentorDashboardPage() {
 
   return (
     <div style={{ display: 'grid', gap: 24, minWidth: 0, maxWidth: '100%' }}>
+      {loadError && <div className="alert-banner alert-error" role="alert">Unable to load the latest dashboard data: {loadError}</div>}
       {/* ── Top Metric Cards ──────────────────────────────────────────────── */}
       <div className="card-grid">
         {cards.map((card) => (

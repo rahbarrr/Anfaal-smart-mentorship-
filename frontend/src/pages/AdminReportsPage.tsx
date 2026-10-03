@@ -12,6 +12,7 @@ export function AdminReportsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [feedback, setFeedback] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const [filters, setFilters] = useState({
     from: '',
@@ -34,7 +35,7 @@ export function AdminReportsPage() {
         setMentors((mentorRes.mentors ?? []).map((m: any) => ({ id: m.id, name: m.name })));
         setMentees((menteeRes.mentees ?? []).map((m: any) => ({ id: m.id, name: m.name, standard: m.standard })));
       })
-      .catch(() => {})
+      .catch((error) => setLoadError(error instanceof Error ? error.message : 'Unable to load report filters.'))
       .finally(() => setIsLoading(false));
   }, [token]);
 
@@ -43,7 +44,10 @@ export function AdminReportsPage() {
     setAuditLoading(true);
     getAuditLogs(token, auditActionFilter || undefined, 100)
       .then((res) => setAuditLogs(res.logs ?? []))
-      .catch(() => setAuditLogs([]))
+      .catch((error) => {
+        setAuditLogs([]);
+        setLoadError(error instanceof Error ? error.message : 'Unable to load audit logs.');
+      })
       .finally(() => setAuditLoading(false));
   };
 
@@ -103,6 +107,8 @@ export function AdminReportsPage() {
           <p className="page-subtitle">Export official mentorship data and inspect security audit access trails</p>
         </div>
       </div>
+
+      {loadError && <div className="alert-banner alert-error" role="alert">Unable to load the latest report data: {loadError}</div>}
 
       {/* Primary Tab Navigation */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>

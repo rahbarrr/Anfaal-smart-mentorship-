@@ -101,7 +101,9 @@ export function DailyPerformanceFormPage() {
           setAlreadySubmittedToday(false);
         }
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        setErrorMessage(error instanceof Error ? error.message : 'Unable to load today\'s progress.');
+      });
   }, [selectedDate]);
 
   const populateForEditing = (record: any) => {

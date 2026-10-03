@@ -1,4 +1,6 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { AUTH_EXPIRED_EVENT, clearStoredAuth } from './lib/api';
 import { lazy, Suspense } from 'react';
 import './App.css';
 import { AdminLayout } from './layouts/AdminLayout';
@@ -64,9 +66,26 @@ function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode;
   return <>{children}</>;
 }
 
+function AuthSessionBoundary() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleExpiredSession = () => {
+      clearStoredAuth();
+      navigate('/', { replace: true, state: { sessionExpired: true } });
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession);
+  }, [navigate]);
+
+  return null;
+}
+
 function App() {
   return (
     <BrowserRouter>
+      <AuthSessionBoundary />
       <Suspense fallback={<div className="page-loading">Loading…</div>}>
       <Routes>
         <Route path="/" element={<LoginPage />} />

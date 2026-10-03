@@ -22,6 +22,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 const isProduction = process.env.NODE_ENV === 'production';
+const allowLocalOrigins = process.env.ALLOW_LOCAL_ORIGINS === 'true' || !isProduction;
 const jsonBodyLimit = process.env.JSON_BODY_LIMIT || '2mb';
 const urlEncodedBodyLimit = process.env.URLENCODED_BODY_LIMIT || '2mb';
 const rawOrigins = (process.env.CLIENT_URL || '')
@@ -56,7 +57,7 @@ app.use(
       }
 
       // Allow local development
-      if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(cleanOrigin)) {
+      if (allowLocalOrigins && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(cleanOrigin)) {
         return callback(null, true);
       }
 

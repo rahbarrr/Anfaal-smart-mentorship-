@@ -142,6 +142,24 @@ export async function addCallProcessingJob(
 }
 
 /**
+ * Best-effort removal of a queued BullMQ job. Active jobs may not be removable
+ * immediately; the database job fence in the worker remains authoritative.
+ */
+export async function removeCallProcessingJob(jobId: string): Promise<boolean> {
+  const queue = getCallProcessingQueue();
+  if (!queue) return false;
+  try {
+    const job = await queue.getJob(`call-${jobId}`);
+    if (!job) return false;
+    await job.remove();
+    return true;
+  } catch (error) {
+    console.warn(`[Queue] Unable to remove stale job ${jobId}:`, error instanceof Error ? error.message : String(error));
+    return false;
+  }
+}
+
+/**
  * Checks Redis connectivity for health/readiness endpoints.
  */
 export async function checkRedisHealth(): Promise<boolean> {

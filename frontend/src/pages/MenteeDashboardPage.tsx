@@ -24,14 +24,14 @@ export function MenteeDashboardPage() {
   const navigate = useNavigate();
   const [todayRecord, setTodayRecord] = useState<any>(null);
   const [weeklySummary, setWeeklySummary] = useState<any>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      getTodayPerformance().catch(() => ({ record: null })),
-      getWeeklyPerformance().catch(() => ({ summary: null })),
-    ]).then(([todayRes, weeklyRes]) => {
+    Promise.all([getTodayPerformance(), getWeeklyPerformance()]).then(([todayRes, weeklyRes]) => {
       setTodayRecord(todayRes.record ?? null);
       setWeeklySummary(weeklyRes.summary ?? null);
+    }).catch((error: unknown) => {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load your performance data.');
     });
   }, []);
 
@@ -39,6 +39,7 @@ export function MenteeDashboardPage() {
 
   return (
     <div className="mentee-dashboard" style={{ display: 'grid', gap: 24, paddingBottom: 60 }}>
+      {loadError && <div className="alert alert-error" role="alert">{loadError}</div>}
       {/* ── Today's Progress Hero Card (Requirement 8) ────────────────────── */}
       <div
         className="summary-card"

@@ -9,6 +9,8 @@
     "start": "node dist/server.js",
     "worker": "node dist/worker.js",
     "worker:dev": "tsx src/worker.ts",
+    "benchmark:transcription": "tsx src/scripts/transcriptionBenchmark.ts",
+    "verify:release": "npm run build && npm test && tsx src/scripts/releaseReadiness.ts",
     "test": "tsx --test src/**/*.test.ts",
     "seed": "tsx src/seed.ts"
   },

@@ -69,6 +69,10 @@ export async function loginUser({ email, password }: LoginPayload) {
     throw new Error('Invalid MAKID, email, phone number, or password');
   }
 
+  if (user.status !== 'active') {
+    throw new Error('Invalid MAKID, email, phone number, or password');
+  }
+
   const passwordMatches = await bcrypt.compare(password, user.passwordHash);
 
   if (!passwordMatches) {

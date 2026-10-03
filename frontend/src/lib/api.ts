@@ -23,6 +23,30 @@ function getToken(): string {
   return localStorage.getItem('anfaal-token') ?? '';
 }
 
+export const AUTH_EXPIRED_EVENT = 'anfaal-auth-expired';
+
+export function clearStoredAuth(): void {
+  localStorage.removeItem('anfaal-token');
+  localStorage.removeItem('anfaal-user');
+}
+
+export function notifyUnauthorized(response: Response): void {
+  if (response.status === 401) {
+    clearStoredAuth();
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
+}
+
+// Keep all API calls behind one boundary so expired sessions behave the same
+// for dashboards, reports, imports, uploads, and processing status polling.
+const nativeFetch = globalThis.fetch.bind(globalThis);
+async function fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await nativeFetch(input, init);
+  const target = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+  if (target.startsWith(API_BASE_URL)) notifyUnauthorized(response);
+  return response;
+}
+
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const token = getToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {

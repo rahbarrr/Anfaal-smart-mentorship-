@@ -29,6 +29,7 @@ export function MyCallsPage() {
   const [calls, setCalls] = useState<any[]>([]);
   const [menteeMap, setMenteeMap] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -49,7 +50,7 @@ export function MyCallsPage() {
         for (const m of menteeRes.mentees ?? []) { map[m.id] = m.name; }
         setMenteeMap(map);
       })
-      .catch(() => {})
+      .catch((error) => setLoadError(error instanceof Error ? error.message : 'Unable to load call history.'))
       .finally(() => setIsLoading(false));
   };
 
@@ -89,6 +90,8 @@ export function MyCallsPage() {
         </div>
         <button className="btn-primary" onClick={() => navigate('/mentor/upload')}>+ Upload Call</button>
       </div>
+
+      {loadError && <div className="alert-banner alert-error" role="alert">Unable to load call history: {loadError}</div>}
 
       {/* ── Success Toast ─────────────────────────────────────────────────────── */}
       {successMessage && (
