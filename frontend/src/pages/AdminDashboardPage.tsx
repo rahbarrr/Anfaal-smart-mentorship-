@@ -99,6 +99,7 @@ export function AdminDashboardPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<DashboardData>(fallback);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem('anfaal-token');
@@ -117,7 +118,10 @@ export function AdminDashboardPage() {
           attentionItems: res?.attentionItems ?? [],
         });
       })
-      .catch(() => setData(fallback))
+      .catch((error) => {
+        setData(fallback);
+        setLoadError(error instanceof Error ? error.message : 'Unable to load dashboard data.');
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -132,6 +136,7 @@ export function AdminDashboardPage() {
 
   return (
     <div style={{ display: 'grid', gap: 24, maxWidth: 1200, margin: '0 auto' }}>
+      {loadError && <div className="alert-banner alert-error" role="alert">Unable to load the latest dashboard data: {loadError}</div>}
       {/* ── Section 13 High-Level Mentorship Activity Metrics ─────────────── */}
       <div className="card-grid">
         {metricCards.map((m) => {

@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { loginWithEmail } from '../lib/api';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const sessionExpired = Boolean((location.state as { sessionExpired?: boolean } | null)?.sessionExpired);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -155,6 +157,11 @@ export function LoginPage() {
 
             {error ? (
               <div style={{ color: '#b64343', fontWeight: 600, fontSize: '0.92rem' }}>{error}</div>
+            ) : null}
+            {sessionExpired && !error ? (
+              <div style={{ color: '#8f3f66', fontWeight: 600, fontSize: '0.92rem' }} role="status">
+                Your session expired. Please sign in again.
+              </div>
             ) : null}
 
             <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>

@@ -8,11 +8,13 @@ import { validateEnvironment } from './config/env.js';
 import { createRedisConnection } from './queue/callQueue.js';
 import { startCallWorker } from './queue/callWorker.js';
 import { createWorkerHealthServer } from './workerHealthServer.js';
+import { recoverStaleCallJobs } from './services/jobRecoveryService.js';
 
 let healthServer: Server | undefined;
 let redisConnection: Redis | undefined;
 let callWorker: Worker | undefined;
 let shutdownPromise: Promise<void> | undefined;
+let recoveryTimer: NodeJS.Timeout | undefined;
 
 async function closeHealthServer(): Promise<void> {
   if (!healthServer?.listening) return;
@@ -47,6 +49,8 @@ function shutdown(signal: string): Promise<void> {
       failed = true;
       console.error('[Worker Service] Failed to close BullMQ worker:', error);
     }
+
+    if (recoveryTimer) clearInterval(recoveryTimer);
 
     try {
       if (redisConnection && redisConnection.status !== 'end') {
@@ -99,7 +103,14 @@ async function runWorker() {
     console.log('[Worker Service] Connected to MongoDB Atlas.');
 
     redisConnection = createRedisConnection();
+    const recovery = await recoverStaleCallJobs();
+    console.log(`[Worker Service] Stale-job recovery scanned=${recovery.scanned} recovered=${recovery.recovered} completed=${recovery.completed} failed=${recovery.failed}`);
     callWorker = startCallWorker(redisConnection);
+    recoveryTimer = setInterval(() => {
+      void recoverStaleCallJobs().catch((error) => {
+        console.error('[Worker Service] Stale-job recovery failed:', error);
+      });
+    }, 60_000).unref();
     console.log('[Worker Service] BullMQ call worker is active and listening to queue: call-processing');
   } catch (err) {
     console.error('[Worker Service] Fatal error during startup:', err);

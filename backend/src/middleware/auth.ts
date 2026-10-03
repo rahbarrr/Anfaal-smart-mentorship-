@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { getSupabaseUserContext } from '../services/supabaseAuthService.js';
 import { isSupabaseAuthEnabled } from '../config/supabase.js';
+import { User } from '../models/User.js';
 
 export type AuthenticatedUser = {
   id: string;
@@ -45,15 +46,35 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     }
     const payload = jwt.verify(token, secret) as AuthenticatedUser & { iat?: number; exp?: number };
 
-    req.user = {
-      id: payload.id,
-      email: payload.email,
-      role: payload.role,
-      menteeId: payload.menteeId,
-      mentorApprovalStatus: payload.mentorApprovalStatus,
-    };
+    if (
+      typeof payload.id !== 'string' ||
+      typeof payload.email !== 'string' ||
+      !['ADMIN', 'MENTOR', 'MENTEE'].includes(payload.role)
+    ) {
+      return res.status(401).json({ message: 'Invalid or expired token.' });
+    }
 
-    return next();
+    void User.findById(payload.id)
+      .select('email role status menteeId')
+      .lean()
+      .then((user) => {
+        if (!user || user.status !== 'active') {
+          return res.status(401).json({ message: 'Your session is no longer active. Please sign in again.' });
+        }
+        if (user.role !== payload.role) {
+          return res.status(401).json({ message: 'Your session is no longer valid. Please sign in again.' });
+        }
+        req.user = {
+          id: String(user._id),
+          email: user.email,
+          role: user.role,
+          menteeId: user.menteeId,
+          mentorApprovalStatus: payload.mentorApprovalStatus,
+        };
+        return next();
+      })
+      .catch(() => res.status(503).json({ message: 'Authentication service is temporarily unavailable.' }));
+    return;
   } catch {
     return res.status(401).json({ message: 'Invalid or expired token.' });
   }

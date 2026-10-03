@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import jwt from 'jsonwebtoken';
 import { requireAuth, requireRole, AuthRequest } from '../middleware/auth.js';
+import { User } from '../models/User.js';
 
 const TEST_SECRET = 'test-jwt-secret-key-12345';
 process.env.JWT_SECRET = TEST_SECRET;
@@ -22,7 +23,7 @@ function createMockResponse() {
   return res;
 }
 
-test('AUTH: valid JWT sets user on request and calls next', () => {
+test('AUTH: valid JWT checks the current active user and calls next', async () => {
   const token = jwt.sign(
     { id: 'user_123', email: 'mentor@anfaal.org', role: 'MENTOR' },
     TEST_SECRET,
@@ -34,15 +35,53 @@ test('AUTH: valid JWT sets user on request and calls next', () => {
   } as any;
   const res = createMockResponse();
   let nextCalled = false;
+  const userLookup = mock.method(User, 'findById', () => ({
+    select: () => ({
+      lean: async () => ({ _id: 'user_123', email: 'mentor@anfaal.org', role: 'MENTOR', status: 'active' }),
+    }),
+  }) as any);
 
-  requireAuth(req, res, () => {
-    nextCalled = true;
+  await new Promise<void>((resolve) => {
+    requireAuth(req, res, () => {
+      nextCalled = true;
+      resolve();
+    });
   });
+  userLookup.mock.restore();
 
   assert.equal(nextCalled, true);
   assert.equal(req.user?.id, 'user_123');
   assert.equal(req.user?.role, 'MENTOR');
   assert.equal(req.user?.email, 'mentor@anfaal.org');
+});
+
+test('AUTH: disabled user is rejected even when the JWT is valid', async () => {
+  const token = jwt.sign(
+    { id: 'disabled_123', email: 'disabled@anfaal.org', role: 'MENTOR' },
+    TEST_SECRET,
+    { expiresIn: '1h' },
+  );
+  const req: AuthRequest = { headers: { authorization: `Bearer ${token}` } } as any;
+  const res = createMockResponse();
+  const userLookup = mock.method(User, 'findById', () => ({
+    select: () => ({
+      lean: async () => ({ _id: 'disabled_123', email: 'disabled@anfaal.org', role: 'MENTOR', status: 'disabled' }),
+    }),
+  }) as any);
+
+  await new Promise<void>((resolve) => {
+    const originalJson = res.json.bind(res);
+    res.json = (data: any) => {
+      originalJson(data);
+      resolve();
+      return res;
+    };
+    requireAuth(req, res, () => resolve());
+  });
+  userLookup.mock.restore();
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.message, 'Your session is no longer active. Please sign in again.');
 });
 
 test('AUTH: missing token returns 401', () => {
@@ -95,6 +134,28 @@ test('AUTH: expired JWT token returns 401', () => {
   });
 
   assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.message, 'Invalid or expired token.');
+});
+
+test('AUTH: JWT without required identity claims returns 401', () => {
+  const token = jwt.sign({ id: 'user_123', role: 'MENTOR' }, TEST_SECRET);
+  const req: AuthRequest = { headers: { authorization: `Bearer ${token}` } } as any;
+  const res = createMockResponse();
+
+  requireAuth(req, res, () => undefined);
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.message, 'Invalid or expired token.');
+});
+
+test('AUTH: JWT with an invalid role returns 401', () => {
+  const token = jwt.sign({ id: 'user_123', email: 'user@anfaal.org', role: 'SUPERUSER' }, TEST_SECRET);
+  const req: AuthRequest = { headers: { authorization: `Bearer ${token}` } } as any;
+  const res = createMockResponse();
+
+  requireAuth(req, res, () => undefined);
+
   assert.equal(res.statusCode, 401);
   assert.equal(res.body.message, 'Invalid or expired token.');
 });

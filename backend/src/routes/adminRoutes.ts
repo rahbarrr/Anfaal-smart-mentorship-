@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { requireAuth, requireRole, AuthRequest } from '../middleware/auth.js';
 import { Call } from '../models/Call.js';
 import { Mentorship } from '../models/Mentorship.js';
@@ -21,6 +22,44 @@ const router = Router();
 
 const reviewUpdateSchema = z.object({
   reviewStatus: z.enum(['Pending Review', 'Approved', 'Rejected']),
+});
+
+const resetPasswordSchema = z.object({
+  newPassword: z.string().min(12, 'Password must be at least 12 characters long.'),
+});
+
+router.post('/users/:userId/reset-password', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const parsed = resetPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Password must be at least 12 characters long.' });
+    }
+
+    const user = await User.findById(req.params.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    user.passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
+    user.status = 'active';
+    await user.save();
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'PASSWORD_RESET',
+      targetType: 'USER',
+      targetId: String(user._id),
+      details: 'Administrator reset the user password.',
+      ipAddress: req.ip,
+    });
+
+    return res.json({ message: 'Password reset successfully.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to reset password';
+    return res.status(500).json({ message });
+  }
 });
 
 router.get('/dashboard-summary', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res: Response) => {

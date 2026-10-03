@@ -13,41 +13,23 @@ import { Mentorship } from '../models/Mentorship.js';
 import { User } from '../models/User.js';
 import { createStorageProvider, S3StorageProvider } from '../services/storageService.js';
 import { enqueueCallProcessingJob } from '../services/callProcessingService.js';
+import { isActiveJobFresh } from '../services/jobRecoveryService.js';
 import { logAuditEvent } from '../services/auditService.js';
+import {
+  MAX_RECORDING_UPLOAD_BYTES,
+  isAllowedRecording,
+  isStorageKeyOwnedByCall,
+  isValidRecordingSize,
+  sanitizeUploadFileName,
+} from '../services/uploadValidationService.js';
 import mongoose from 'mongoose';
 
 const router = Router();
 
 // Allowed MIME types for recordings
-const ALLOWED_MIME_TYPES = [
-  'audio/mpeg',
-  'audio/mp3',
-  'audio/wav',
-  'audio/x-wav',
-  'audio/mp4',
-  'audio/m4a',
-  'audio/x-m4a',
-  'audio/ogg',
-  'audio/webm',
-  'audio/aac',
-  'audio/flac',
-  'video/mp4',
-  'video/webm',
-];
-const ALLOWED_RECORDING_EXTENSIONS = new Set(['mp3', 'mpeg', 'mpga', 'wav', 'm4a', 'mp4', 'webm', 'ogg', 'oga', 'aac', 'flac']);
-
-function hasAllowedRecordingExtension(fileName: string): boolean {
-  const extension = fileName.split('.').pop()?.toLowerCase();
-  return Boolean(extension && ALLOWED_RECORDING_EXTENSIONS.has(extension));
-}
-
-function isAllowedRecording(fileName: string, mimeType: string): boolean {
-  return ALLOWED_MIME_TYPES.includes(mimeType.toLowerCase()) || hasAllowedRecordingExtension(fileName);
-}
-
 // OpenAI accepts transcription inputs up to 25 MiB. Reject oversized uploads
 // before storage and queueing so a recording never waits forever at 0%.
-const MAX_RECORDING_SIZE_BYTES = 25 * 1024 * 1024;
+const MAX_RECORDING_SIZE_BYTES = MAX_RECORDING_UPLOAD_BYTES;
 const MAX_MULTER_FALLBACK_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB limit for legacy multipart upload to protect server memory
 
 // ─── Multer (for fallback multipart uploads only) ───────────────────────────
@@ -66,17 +48,17 @@ const upload = multer({
 // ─── Validation Schemas ─────────────────────────────────────────────────────
 const presignUploadSchema = z.object({
   fileName: z.string().min(1).max(255),
-  fileSize: z.number().min(1).max(MAX_RECORDING_SIZE_BYTES),
+  fileSize: z.number().int().min(1).max(MAX_RECORDING_SIZE_BYTES),
   mimeType: z.string(),
   menteeId: z.string().min(1),
 });
 
 const completeUploadSchema = z.object({
   callId: z.string().regex(/^[a-f\d]{24}$/i).optional(),
-  storageKey: z.string().optional(),
-  fileName: z.string().optional(),
-  fileSize: z.number().optional(),
-  mimeType: z.string().optional(),
+  storageKey: z.string().max(512).optional(),
+  fileName: z.string().max(255).optional(),
+  fileSize: z.number().int().min(1).max(MAX_RECORDING_SIZE_BYTES).optional(),
+  mimeType: z.string().max(128).optional(),
   menteeId: z.string().min(1),
   duration: z.number().min(1),
   date: z.string().optional(),
@@ -84,10 +66,6 @@ const completeUploadSchema = z.object({
 });
 
 // Helper to sanitize filenames
-function sanitizeFileName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
-}
-
 // ──────────────────────────────────────────────────────────────────────────
 // Helper: Resolve mentor profile ID and check authorization
 // ──────────────────────────────────────────────────────────────────────────
@@ -140,7 +118,7 @@ router.post('/presign-upload', requireAuth, async (req: AuthRequest, res: Respon
       }
     }
 
-    const cleanName = sanitizeFileName(fileName);
+    const cleanName = sanitizeUploadFileName(fileName);
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -196,6 +174,19 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
     const hasRecording = Boolean(storageKey);
     const callId = requestedCallId || String(new mongoose.Types.ObjectId());
 
+    if (hasRecording) {
+      if (!isStorageKeyOwnedByCall(storageKey!, callId)) {
+        return res.status(400).json({ message: 'The recording storage reference is invalid for this call.' });
+      }
+      const effectiveFileName = fileName || path.basename(storageKey!);
+      if (!isAllowedRecording(effectiveFileName, mimeType || '')) {
+        return res.status(400).json({ message: 'Unsupported recording format.' });
+      }
+      if (fileSize !== undefined && !isValidRecordingSize(fileSize)) {
+        return res.status(400).json({ message: 'Recording size is invalid or exceeds the 200 MB limit.' });
+      }
+    }
+
     const existingCall = await Call.findOne({ _id: callId, mentorId, menteeId }).lean();
     if (existingCall) {
       const existingJob = await CallProcessingJob.findOne({ callId }).sort({ createdAt: -1 }).lean();
@@ -219,7 +210,7 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
       recording: hasRecording
         ? {
             storageKey: storageKey!,
-            fileName: fileName || path.basename(storageKey!),
+            fileName: sanitizeUploadFileName(fileName || path.basename(storageKey!)),
             fileSize: fileSize || 0,
             mimeType: mimeType || 'audio/mpeg',
           }
@@ -364,7 +355,7 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
     if (req.file) {
       console.info(`[CALL_UPLOAD_START] callId=${callId} fileSize=${req.file.size}`);
       const storageProvider = createStorageProvider();
-      const cleanName = sanitizeFileName(req.file.originalname);
+      const cleanName = sanitizeUploadFileName(req.file.originalname);
       const customKey = `calls/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/call_${callId}/${cleanName}`;
 
       const uploadResult = await storageProvider.uploadFile(
@@ -602,6 +593,21 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
     })
       .sort({ createdAt: -1 })
       .lean();
+    const jobActivity = job
+      ? (job.heartbeatAt || job.updatedAt || job.startedAt || job.createdAt)
+      : undefined;
+    const staleJob = Boolean(
+      job
+      && ['PROCESSING', 'PENDING'].includes(job.status)
+      && jobActivity
+      && !isActiveJobFresh({
+        status: job.status,
+        heartbeatAt: job.heartbeatAt,
+        updatedAt: job.updatedAt,
+        startedAt: job.startedAt,
+        createdAt: job.createdAt,
+      }),
+    );
 
     const isCallCompleted =
       call.processingStatus === 'completed' ||
@@ -869,12 +875,12 @@ router.post('/:id/retry', requireAuth, async (req: AuthRequest, res: Response) =
     }
 
     // Avoid duplicate work while allowing calls abandoned by an unavailable worker to recover.
-    const existingJob = await CallProcessingJob.findOne({ callId: req.params.id }).sort({ createdAt: -1 });
-    const activeJobAgeMs = existingJob
-      ? Date.now() - new Date(existingJob.updatedAt || existingJob.startedAt || existingJob.createdAt).getTime()
-      : Number.POSITIVE_INFINITY;
-    const staleJobTimeoutMs = Math.max(60_000, Number(process.env.CALL_JOB_STALE_TIMEOUT_MS || 30 * 60 * 1000));
-    if (existingJob && ['PROCESSING', 'PENDING'].includes(existingJob.status) && activeJobAgeMs < staleJobTimeoutMs) {
+    const activeJobs = await CallProcessingJob.find({
+      callId: req.params.id,
+      status: { $in: ['PROCESSING', 'PENDING'] },
+    }).sort({ createdAt: -1 }).limit(10);
+    const existingJob = activeJobs.find((job) => isActiveJobFresh(job));
+    if (existingJob) {
       return res.status(409).json({ message: 'Processing is already currently in progress for this call.' });
     }
 
@@ -992,6 +998,19 @@ const handleCallProcessingStatus = async (req: AuthRequest, res: Response) => {
     })
       .sort({ createdAt: -1 })
       .lean();
+    const jobActivity = job?.heartbeatAt || job?.updatedAt || job?.startedAt || job?.createdAt;
+    const staleJob = Boolean(
+      job
+      && ['PROCESSING', 'PENDING'].includes(job.status)
+      && jobActivity
+      && !isActiveJobFresh({
+        status: job.status,
+        heartbeatAt: job.heartbeatAt,
+        updatedAt: job.updatedAt,
+        startedAt: job.startedAt,
+        createdAt: job.createdAt,
+      }),
+    );
 
     const isCallCompleted =
       call.processingStatus === 'completed' ||
@@ -1001,6 +1020,15 @@ const handleCallProcessingStatus = async (req: AuthRequest, res: Response) => {
     const isCallFailed =
       call.processingStatus === 'failed' ||
       (job?.status === 'FAILED' && !['processing', 'completed'].includes(call.processingStatus));
+
+    const chunkCompleted = job?.chunkProgress?.completed ?? 0;
+    const chunkTotal = job?.chunkProgress?.total ?? 0;
+    const processingStartedAt = job?.startedAt ? new Date(job.startedAt).getTime() : 0;
+    const elapsedProcessingMs = processingStartedAt > 0 ? Math.max(0, Date.now() - processingStartedAt) : 0;
+    const estimatedRemainingMs =
+      job?.status === 'PROCESSING' && chunkCompleted > 0 && chunkTotal > chunkCompleted && elapsedProcessingMs > 0
+        ? Math.round((elapsedProcessingMs * (chunkTotal - chunkCompleted)) / chunkCompleted)
+        : null;
 
     let effectiveStatus: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' = 'PENDING';
     let effectiveProcessingStatus: 'queued' | 'processing' | 'completed' | 'failed' = 'queued';
@@ -1052,6 +1080,16 @@ const handleCallProcessingStatus = async (req: AuthRequest, res: Response) => {
             mentorReview: 'PENDING',
           }),
       error: job?.error ?? null,
+      errorCode: job?.errorCode ?? null,
+      stale: staleJob,
+      lastHeartbeatAt: job?.heartbeatAt ?? null,
+      processingMessage: staleJob
+        ? 'The worker has not reported progress recently. The job will be recovered automatically.'
+        : null,
+      chunkProgress: job?.chunkProgress ?? null,
+      estimatedRemainingMs,
+      timings: job?.timings ?? null,
+      heartbeatAt: job?.heartbeatAt ?? null,
       startedAt: job?.startedAt,
       completedAt: isCallCompleted ? (job?.completedAt || new Date()) : job?.completedAt,
     });

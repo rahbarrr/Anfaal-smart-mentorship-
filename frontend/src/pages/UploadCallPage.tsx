@@ -60,14 +60,31 @@ type JobStatus = {
     summary: string;
     mentorReview: string;
   };
+  chunkProgress?: {
+    total: number;
+    completed: number;
+    failed: number;
+  };
+  estimatedRemainingMs?: number | null;
   error?: string;
+  errorCode?: string;
+  stale?: boolean;
+  processingMessage?: string | null;
 };
 
 const WIZARD_STEPS = ['Record Details', 'Upload Audio', 'AI Processing', 'Review & Approve'];
 const SUPPORTED_RECORDING_EXTENSIONS = ['mp3', 'mpeg', 'mpga', 'wav', 'm4a', 'mp4', 'webm', 'ogg', 'oga', 'aac', 'flac'];
 const ACCEPTED_TYPES = SUPPORTED_RECORDING_EXTENSIONS.map((extension) => `.${extension}`).join(',');
-const MAX_FILE_SIZE = 25 * 1024 * 1024;
+const MAX_FILE_SIZE = 200 * 1024 * 1024;
 const SERVER_UPLOAD_FALLBACK_MAX_SIZE = 25 * 1024 * 1024;
+
+function formatRemainingTime(milliseconds: number): string {
+  const totalMinutes = Math.max(1, Math.ceil(milliseconds / 60000));
+  if (totalMinutes < 60) return `about ${totalMinutes} min remaining`;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes ? `about ${hours}h ${minutes}m remaining` : `about ${hours}h remaining`;
+}
 
 // Browsers and mobile share sheets may report an empty or generic MIME type
 // for valid audio files. Send a stable audio MIME type inferred from the name.
@@ -171,6 +188,17 @@ function PipelineProgress({ job }: { job: JobStatus }) {
         />
       </div>
       <p className="pipeline-percent">{job.progress}%</p>
+      {job.chunkProgress && job.chunkProgress.total > 0 && job.stageStatus.transcription === 'PROCESSING' && (
+        <p className="muted" style={{ textAlign: 'center', margin: '0 0 12px' }}>
+          Transcribing section {Math.min(job.chunkProgress.completed + 1, job.chunkProgress.total)} of {job.chunkProgress.total}
+          {job.chunkProgress.failed > 0 ? ` · ${job.chunkProgress.failed} failed` : ''}
+        </p>
+      )}
+      {job.estimatedRemainingMs && job.stageStatus.transcription === 'PROCESSING' && (
+        <p className="muted" style={{ textAlign: 'center', margin: '0 0 12px' }}>
+          {formatRemainingTime(job.estimatedRemainingMs)}
+        </p>
+      )}
       <div className="pipeline-stages">
         {stages.map(({ key, label, icon: Icon }) => {
           const status = job.stageStatus[key as keyof JobStatus['stageStatus']];
@@ -240,7 +268,12 @@ export function UploadCallPage() {
         setMentees(loaded);
         if (loaded.length > 0) setForm((p) => ({ ...p, menteeId: loaded[0].id }));
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        setFeedback({
+          msg: error instanceof Error ? error.message : 'Unable to load your mentees. Refresh and try again.',
+          type: 'error',
+        });
+      });
   }, []);
 
   // Poll job status
@@ -304,7 +337,7 @@ export function UploadCallPage() {
   const handleFileSelect = (file: File | null) => {
     if (!file) return;
     if (file.size > MAX_FILE_SIZE) {
-      setFeedback({ msg: 'This recording is larger than 25 MB. Compress or split it into smaller files before uploading.', type: 'error' });
+      setFeedback({ msg: 'This recording is larger than 200 MB. Compress or split it into smaller files before uploading.', type: 'error' });
       return;
     }
     const extension = file.name.split('.').pop()?.toLowerCase();
@@ -686,7 +719,7 @@ export function UploadCallPage() {
               <>
                 <Upload size={40} className="dropzone-icon" />
                 <p className="dropzone-heading">Drag & drop your recording here</p>
-                <p className="dropzone-hint">MP3, MPEG, MPGA, WAV, M4A, MP4, WebM, OGG, AAC, FLAC — up to 25 MB</p>
+                <p className="dropzone-hint">MP3, MPEG, MPGA, WAV, M4A, MP4, WebM, OGG, AAC, FLAC — up to 200 MB via secure direct upload</p>
                 <span className="btn btn-outline btn-sm">Browse Files</span>
               </>
             )}
@@ -766,6 +799,11 @@ export function UploadCallPage() {
                 : 'Transcription and summarization run in the background. You can leave this page and return later.'}
           </p>
           {jobStatus && <PipelineProgress job={jobStatus} />}
+          {jobStatus?.stale && (
+            <div className="alert-banner alert-error" style={{ marginTop: '1rem' }} role="alert">
+              {jobStatus.processingMessage || 'The worker has not reported progress recently. Recovery is in progress.'}
+            </div>
+          )}
           {jobStatus?.status === 'FAILED' && (
             <div style={{ marginTop: '1.5rem' }}>
               <div className="alert-banner alert-error" style={{ marginBottom: '1rem' }}>
