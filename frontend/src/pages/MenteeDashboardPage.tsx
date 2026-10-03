@@ -38,19 +38,11 @@ export function MenteeDashboardPage() {
   const moodInfo = todayRecord ? (MOOD_MAP[todayRecord.dayRating] ?? { emoji: '🙂', label: 'Good' }) : null;
 
   return (
-    <div className="mentee-dashboard" style={{ display: 'grid', gap: 24, paddingBottom: 60 }}>
+    <div className="mentee-dashboard" style={{ display: 'grid', gap: 24, paddingBottom: 60, minWidth: 0, width: '100%', maxWidth: '100%' }}>
       {loadError && <div className="alert alert-error" role="alert">{loadError}</div>}
       {/* ── Today's Progress Hero Card (Requirement 8) ────────────────────── */}
-      <div
-        className="summary-card"
-        style={{
-          background: 'linear-gradient(135deg, rgba(143, 63, 102, 0.08) 0%, rgba(143, 63, 102, 0.02) 100%)',
-          borderColor: 'var(--border)',
-          padding: '28px 24px',
-          borderRadius: 24,
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+      <div className="summary-card today-perf-card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 20, minWidth: 0, width: '100%' }}>
           <div>
             <div className="eyebrow" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
               <CalendarCheck size={16} /> Daily Performance
@@ -63,7 +55,7 @@ export function MenteeDashboardPage() {
           {todayRecord ? (
             <button
               className="btn-secondary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.92rem' }}
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: '0.92rem' }}
               onClick={() => navigate('/mentee/daily')}
             >
               <Edit3 size={16} /> Edit Today's Entry
@@ -71,7 +63,7 @@ export function MenteeDashboardPage() {
           ) : (
             <button
               className="btn-primary"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '1rem', padding: '12px 24px' }}
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontSize: '1rem', padding: '12px 24px' }}
               onClick={() => navigate('/mentee/daily')}
             >
               + Record Today's Progress
@@ -81,18 +73,8 @@ export function MenteeDashboardPage() {
 
         {/* Info Grid */}
         {todayRecord ? (
-          <div>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                gap: 14,
-                background: '#fff',
-                padding: '20px 16px',
-                borderRadius: 18,
-                border: '1px solid var(--border)',
-              }}
-            >
+          <div style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
+            <div className="today-perf-metrics-grid">
               <div>
                 <div className="muted" style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>Study</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary)', marginTop: 4 }}>

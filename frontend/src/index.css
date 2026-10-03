@@ -26,6 +26,12 @@ html, body, #root {
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
   position: relative;
+  box-sizing: border-box;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
 }
 
 /* ── Accessible Focus Rings ─────────────────────────────────────────────── */
@@ -520,6 +526,256 @@ tr:last-child td { border-bottom: none; }
   to { opacity: 1; }
 }
 
+/* ── Mentor Insights (Responsive Grid) ───────────────────────────────────── */
+.mentor-insights-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.mentor-insights-badge {
+  font-size: 0.75rem;
+  background: rgba(143, 63, 102, 0.06);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  max-width: 100%;
+  display: inline-block;
+  box-sizing: border-box;
+}
+
+.mentor-insights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.mentor-insight-card {
+  padding: 14px 16px;
+  background: rgba(143, 63, 102, 0.04);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Weekly AI Progress Insights ─────────────────────────────────────────── */
+.ai-insights-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.ai-insights-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  white-space: normal;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+/* ── Visual Analytics & Chart Sizing ─────────────────────────────────────── */
+.analytics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analytics-chart-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.analytics-tab-btn {
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.analytics-tab-btn.active {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.analytics-chart-box {
+  background: #fdfbfb;
+  padding: 20px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.chart-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.analytics-bar-chart-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 180px;
+  padding-bottom: 24px;
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analytics-bar-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.analytics-bar-fill {
+  width: 100%;
+  max-width: 32px;
+  border-radius: 6px 6px 0 0;
+  transition: height 0.3s ease;
+}
+
+.bar-val-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bar-day-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.mood-rating-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.mood-rating-label {
+  font-size: 0.85rem;
+  width: 85px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* ── Today's Performance Card & Metrics Grid ─────────────────────────────── */
+.today-perf-card {
+  background: linear-gradient(135deg, rgba(143,63,102,0.08), rgba(143,63,102,0.02));
+  padding: 24px 20px;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.today-perf-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  background: #fff;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* ── Profile Header Card ─────────────────────────────────────────────────── */
+.profile-header-card {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.profile-performance-flow {
+  display: grid;
+  gap: 24px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    TABLET & MOBILE  ≤ 1023px
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -604,9 +860,19 @@ tr:last-child td { border-bottom: none; }
   }
 
   .main-panel {
-    padding: 20px 20px 32px;
+    padding: 20px;
     width: 100%;
     min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .mentor-insights-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .today-perf-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .field-row,
@@ -621,11 +887,12 @@ tr:last-child td { border-bottom: none; }
   /* ── Layout: sidebar becomes a compact top header ──────────────────────── */
   .layout-shell {
     flex-direction: column;
-    padding-bottom: 76px; /* room for bottom nav */
+    padding-bottom: 0;
     width: 100%;
     max-width: 100vw;
     min-width: 0;
     overflow-x: hidden;
+    box-sizing: border-box;
   }
 
   .sidebar {
@@ -638,6 +905,9 @@ tr:last-child td { border-bottom: none; }
     padding: 0;
     gap: 10px;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .brand-mark {
@@ -651,7 +921,9 @@ tr:last-child td { border-bottom: none; }
 
   /* ── Bottom navigation bar ─────────────────────────────────────────────── */
   .bottom-nav {
-    display: flex;
+    display: grid;
+    grid-auto-columns: 1fr;
+    grid-auto-flow: column;
     position: fixed;
     bottom: 0;
     left: 0;
@@ -664,15 +936,16 @@ tr:last-child td { border-bottom: none; }
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-top: 1px solid var(--border);
-    padding: 6px 4px env(safe-area-inset-bottom, 6px);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
     gap: 2px;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.07);
     overflow: hidden;
   }
 
   .bottom-nav-item {
-    flex: 1 1 0px;
     min-width: 0;
+    width: 100%;
+    max-width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -716,11 +989,105 @@ tr:last-child td { border-bottom: none; }
 
   /* ── Main panel ────────────────────────────────────────────────────────── */
   .main-panel {
-    padding: 14px 14px calc(76px + env(safe-area-inset-bottom, 12px));
+    padding: 12px 16px calc(80px + env(safe-area-inset-bottom, 12px));
     min-width: 0;
     max-width: 100%;
     width: 100%;
     box-sizing: border-box;
+  }
+
+  /* ── Mentor Insights on Mobile ─────────────────────────────────────────── */
+  .mentor-insights-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .mentor-insights-badge {
+    align-self: flex-start;
+  }
+  .mentor-insights-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+  .mentor-insight-card {
+    padding: 12px 14px;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* ── Weekly AI Progress Insights on Mobile ─────────────────────────────── */
+  .ai-insights-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .ai-insights-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* ── Visual Analytics & Charts on Mobile ────────────────────────────────── */
+  .analytics-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .analytics-chart-tabs {
+    width: 100%;
+    gap: 6px;
+  }
+  .analytics-tab-btn {
+    font-size: 0.75rem;
+    padding: 5px 9px;
+    border-radius: 10px;
+    min-height: 32px;
+    flex: 1 1 auto;
+  }
+  .analytics-chart-box {
+    padding: 14px 10px;
+    border-radius: 12px;
+  }
+  .analytics-bar-chart-row {
+    gap: 6px;
+    height: 160px;
+    padding-bottom: 20px;
+  }
+  .analytics-bar-fill {
+    max-width: 24px;
+    border-radius: 4px 4px 0 0;
+  }
+  .bar-val-label,
+  .bar-day-label {
+    font-size: 0.68rem;
+  }
+  .mood-rating-label {
+    width: 75px;
+    font-size: 0.8rem;
+  }
+
+  /* ── Today's Performance Card on Mobile ─────────────────────────────────── */
+  .today-perf-card {
+    padding: 16px 14px;
+    border-radius: 16px;
+  }
+  .today-perf-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 12px 10px;
+    border-radius: 14px;
+  }
+
+  /* ── Profile Header Card on Mobile ─────────────────────────────────────── */
+  .profile-header-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 16px 14px;
+  }
+  .profile-header-card > .btn-primary {
+    width: 100%;
+    justify-content: center;
   }
 
   /* ── Topbar (Action Banner) on Mobile ──────────────────────────────────── */
@@ -1694,7 +2061,7 @@ tr:last-child td { border-bottom: none; }
 ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 380px) {
   .main-panel {
-    padding: 10px 10px calc(76px + env(safe-area-inset-bottom, 12px));
+    padding: 10px 12px calc(80px + env(safe-area-inset-bottom, 12px));
   }
   .card-grid {
     grid-template-columns: 1fr !important;
@@ -1714,12 +2081,12 @@ tr:last-child td { border-bottom: none; }
     font-size: 0.95rem !important;
   }
   .bottom-nav-item {
-    font-size: 0.56rem !important;
-    padding: 6px 2px !important;
+    font-size: 0.58rem !important;
+    padding: 4px 1px !important;
   }
   .bottom-nav-item svg {
-    width: 20px !important;
-    height: 20px !important;
+    width: 18px !important;
+    height: 18px !important;
   }
   .topbar {
     padding: 10px 12px !important;
@@ -1727,6 +2094,31 @@ tr:last-child td { border-bottom: none; }
   .form-card,
   .summary-card {
     padding: 14px 10px !important;
+  }
+  .today-perf-metrics-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px;
+  }
+  .analytics-chart-box {
+    padding: 10px 6px;
+  }
+  .analytics-bar-chart-row {
+    gap: 4px;
+    height: 150px;
+  }
+  .analytics-bar-fill {
+    max-width: 18px;
+  }
+  .bar-val-label,
+  .bar-day-label {
+    font-size: 0.62rem;
+  }
+  .mood-rating-row {
+    gap: 6px;
+  }
+  .mood-rating-label {
+    width: 65px;
+    font-size: 0.75rem;
   }
 }
 
@@ -1767,8 +2159,11 @@ tr:last-child td { border-bottom: none; }
   .main-panel {
     flex: 1;
     min-width: 0;
-    max-width: calc(100vw - 260px);
-    padding: 26px 32px 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+    width: 100%;
+    box-sizing: border-box;
   }
   .card-grid {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1780,7 +2175,7 @@ tr:last-child td { border-bottom: none; }
 ═══════════════════════════════════════════════════════════════════════════ */
 @media (min-width: 1280px) {
   .main-panel {
-    padding: 30px 40px 48px;
+    padding: 24px 32px;
   }
   .card-grid {
     grid-template-columns: repeat(4, 1fr);
@@ -1789,7 +2184,7 @@ tr:last-child td { border-bottom: none; }
 
 @media (min-width: 1440px) {
   .main-panel {
-    max-width: 1560px;
+    max-width: 1400px;
     margin: 0 auto;
   }
 }

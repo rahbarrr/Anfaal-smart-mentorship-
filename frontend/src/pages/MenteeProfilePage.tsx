@@ -157,12 +157,12 @@ export function MenteeProfilePage() {
       </button>
 
       {/* Profile header */}
-      <div className="summary-card" style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+      <div className="summary-card profile-header-card">
         <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(143,63,102,0.12)', display: 'grid', placeItems: 'center', fontWeight: 800, color: 'var(--primary)', fontSize: '1.4rem', flexShrink: 0 }}>
           {initials}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <h2 style={{ fontWeight: 800, fontSize: '1.6rem', letterSpacing: '-0.04em', margin: 0 }}>{mentee.name}</h2>
+          <h2 style={{ fontWeight: 800, fontSize: '1.6rem', letterSpacing: '-0.04em', margin: 0, wordBreak: 'break-word' }}>{mentee.name}</h2>
           <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontWeight: 600, color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{mentee.standard}</span>
             {mentee.assignedMentor && (
@@ -193,7 +193,7 @@ export function MenteeProfilePage() {
         </div>
         <div className="dashboard-card">
           <div className="label">Guardian</div>
-          <div style={{ marginTop: 12, fontWeight: 700, fontSize: '1.05rem' }}>{mentee.guardian || '—'}</div>
+          <div style={{ marginTop: 12, fontWeight: 700, fontSize: '1.05rem', wordBreak: 'break-word' }}>{mentee.guardian || '—'}</div>
           <div className="change">{mentee.phone || ''}</div>
         </div>
         <div className="dashboard-card">
@@ -204,7 +204,7 @@ export function MenteeProfilePage() {
       </div>
 
       {/* Tabs */}
-      <div className="profile-tabs" style={{ display: 'flex', gap: 6, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0, overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
+      <div className="profile-tabs" style={{ display: 'flex', gap: 6, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0, overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -371,16 +371,9 @@ export function MenteeProfilePage() {
 
       {/* ── Daily Performance Tab (Requirements 9, 10, 11, 12, 13, 14) ─── */}
       {activeTab === 'performance' && (
-        <div style={{ display: 'grid', gap: 24 }}>
+        <div className="profile-performance-flow">
           {/* Section 9: Today's Performance */}
-          <div
-            className="summary-card"
-            style={{
-              background: 'linear-gradient(135deg, rgba(143,63,102,0.08), rgba(143,63,102,0.02))',
-              padding: '24px 20px',
-              borderRadius: 20,
-            }}
-          >
+          <div className="summary-card today-perf-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
               <div>
                 <div className="eyebrow" style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -395,17 +388,7 @@ export function MenteeProfilePage() {
 
             {perfData?.today ? (
               <div>
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                    gap: 12,
-                    background: '#fff',
-                    padding: 16,
-                    borderRadius: 16,
-                    border: '1px solid var(--border)',
-                  }}
-                >
+                <div className="today-perf-metrics-grid">
                   <div>
                     <div className="muted" style={{ fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>Study</div>
                     <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
@@ -466,7 +449,7 @@ export function MenteeProfilePage() {
           </div>
 
           {/* Section 14: Weekly Mentorship View */}
-          <div>
+          <div style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
             <div className="eyebrow" style={{ marginBottom: 4 }}>Overview</div>
             <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: 14 }}>Weekly Progress</h3>
             <div className="card-grid">
@@ -499,8 +482,8 @@ export function MenteeProfilePage() {
           </div>
 
           {/* Section 11: Performance Analytics (Charts) */}
-          <div className="summary-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
+          <div className="summary-card" style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
+            <div className="analytics-header">
               <div>
                 <div className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <BarChart3 size={15} color="var(--primary)" /> Visual Analytics
@@ -509,7 +492,7 @@ export function MenteeProfilePage() {
               </div>
 
               {/* Chart selector tabs */}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <div className="analytics-chart-tabs">
                 {[
                   { id: 'study7', label: 'Study (7d)' },
                   { id: 'study30', label: 'Study (30d)' },
@@ -521,17 +504,7 @@ export function MenteeProfilePage() {
                     key={tab.id}
                     type="button"
                     onClick={() => setAnalyticsChartTab(tab.id as any)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: 14,
-                      border: '1px solid',
-                      borderColor: analyticsChartTab === tab.id ? 'var(--primary)' : 'var(--border)',
-                      background: analyticsChartTab === tab.id ? 'var(--primary)' : '#fff',
-                      color: analyticsChartTab === tab.id ? '#fff' : 'var(--text-primary)',
-                      fontSize: '0.82rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
+                    className={`analytics-tab-btn ${analyticsChartTab === tab.id ? 'active' : ''}`}
                   >
                     {tab.label}
                   </button>
@@ -540,36 +513,33 @@ export function MenteeProfilePage() {
             </div>
 
             {/* Render selected Chart */}
-            <div style={{ background: '#fdfbfb', padding: '20px 16px', borderRadius: 16, border: '1px solid var(--border)' }}>
+            <div className="analytics-chart-box">
               {/* Study 7 Days */}
               {analyticsChartTab === 'study7' && (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div className="chart-title-row">
                     <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Study Hours — Last 7 Days</span>
                     <span className="muted" style={{ fontSize: '0.85rem' }}>Daily breakdown</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 160, paddingBottom: 24, position: 'relative' }}>
+                  <div className="analytics-bar-chart-row">
                     {(analyticsData?.study.charts.last7Days ?? []).map((day) => {
                       const maxHours = Math.max(4, ...((analyticsData?.study.charts.last7Days ?? []).map((d) => d.hours) || [4]));
                       const heightPercent = Math.min(100, Math.round((day.hours / maxHours) * 100));
                       const dLabel = new Date(day.date).toLocaleDateString('en-IN', { weekday: 'short' });
                       return (
-                        <div key={day.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--primary)', marginBottom: 4 }}>
+                        <div key={day.date} className="analytics-bar-col">
+                          <span className="bar-val-label" style={{ color: 'var(--primary)' }}>
                             {day.hours > 0 ? `${day.hours}h` : '0'}
                           </span>
                           <div
+                            className="analytics-bar-fill"
                             style={{
-                              width: '100%',
-                              maxWidth: 32,
                               height: `${Math.max(8, heightPercent)}%`,
                               background: day.hours > 0 ? 'var(--primary)' : '#e2d9dc',
-                              borderRadius: '6px 6px 0 0',
-                              transition: 'height 0.3s ease',
                             }}
                             title={`${day.date}: ${day.hours} hours (${day.minutes} min)`}
                           />
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 6, fontWeight: 600 }}>
+                          <span className="bar-day-label">
                             {dLabel}
                           </span>
                         </div>
@@ -582,22 +552,22 @@ export function MenteeProfilePage() {
               {/* Study 30 Days */}
               {analyticsChartTab === 'study30' && (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div className="chart-title-row">
                     <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Study Hours — Last 30 Days</span>
                     <span className="muted" style={{ fontSize: '0.85rem' }}>Monthly daily progression</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160, paddingBottom: 24 }}>
+                  <div className="analytics-bar-chart-row" style={{ gap: 2 }}>
                     {(analyticsData?.study.charts.last30Days ?? []).map((day) => {
                       const maxHours = Math.max(4, ...((analyticsData?.study.charts.last30Days ?? []).map((d) => d.hours) || [4]));
                       const heightPercent = Math.min(100, Math.round((day.hours / maxHours) * 100));
                       return (
-                        <div key={day.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                        <div key={day.date} className="analytics-bar-col">
                           <div
+                            className="analytics-bar-fill"
                             style={{
-                              width: '100%',
                               height: `${Math.max(4, heightPercent)}%`,
                               background: day.hours > 0 ? 'var(--primary)' : '#ebe5e7',
-                              borderRadius: '3px 3px 0 0',
+                              borderRadius: '2px 2px 0 0',
                             }}
                             title={`${day.date}: ${day.hours} hours`}
                           />
@@ -605,7 +575,7 @@ export function MenteeProfilePage() {
                       );
                     })}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 8 }}>
                     <span>30 days ago</span>
                     <span>Today</span>
                   </div>
@@ -615,31 +585,29 @@ export function MenteeProfilePage() {
               {/* Quran 7 Days */}
               {analyticsChartTab === 'quran' && (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div className="chart-title-row">
                     <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Quran Reading — Last 7 Days (Pages)</span>
                     <span className="muted" style={{ fontSize: '0.85rem' }}>Daily pages read</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 160, paddingBottom: 24 }}>
+                  <div className="analytics-bar-chart-row">
                     {(analyticsData?.quran.charts.last7Days ?? []).map((day) => {
                       const maxPages = Math.max(10, ...((analyticsData?.quran.charts.last7Days ?? []).map((d) => d.pages) || [10]));
                       const heightPercent = Math.min(100, Math.round((day.pages / maxPages) * 100));
                       const dLabel = new Date(day.date).toLocaleDateString('en-IN', { weekday: 'short' });
                       return (
-                        <div key={day.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#2e7d32', marginBottom: 4 }}>
+                        <div key={day.date} className="analytics-bar-col">
+                          <span className="bar-val-label" style={{ color: '#2e7d32' }}>
                             {day.pages > 0 ? `${day.pages}p` : '0'}
                           </span>
                           <div
+                            className="analytics-bar-fill"
                             style={{
-                              width: '100%',
-                              maxWidth: 32,
                               height: `${Math.max(8, heightPercent)}%`,
                               background: day.pages > 0 ? '#2e7d32' : '#e2d9dc',
-                              borderRadius: '6px 6px 0 0',
                             }}
                             title={`${day.date}: ${day.pages} pages, ${day.ruku} ruku, ${day.ayat} ayat`}
                           />
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 6, fontWeight: 600 }}>
+                          <span className="bar-day-label">
                             {dLabel}
                           </span>
                         </div>
@@ -652,31 +620,29 @@ export function MenteeProfilePage() {
               {/* Reading 7 Days */}
               {analyticsChartTab === 'reading' && (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <div className="chart-title-row">
                     <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>General Reading Time — Last 7 Days</span>
                     <span className="muted" style={{ fontSize: '0.85rem' }}>Minutes per day</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 160, paddingBottom: 24 }}>
+                  <div className="analytics-bar-chart-row">
                     {(analyticsData?.reading.charts.last7Days ?? []).map((day) => {
                       const maxMin = Math.max(60, ...((analyticsData?.reading.charts.last7Days ?? []).map((d) => d.minutes) || [60]));
                       const heightPercent = Math.min(100, Math.round((day.minutes / maxMin) * 100));
                       const dLabel = new Date(day.date).toLocaleDateString('en-IN', { weekday: 'short' });
                       return (
-                        <div key={day.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#1976d2', marginBottom: 4 }}>
+                        <div key={day.date} className="analytics-bar-col">
+                          <span className="bar-val-label" style={{ color: '#1976d2' }}>
                             {day.minutes > 0 ? `${day.minutes}m` : '0'}
                           </span>
                           <div
+                            className="analytics-bar-fill"
                             style={{
-                              width: '100%',
-                              maxWidth: 32,
                               height: `${Math.max(8, heightPercent)}%`,
                               background: day.minutes > 0 ? '#1976d2' : '#e2d9dc',
-                              borderRadius: '6px 6px 0 0',
                             }}
                             title={`${day.date}: ${day.minutes} minutes`}
                           />
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 6, fontWeight: 600 }}>
+                          <span className="bar-day-label">
                             {dLabel}
                           </span>
                         </div>
@@ -689,7 +655,7 @@ export function MenteeProfilePage() {
               {/* Overall Day Rating Distribution */}
               {analyticsChartTab === 'mood' && (
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
                     <div>
                       <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Rating Distribution</span>
                       <div className="muted" style={{ fontSize: '0.82rem' }}>Past 30 days mood spectrum</div>
@@ -706,14 +672,14 @@ export function MenteeProfilePage() {
                       const percent = Math.round((count / totalRatings) * 100);
                       const mood = MOOD_MAP[rating];
                       return (
-                        <div key={rating} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: '1.2rem', width: 28, textAlign: 'center' }}>{mood.emoji}</span>
-                          <span style={{ fontSize: '0.85rem', width: 90, fontWeight: 600 }}>{mood.label}</span>
-                          <div style={{ flex: 1, height: 12, background: '#ede7e9', borderRadius: 6, overflow: 'hidden' }}>
+                        <div key={rating} className="mood-rating-row">
+                          <span style={{ fontSize: '1.2rem', width: 28, textAlign: 'center', flexShrink: 0 }}>{mood.emoji}</span>
+                          <span className="mood-rating-label">{mood.label}</span>
+                          <div style={{ flex: 1, minWidth: 0, height: 12, background: '#ede7e9', borderRadius: 6, overflow: 'hidden' }}>
                             <div style={{ width: `${percent}%`, height: '100%', background: 'var(--primary)', borderRadius: 6 }} />
                           </div>
-                          <span style={{ fontSize: '0.82rem', width: 40, textAlign: 'right', fontWeight: 700 }}>
-                            {count} d
+                          <span style={{ fontSize: '0.82rem', width: 36, textAlign: 'right', fontWeight: 700, flexShrink: 0 }}>
+                            {count}d
                           </span>
                         </div>
                       );
@@ -725,27 +691,27 @@ export function MenteeProfilePage() {
           </div>
 
           {/* Section 12: Mentor Insights */}
-          <div className="summary-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+          <div className="summary-card" style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
+            <div className="mentor-insights-header">
               <div>
                 <div className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <TrendingUp size={15} color="var(--primary)" /> Trends
                 </div>
                 <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: '2px 0 0' }}>Mentor Insights</h3>
               </div>
-              <span style={{ fontSize: '0.75rem', background: 'rgba(143,63,102,0.06)', color: 'var(--text-secondary)', padding: '4px 10px', borderRadius: 12, fontWeight: 600 }}>
+              <span className="mentor-insights-badge">
                 Descriptive statistics • Non-diagnostic
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+            <div className="mentor-insights-grid">
               {(analyticsData?.mentorInsights ?? [
                 'Study consistency: Study time has been recorded regularly.',
                 'Quran reading: Recitation logged across multiple days.',
                 'Reading habits: Consistent time dedicated to reading.',
                 'Overall day experience: Positive day ratings reported.',
               ]).map((insight, idx) => (
-                <div key={idx} style={{ padding: '12px 14px', background: 'rgba(143,63,102,0.04)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                <div key={idx} className="mentor-insight-card">
                   <div style={{ fontSize: '0.88rem', color: 'var(--text-primary)', lineHeight: 1.5, fontWeight: 600 }}>
                     {insight}
                   </div>
@@ -755,8 +721,8 @@ export function MenteeProfilePage() {
           </div>
 
           {/* Section 13: Optional AI Insights */}
-          <div className="summary-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          <div className="summary-card" style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
+            <div className="ai-insights-header">
               <div>
                 <div className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Sparkles size={15} color="var(--primary)" /> Supportive Intelligence
@@ -766,10 +732,9 @@ export function MenteeProfilePage() {
 
               <button
                 type="button"
-                className="btn-primary"
+                className="btn-primary ai-insights-btn"
                 disabled={isGeneratingAi}
                 onClick={handleGenerateAiInsights}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.88rem' }}
               >
                 <Sparkles size={16} />
                 {isGeneratingAi ? 'Analyzing Data…' : aiInsights ? 'Regenerate Insights' : 'Generate Weekly AI Insights'}
@@ -777,23 +742,23 @@ export function MenteeProfilePage() {
             </div>
 
             {aiInsights ? (
-              <div style={{ display: 'grid', gap: 16 }}>
-                <div style={{ padding: '14px 16px', background: 'rgba(143,63,102,0.05)', borderRadius: 14, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'grid', gap: 16, minWidth: 0, width: '100%', maxWidth: '100%' }}>
+                <div style={{ padding: '14px 16px', background: 'rgba(143,63,102,0.05)', borderRadius: 14, border: '1px solid var(--border)', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                   <h4 style={{ margin: '0 0 6px', fontSize: '0.95rem', fontWeight: 800, color: 'var(--primary)' }}>
                     Weekly Progress Summary
                   </h4>
-                  <p style={{ margin: 0, fontSize: '0.92rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>
+                  <p style={{ margin: 0, fontSize: '0.92rem', lineHeight: 1.6, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
                     {aiInsights.weeklySummary}
                   </p>
                 </div>
 
-                <div>
+                <div style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
                   <h4 style={{ margin: '0 0 10px', fontSize: '0.95rem', fontWeight: 800 }}>
                     Suggested Mentor Discussion Points
                   </h4>
                   <ul style={{ paddingLeft: 20, margin: 0, display: 'grid', gap: 8 }}>
                     {aiInsights.discussionPoints.map((point, idx) => (
-                      <li key={idx} style={{ fontSize: '0.9rem', lineHeight: 1.5, color: 'var(--text-primary)' }}>
+                      <li key={idx} style={{ fontSize: '0.9rem', lineHeight: 1.5, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
                         {point}
                       </li>
                     ))}
@@ -805,7 +770,7 @@ export function MenteeProfilePage() {
                 </div>
               </div>
             ) : (
-              <div style={{ padding: '16px 20px', background: '#fdfbfb', borderRadius: 12, border: '1px dashed var(--border)', textAlign: 'center' }}>
+              <div style={{ padding: '16px 20px', background: '#fdfbfb', borderRadius: 12, border: '1px dashed var(--border)', textAlign: 'center', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
                 <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
                   Click "Generate Weekly AI Insights" to generate a supportive summary and suggested talking points for your next mentorship check-in.
                 </p>
@@ -814,7 +779,7 @@ export function MenteeProfilePage() {
           </div>
 
           {/* Section 10: Performance History Table */}
-          <div>
+          <div style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
             <div className="eyebrow" style={{ marginBottom: 4 }}>Records</div>
             <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: 14 }}>Performance History</h3>
             <div className="table-wrap">
@@ -854,7 +819,7 @@ export function MenteeProfilePage() {
                         <td style={{ fontSize: '1.3rem' }}>
                           {MOOD_MAP[r.dayRating]?.emoji ?? '—'}
                         </td>
-                        <td style={{ fontSize: '0.85rem', maxWidth: 240 }}>
+                        <td style={{ fontSize: '0.85rem', maxWidth: 240, overflowWrap: 'break-word', wordBreak: 'normal' }}>
                           {r.dailyReflection ? (
                             <span>{r.dailyReflection}</span>
                           ) : (

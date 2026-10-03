@@ -135,7 +135,7 @@ export function AdminDashboardPage() {
   ];
 
   return (
-    <div style={{ display: 'grid', gap: 24, maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ display: 'grid', gap: 24, maxWidth: 1200, margin: '0 auto', minWidth: 0, width: '100%' }}>
       {loadError && <div className="alert-banner alert-error" role="alert">Unable to load the latest dashboard data: {loadError}</div>}
       {/* ── Section 13 High-Level Mentorship Activity Metrics ─────────────── */}
       <div className="card-grid">
