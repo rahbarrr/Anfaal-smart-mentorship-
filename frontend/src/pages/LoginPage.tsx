@@ -13,13 +13,31 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const sessionExpired = Boolean((location.state as { sessionExpired?: boolean } | null)?.sessionExpired);
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    // Prevent duplicate in-flight requests
+    if (isSubmitting) {
+      return;
+    }
+
+    const trimmedIdentifier = email.trim();
+    if (!trimmedIdentifier) {
+      setError('Please enter your email, phone number, or MAKID.');
+      return;
+    }
+
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+
     setError('');
     setIsSubmitting(true);
 
     try {
-      const response = await loginWithEmail(email, password);
+      // ONLY HERE call the login API
+      const response = await loginWithEmail(trimmedIdentifier, password);
       localStorage.setItem('anfaal-token', response.token);
       localStorage.setItem('anfaal-user', JSON.stringify(response.user));
       if (response.user.role === 'ADMIN') {
@@ -102,7 +120,12 @@ export function LoginPage() {
           </div>
         </div>
 
-        <form className="form-card login-form" onSubmit={handleSubmit} style={{ border: 'none', background: 'transparent', boxShadow: 'none', borderRadius: 0, padding: '42px 34px' }}>
+        <form
+          className="form-card login-form"
+          onSubmit={handleSubmit}
+          noValidate
+          style={{ border: 'none', background: 'transparent', boxShadow: 'none', borderRadius: 0, padding: '42px 34px' }}
+        >
           <div style={{ marginBottom: 18 }}>
             <div className="eyebrow" style={{ marginBottom: 8 }}>Sign in</div>
             <div style={{ fontWeight: 800, letterSpacing: '-0.06em', fontSize: '2.2rem', color: '#2f2b2f' }}>Welcome back</div>
@@ -114,37 +137,65 @@ export function LoginPage() {
 
           <div style={{ display: 'grid', gap: 18 }}>
             <div className="field">
-              <label style={{ fontSize: '0.95rem', fontWeight: 700 }}>Email, Phone Number, or MAKID</label>
+              <label htmlFor="login-identifier" style={{ fontSize: '0.95rem', fontWeight: 700 }}>Email, Phone Number, or MAKID</label>
               <input
+                id="login-identifier"
+                name="identifier"
                 className="input"
                 type="text"
+                autoComplete="username"
+                required
                 placeholder="e.g. MAK101, 9876543210, or email@domain.com"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                disabled={isSubmitting}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  if (error) setError('');
+                }}
                 style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
               />
             </div>
 
             <div className="field">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label style={{ fontSize: '0.95rem', fontWeight: 700 }}>Password</label>
-                <a
-                  href="#forgot"
-                  style={{ color: '#8f3f66', fontWeight: 700, textDecoration: 'none' }}
-                  onClick={(e) => { e.preventDefault(); alert('Please contact your Anfaal administrator to reset your password.'); }}
-                >Forgot password?</a>
+                <label htmlFor="login-password" style={{ fontSize: '0.95rem', fontWeight: 700 }}>Password</label>
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    color: '#8f3f66',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.88rem',
+                  }}
+                  onClick={() => alert('Please contact your Anfaal administrator to reset your password.')}
+                >
+                  Forgot password?
+                </button>
               </div>
               <div className="password-input-wrap">
                 <input
+                  id="login-password"
+                  name="password"
                   className="input"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  disabled={isSubmitting}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    if (error) setError('');
+                  }}
                   style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
                 />
                 <button
                   type="button"
+                  tabIndex={-1}
                   className="password-toggle"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                   aria-pressed={showPassword}
