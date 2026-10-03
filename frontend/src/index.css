@@ -2829,7 +2829,12 @@ tr:last-child td { border-bottom: none; }
 ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Defaults (desktop first) ──────────────────────────────────────────── */
-.desktop-table { display: block; }
+.desktop-table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
 .mobile-card-list { display: none; }
 
 /* ── Search that can grow full-width ───────────────────────────────────── */
@@ -3123,6 +3128,15 @@ tr:last-child td { border-bottom: none; }
 
   /* Call cards: single-col meta on very small */
   .call-mobile-card-meta { grid-template-columns: 1fr; }
+
+  /* Mobile touch targets: minimum 44px height for interactive buttons */
+  .btn:not(.btn-sm),
+  .button:not(.btn-sm),
+  .btn-primary:not(.btn-sm),
+  .btn-secondary:not(.btn-sm),
+  .btn-outline:not(.btn-sm) {
+    min-height: 44px;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

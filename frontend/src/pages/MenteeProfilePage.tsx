@@ -1360,13 +1360,16 @@ export function MenteeProfilePage() {
                 <div
                   className="summary-card"
                   style={{
-                    maxWidth: 440,
+                    maxWidth: 'min(calc(100vw - 24px), 440px)',
                     width: '100%',
-                    padding: '24px 24px',
+                    padding: '24px 20px',
                     borderRadius: 18,
                     boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
                     textAlign: 'center',
                     background: 'var(--surface)',
+                    maxHeight: 'calc(100dvh - 32px)',
+                    overflowY: 'auto',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <div
@@ -1384,7 +1387,7 @@ export function MenteeProfilePage() {
                     <Trash2 size={26} />
                   </div>
 
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: 8, color: 'var(--text)' }}>
+                  <h3 style={{ fontSize: 'clamp(1.1rem, 3.5vw, 1.25rem)', fontWeight: 800, marginBottom: 8, color: 'var(--text)' }}>
                     {perfDeleteTarget === 'BULK'
                       ? `Delete ${selectedPerfIds.size} daily performance ${selectedPerfIds.size === 1 ? 'entry' : 'entries'}?`
                       : 'Delete this daily performance entry?'}
@@ -1407,11 +1410,11 @@ export function MenteeProfilePage() {
                     )}
                   </p>
 
-                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
                     <button
                       type="button"
                       className="btn-secondary"
-                      style={{ minWidth: 100, minHeight: 44 }}
+                      style={{ flex: '1 1 100px', minHeight: 44, justifyContent: 'center' }}
                       disabled={isPerfDeleting}
                       onClick={() => setPerfDeleteTarget(null)}
                     >
@@ -1421,7 +1424,7 @@ export function MenteeProfilePage() {
                       type="button"
                       className="btn-primary"
                       style={{
-                        minWidth: 130,
+                        flex: '1 1 130px',
                         minHeight: 44,
                         background: 'var(--danger)',
                         borderColor: 'var(--danger)',

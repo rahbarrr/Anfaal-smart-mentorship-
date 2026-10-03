@@ -934,12 +934,15 @@ export function CallIntelligencePage() {
             className="form-card"
             style={{
               width: '100%',
-              maxWidth: 480,
+              maxWidth: 'min(calc(100vw - 24px), 480px)',
+              maxHeight: 'calc(100dvh - 32px)',
+              overflowY: 'auto',
               position: 'relative',
               borderRadius: 24,
-              padding: '28px 24px',
+              padding: '24px 20px',
               textAlign: 'center',
               boxShadow: '0 28px 70px rgba(0,0,0,0.3)',
+              boxSizing: 'border-box',
             }}
           >
             {!isAdminDeleting && (
@@ -964,7 +967,7 @@ export function CallIntelligencePage() {
               <Trash2 size={28} />
             </div>
 
-            <h3 style={{ fontWeight: 800, fontSize: '1.35rem', marginBottom: 10, letterSpacing: '-0.03em' }}>
+            <h3 style={{ fontWeight: 800, fontSize: 'clamp(1.15rem, 3.5vw, 1.35rem)', marginBottom: 10, letterSpacing: '-0.03em' }}>
               {adminDeleteTarget === 'ENTIRE_CALL'
                 ? 'Delete Entire Call?'
                 : adminDeleteTarget === 'RECORDING'
@@ -984,13 +987,13 @@ export function CallIntelligencePage() {
                 : 'The AI intelligence analysis, topics discussed, and action items will be cleared.'}
             </p>
 
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
                 type="button"
                 className="btn-secondary"
                 onClick={() => setAdminDeleteTarget(null)}
                 disabled={isAdminDeleting}
-                style={{ minWidth: 100, minHeight: 44 }}
+                style={{ flex: '1 1 110px', minHeight: 44, justifyContent: 'center' }}
               >
                 Cancel
               </button>
@@ -1000,7 +1003,7 @@ export function CallIntelligencePage() {
                 style={{
                   background: 'var(--danger)',
                   borderColor: 'var(--danger)',
-                  minWidth: 140,
+                  flex: '1 1 140px',
                   minHeight: 44,
                   display: 'inline-flex',
                   alignItems: 'center',

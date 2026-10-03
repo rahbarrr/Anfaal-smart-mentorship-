@@ -198,10 +198,10 @@ export function DailyPerformanceFormPage() {
 
       {/* Page Title & Subtitle */}
       <div className="form-hero-block" style={{ marginBottom: 24, textAlign: 'center' }}>
-        <h1 style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.04em', margin: 0 }}>
+        <h1 style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.04em', margin: 0 }}>
           How was your day?
         </h1>
-        <p className="muted" style={{ fontSize: '1.05rem', marginTop: 8, maxWidth: 520, margin: '8px auto 0' }}>
+        <p className="muted" style={{ fontSize: 'clamp(0.88rem, 2.5vw, 1.05rem)', marginTop: 8, maxWidth: 520, margin: '8px auto 0' }}>
           Take a minute to record your learning and personal progress today.
         </p>
       </div>
@@ -715,26 +715,39 @@ export function DailyPerformanceFormPage() {
               position: 'sticky',
               bottom: 16,
               background: '#fff',
-              padding: '16px 20px',
+              padding: '14px 18px',
               borderRadius: 20,
               boxShadow: '0 8px 30px rgba(95, 70, 81, 0.15)',
               border: '1px solid var(--border)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: 16,
+              flexWrap: 'wrap',
+              gap: 12,
               zIndex: 10,
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           >
-            <div>
+            <div style={{ minWidth: 0, flex: '1 1 180px' }}>
               <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Ready to record?</div>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{formatMinutes(studyMinutes)} study • {dayRating}/5 mood</div>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem', overflowWrap: 'break-word' }}>
+                {formatMinutes(studyMinutes)} study • {dayRating}/5 mood
+              </div>
             </div>
             <button
               type="submit"
               className="btn-primary"
               disabled={isSubmitting}
-              style={{ height: 48, padding: '0 28px', fontSize: '1rem', borderRadius: 14 }}
+              style={{
+                height: 48,
+                padding: '0 24px',
+                fontSize: '0.98rem',
+                borderRadius: 14,
+                flex: '1 1 200px',
+                justifyContent: 'center',
+                textAlign: 'center',
+              }}
             >
               {isSubmitting ? 'Saving...' : isEditing ? "Update Today's Progress" : "Submit Today's Progress"}
             </button>
