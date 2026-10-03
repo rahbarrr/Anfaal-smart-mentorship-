@@ -7,6 +7,7 @@ import { Mentee } from '../models/Mentee.js';
 import { Mentor } from '../models/Mentor.js';
 import { Mentorship } from '../models/Mentorship.js';
 import { createDailyPerformanceAiService } from '../services/dailyPerformanceAiService.js';
+import { logAuditEvent } from '../services/auditService.js';
 
 const router = Router();
 
@@ -805,6 +806,71 @@ router.get(['/admin/analytics', '/admin/performance/analytics'], requireAuth, re
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch admin performance analytics';
+    return res.status(500).json({ message });
+  }
+});
+
+// ── 11. DELETE /api/daily-performance/:id ─────────────────────────────────────
+router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const record = await DailyPerformance.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: 'Daily performance record not found.' });
+    }
+
+    await DailyPerformance.findByIdAndDelete(req.params.id);
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'DAILY_PERFORMANCE',
+      targetId: String(record._id),
+      details: `Administrator deleted daily performance response for date ${record.date}`,
+      ipAddress: req.ip,
+    });
+
+    return res.json({ message: 'Daily performance response deleted successfully.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to delete daily performance entry';
+    return res.status(500).json({ message });
+  }
+});
+
+// ── 12. POST /api/daily-performance/bulk-delete ────────────────────────────────
+const bulkDeleteDailySchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'Please select at least one record to delete.').max(200),
+});
+
+router.post('/bulk-delete', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const parsed = bulkDeleteDailySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Invalid request body.' });
+    }
+
+    const ids = parsed.data.ids;
+    const result = await DailyPerformance.deleteMany({ _id: { $in: ids } });
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'DAILY_PERFORMANCE',
+      targetId: 'BULK',
+      details: `Administrator bulk deleted ${result.deletedCount} daily performance entries.`,
+      ipAddress: req.ip,
+    });
+
+    return res.json({
+      message: `${result.deletedCount} ${result.deletedCount === 1 ? 'daily performance entry' : 'daily performance entries'} deleted successfully.`,
+      deletedCount: result.deletedCount,
+      deletedIds: ids,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to bulk delete daily performance entries';
     return res.status(500).json({ message });
   }
 });

@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getMenteeProfile, getMenteePerformance, getMenteePerformanceAnalytics, getMenteeAiInsights } from '../lib/api';
-import { ArrowLeft, PhoneCall, BookOpen, Calendar, CheckSquare, AlertCircle, MessageSquare, Sparkles, TrendingUp, HelpCircle, BarChart3, Clock, BookMarked, Star, CircleDot } from 'lucide-react';
+import { getMenteeProfile, getMenteePerformance, getMenteePerformanceAnalytics, getMenteeAiInsights, deleteDailyPerformance, bulkDeleteDailyPerformance } from '../lib/api';
+import { ArrowLeft, PhoneCall, BookOpen, Calendar, CheckSquare, AlertCircle, MessageSquare, Sparkles, TrendingUp, HelpCircle, BarChart3, Clock, BookMarked, Star, CircleDot, Trash2, X } from 'lucide-react';
 import type { PerformanceAnalyticsData, AiInsightsResult } from '../types';
 
 type MenteeProfile = {
@@ -75,6 +75,88 @@ export function MenteeProfilePage() {
   const [aiInsights, setAiInsights] = useState<AiInsightsResult | null>(null);
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [analyticsChartTab, setAnalyticsChartTab] = useState<'study7' | 'study30' | 'quran' | 'reading' | 'mood'>('study7');
+
+  // Admin Daily Performance delete & bulk selection states
+  const [selectedPerfIds, setSelectedPerfIds] = useState<Set<string>>(new Set());
+  const [perfDeleteTarget, setPerfDeleteTarget] = useState<any | 'BULK' | null>(null);
+  const [isPerfDeleting, setIsPerfDeleting] = useState(false);
+  const [perfFeedback, setPerfFeedback] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const selectAllPerfRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (selectAllPerfRef.current) {
+      const history = perfData?.history ?? [];
+      const count = selectedPerfIds.size;
+      selectAllPerfRef.current.indeterminate = count > 0 && count < history.length;
+    }
+  }, [selectedPerfIds, perfData]);
+
+  const toggleSelectPerf = (id: string) => {
+    setSelectedPerfIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllPerf = () => {
+    const history = perfData?.history ?? [];
+    if (selectedPerfIds.size === history.length && history.length > 0) {
+      setSelectedPerfIds(new Set());
+    } else {
+      setSelectedPerfIds(new Set(history.map((r: any) => String(r._id || r.id))));
+    }
+  };
+
+  const executeDeletePerformance = async () => {
+    if (!perfDeleteTarget) return;
+    setIsPerfDeleting(true);
+    setPerfFeedback(null);
+    const token = localStorage.getItem('anfaal-token') ?? '';
+
+    try {
+      if (perfDeleteTarget === 'BULK') {
+        const ids = Array.from(selectedPerfIds);
+        const res = await bulkDeleteDailyPerformance(token, ids);
+        setPerfData((prev: any) => {
+          if (!prev) return prev;
+          const newHistory = (prev.history ?? []).filter((r: any) => !selectedPerfIds.has(String(r._id || r.id)));
+          return { ...prev, history: newHistory };
+        });
+        setSelectedPerfIds(new Set());
+        setPerfFeedback({
+          msg: res.message || `${ids.length} daily performance records deleted successfully.`,
+          type: 'success',
+        });
+      } else {
+        const targetId = String(perfDeleteTarget._id || perfDeleteTarget.id);
+        const res = await deleteDailyPerformance(token, targetId);
+        setPerfData((prev: any) => {
+          if (!prev) return prev;
+          const newHistory = (prev.history ?? []).filter((r: any) => String(r._id || r.id) !== targetId);
+          return { ...prev, history: newHistory };
+        });
+        setSelectedPerfIds((prev) => {
+          const next = new Set(prev);
+          next.delete(targetId);
+          return next;
+        });
+        setPerfFeedback({
+          msg: res.message || 'Daily performance entry deleted successfully.',
+          type: 'success',
+        });
+      }
+      setPerfDeleteTarget(null);
+    } catch (err: any) {
+      setPerfFeedback({
+        msg: err.message || 'Failed to delete daily performance entry.',
+        type: 'error',
+      });
+    } finally {
+      setIsPerfDeleting(false);
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('anfaal-token');
@@ -978,65 +1060,386 @@ export function MenteeProfilePage() {
             )}
           </div>
 
-          {/* Section 10: Performance History Table */}
+          {/* Section 10: Performance History Table & Mobile Cards */}
           <div style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
             <div className="eyebrow" style={{ marginBottom: 4 }}>Records</div>
-            <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: 14 }}>Performance History</h3>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Study</th>
-                    <th>Ruku</th>
-                    <th>Ayat</th>
-                    <th>Pages</th>
-                    <th>Reading</th>
-                    <th>Day</th>
-                    <th>Reflection / Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(perfData?.history ?? []).length === 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, margin: 0 }}>Performance History</h3>
+              {isAdmin && (perfData?.history ?? []).length > 0 && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  {perfData.history.length} {perfData.history.length === 1 ? 'record' : 'records'} logged
+                </div>
+              )}
+            </div>
+
+            {/* Performance Feedback Banner */}
+            {perfFeedback && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: 12,
+                  marginBottom: 16,
+                  fontSize: '0.88rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: perfFeedback.type === 'success' ? 'rgba(46,125,50,0.1)' : 'rgba(199,92,92,0.1)',
+                  border: `1px solid ${perfFeedback.type === 'success' ? 'rgba(46,125,50,0.3)' : 'rgba(199,92,92,0.3)'}`,
+                  color: perfFeedback.type === 'success' ? '#2e7d32' : 'var(--danger)',
+                }}
+              >
+                <span>{perfFeedback.msg}</span>
+                <button
+                  type="button"
+                  onClick={() => setPerfFeedback(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: 'inherit' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+
+            {/* Bulk Selection Toolbar */}
+            {isAdmin && selectedPerfIds.size > 0 && (
+              <div className="bulk-toolbar" style={{ border: '1.5px solid rgba(143,63,102,0.3)', background: 'linear-gradient(135deg, rgba(143,63,102,0.08), rgba(143,63,102,0.02))' }}>
+                <span className="bulk-toolbar-label">
+                  <strong>{selectedPerfIds.size}</strong> daily {selectedPerfIds.size === 1 ? 'record' : 'records'} selected
+                </span>
+                <div className="bulk-toolbar-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ fontSize: '0.82rem', padding: '6px 12px', minHeight: 38 }}
+                    onClick={() => setSelectedPerfIds(new Set())}
+                  >
+                    Deselect All
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    style={{
+                      fontSize: '0.82rem',
+                      padding: '6px 14px',
+                      background: 'var(--danger)',
+                      borderColor: 'var(--danger)',
+                      color: '#fff',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      minHeight: 38,
+                    }}
+                    onClick={() => setPerfDeleteTarget('BULK')}
+                  >
+                    <Trash2 size={14} /> Delete Selected ({selectedPerfIds.size})
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Desktop Table View */}
+            <div className="desktop-table">
+              <div className="table-wrap">
+                <table>
+                  <thead>
                     <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', padding: 30, color: 'var(--text-secondary)' }}>
-                        No daily performance records submitted yet.
-                      </td>
+                      {isAdmin && (
+                        <th style={{ width: 48, padding: '8px 12px', textAlign: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44 }}>
+                            <input
+                              ref={selectAllPerfRef}
+                              type="checkbox"
+                              style={{ width: 18, height: 18, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                              checked={(perfData?.history ?? []).length > 0 && selectedPerfIds.size === (perfData?.history ?? []).length}
+                              onChange={toggleSelectAllPerf}
+                              title="Select all records"
+                            />
+                          </div>
+                        </th>
+                      )}
+                      <th>Date</th>
+                      <th>Study</th>
+                      <th>Ruku</th>
+                      <th>Ayat</th>
+                      <th>Pages</th>
+                      <th>Reading</th>
+                      <th>Day</th>
+                      <th>Reflection / Notes</th>
+                      {isAdmin && <th style={{ textAlign: 'right', width: 90 }}>Action</th>}
                     </tr>
-                  ) : (
-                    (perfData?.history ?? []).map((r: any) => (
-                      <tr key={r._id || r.id || r.date}>
-                        <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                          {new Date(r.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
-                        </td>
-                        <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
-                          {formatDuration(r.studyMinutes)}
-                        </td>
-                        <td>{r.quran?.ruku ?? 0}</td>
-                        <td>{r.quran?.ayat ?? 0}</td>
-                        <td>{r.quran?.pages ?? 0}</td>
-                        <td>{formatDuration(r.readingMinutes)}</td>
-                        <td style={{ fontSize: '1.3rem' }}>
-                          {MOOD_MAP[r.dayRating]?.emoji ?? '—'}
-                        </td>
-                        <td style={{ fontSize: '0.85rem', maxWidth: 240, overflowWrap: 'break-word', wordBreak: 'normal' }}>
-                          {r.dailyReflection ? (
-                            <span>{r.dailyReflection}</span>
-                          ) : (
-                            <span className="muted">—</span>
-                          )}
-                          {r.facedDifficulty && (
-                            <div style={{ color: '#e65100', fontSize: '0.78rem', marginTop: 2 }}>
-                              ⚠️ {r.difficultyNote || 'Difficulty reported'}
-                            </div>
-                          )}
+                  </thead>
+                  <tbody>
+                    {(perfData?.history ?? []).length === 0 ? (
+                      <tr>
+                        <td colSpan={isAdmin ? 10 : 8} style={{ textAlign: 'center', padding: 30, color: 'var(--text-secondary)' }}>
+                          No daily performance records submitted yet.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      (perfData?.history ?? []).map((r: any) => {
+                        const recId = String(r._id || r.id);
+                        const isSelected = selectedPerfIds.has(recId);
+                        return (
+                          <tr key={recId || r.date} style={{ background: isSelected ? 'rgba(143,63,102,0.04)' : undefined }}>
+                            {isAdmin && (
+                              <td style={{ textAlign: 'center', padding: '6px 12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44 }}>
+                                  <input
+                                    type="checkbox"
+                                    style={{ width: 18, height: 18, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                    checked={isSelected}
+                                    onChange={() => toggleSelectPerf(recId)}
+                                    title="Select record"
+                                  />
+                                </div>
+                              </td>
+                            )}
+                            <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                              {new Date(r.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                            </td>
+                            <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                              {formatDuration(r.studyMinutes)}
+                            </td>
+                            <td>{r.quran?.ruku ?? 0}</td>
+                            <td>{r.quran?.ayat ?? 0}</td>
+                            <td>{r.quran?.pages ?? 0}</td>
+                            <td>{formatDuration(r.readingMinutes)}</td>
+                            <td style={{ fontSize: '1.3rem' }}>
+                              {MOOD_MAP[r.dayRating]?.emoji ?? '—'}
+                            </td>
+                            <td style={{ fontSize: '0.85rem', maxWidth: 240, overflowWrap: 'break-word', wordBreak: 'normal' }}>
+                              {r.dailyReflection ? (
+                                <span>{r.dailyReflection}</span>
+                              ) : (
+                                <span className="muted">—</span>
+                              )}
+                              {r.facedDifficulty && (
+                                <div style={{ color: '#e65100', fontSize: '0.78rem', marginTop: 2 }}>
+                                  ⚠️ {r.difficultyNote || 'Difficulty reported'}
+                                </div>
+                              )}
+                            </td>
+                            {isAdmin && (
+                              <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                <button
+                                  type="button"
+                                  className="btn-outline"
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    padding: '5px 10px',
+                                    color: 'var(--danger)',
+                                    borderColor: 'rgba(199,92,92,0.3)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    minHeight: 36,
+                                  }}
+                                  onClick={() => setPerfDeleteTarget(r)}
+                                  title="Delete daily entry"
+                                >
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
+
+            {/* Mobile Card List View (<640px) */}
+            <div className="mobile-card-list">
+              {(perfData?.history ?? []).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 16px', color: 'var(--text-secondary)' }}>
+                  No daily performance records submitted yet.
+                </div>
+              ) : (
+                (perfData?.history ?? []).map((r: any) => {
+                  const recId = String(r._id || r.id);
+                  const isSelected = selectedPerfIds.has(recId);
+                  return (
+                    <div
+                      key={recId || r.date}
+                      className="mobile-card"
+                      style={{
+                        border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
+                        background: isSelected ? 'rgba(143,63,102,0.03)' : 'var(--surface)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {isAdmin && (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44 }}>
+                              <input
+                                type="checkbox"
+                                style={{ width: 22, height: 22, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                checked={isSelected}
+                                onChange={() => toggleSelectPerf(recId)}
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 700 }}>
+                              Daily Performance
+                            </div>
+                            <div style={{ fontSize: '1rem', fontWeight: 800 }}>
+                              {new Date(r.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '1.4rem' }}>
+                          {MOOD_MAP[r.dayRating]?.emoji ?? '—'}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, padding: '10px 12px', background: 'var(--surface-muted)', borderRadius: 10, fontSize: '0.85rem' }}>
+                        <div><strong>Study:</strong> <span style={{ color: 'var(--primary)', fontWeight: 700 }}>{formatDuration(r.studyMinutes)}</span></div>
+                        <div><strong>Reading:</strong> {formatDuration(r.readingMinutes)}</div>
+                        <div><strong>Quran:</strong> {r.quran?.ruku ?? 0} Ruku, {r.quran?.pages ?? 0} pgs</div>
+                        <div><strong>Rating:</strong> {r.dayRating}/5</div>
+                      </div>
+
+                      {r.dailyReflection && (
+                        <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          "{r.dailyReflection}"
+                        </div>
+                      )}
+                      {r.facedDifficulty && (
+                        <div style={{ color: '#e65100', fontSize: '0.8rem', background: 'rgba(230,81,0,0.08)', padding: '6px 10px', borderRadius: 8 }}>
+                          ⚠️ {r.difficultyNote || 'Difficulty reported'}
+                        </div>
+                      )}
+
+                      {isAdmin && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                          <button
+                            type="button"
+                            className="btn-outline"
+                            style={{
+                              fontSize: '0.82rem',
+                              padding: '8px 14px',
+                              color: 'var(--danger)',
+                              borderColor: 'rgba(199,92,92,0.3)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              minHeight: 44,
+                            }}
+                            onClick={() => setPerfDeleteTarget(r)}
+                          >
+                            <Trash2 size={15} /> Delete Entry
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Delete Confirmation Modal */}
+            {perfDeleteTarget && (
+              <div
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  backdropFilter: 'blur(3px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 9999,
+                  padding: 16,
+                }}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget && !isPerfDeleting) setPerfDeleteTarget(null);
+                }}
+              >
+                <div
+                  className="summary-card"
+                  style={{
+                    maxWidth: 440,
+                    width: '100%',
+                    padding: '24px 24px',
+                    borderRadius: 18,
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.2)',
+                    textAlign: 'center',
+                    background: 'var(--surface)',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 52,
+                      height: 52,
+                      borderRadius: '50%',
+                      background: 'rgba(199,92,92,0.12)',
+                      color: 'var(--danger)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      margin: '0 auto 16px',
+                    }}
+                  >
+                    <Trash2 size={26} />
+                  </div>
+
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: 8, color: 'var(--text)' }}>
+                    {perfDeleteTarget === 'BULK'
+                      ? `Delete ${selectedPerfIds.size} daily performance ${selectedPerfIds.size === 1 ? 'entry' : 'entries'}?`
+                      : 'Delete this daily performance entry?'}
+                  </h3>
+
+                  <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 20 }}>
+                    {perfDeleteTarget === 'BULK' ? (
+                      <>
+                        This will permanently remove <strong>{selectedPerfIds.size}</strong> selected daily performance responses for{' '}
+                        <strong>{mentee?.name}</strong>. This action cannot be undone.
+                      </>
+                    ) : (
+                      <>
+                        Date: <strong>{new Date(perfDeleteTarget.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>
+                        <br />
+                        Study: {formatDuration(perfDeleteTarget.studyMinutes)} • Rating: {perfDeleteTarget.dayRating}/5
+                        <br />
+                        This will permanently remove this response. This action cannot be undone.
+                      </>
+                    )}
+                  </p>
+
+                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ minWidth: 100, minHeight: 44 }}
+                      disabled={isPerfDeleting}
+                      onClick={() => setPerfDeleteTarget(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      style={{
+                        minWidth: 130,
+                        minHeight: 44,
+                        background: 'var(--danger)',
+                        borderColor: 'var(--danger)',
+                        color: '#fff',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                      }}
+                      disabled={isPerfDeleting}
+                      onClick={executeDeletePerformance}
+                    >
+                      {isPerfDeleting ? 'Deleting…' : perfDeleteTarget === 'BULK' ? `Delete ${selectedPerfIds.size} Records` : 'Delete Entry'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

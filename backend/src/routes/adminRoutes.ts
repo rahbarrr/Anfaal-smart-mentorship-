@@ -3,6 +3,8 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { requireAuth, requireRole, AuthRequest } from '../middleware/auth.js';
 import { Call } from '../models/Call.js';
+import { CallProcessingJob } from '../models/CallProcessingJob.js';
+import { DailyPerformance } from '../models/DailyPerformance.js';
 import { Mentorship } from '../models/Mentorship.js';
 import { Mentee } from '../models/Mentee.js';
 import { Mentor } from '../models/Mentor.js';
@@ -11,6 +13,7 @@ import { getDashboardSummary } from '../services/dashboardService.js';
 import { createStorageProvider } from '../services/storageService.js';
 import { summarizeAssignments } from '../services/mentorshipService.js';
 import { logAuditEvent } from '../services/auditService.js';
+import { removeCallProcessingJob } from '../queue/callQueue.js';
 
 const createAssignmentSchema = z.object({
   mentorId: z.string().min(1),
@@ -458,6 +461,392 @@ router.get('/audit-logs', requireAuth, requireRole('ADMIN'), async (req: AuthReq
     return res.json({ logs });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch audit logs';
+    return res.status(500).json({ message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Helper: Clean up storage & queue resources for a call
+// ──────────────────────────────────────────────────────────────────────────
+async function cleanupCallResources(call: any): Promise<{ storageDeleted: boolean; storageError?: string }> {
+  let storageDeleted = true;
+  let storageError: string | undefined;
+
+  const storageKey = call.recording?.storageKey || call.recording?.fileName || (call.recordingUrl ? call.recordingUrl.split('/').pop() : undefined);
+  if (storageKey) {
+    try {
+      const storageProvider = createStorageProvider();
+      await storageProvider.deleteFile(storageKey);
+    } catch (err) {
+      storageDeleted = false;
+      storageError = err instanceof Error ? err.message : String(err);
+      console.warn(`[AdminRoutes] Failed to delete storage for key "${storageKey}":`, storageError);
+    }
+  }
+
+  // Cancel/remove any queued or processing BullMQ jobs
+  try {
+    const jobs = await CallProcessingJob.find({ callId: String(call._id) }).select('_id').lean();
+    for (const job of jobs) {
+      await removeCallProcessingJob(String(job._id)).catch(() => {});
+    }
+    await removeCallProcessingJob(String(call._id)).catch(() => {});
+  } catch (queueErr) {
+    console.warn(`[AdminRoutes] Queue cleanup warning for call "${call._id}":`, queueErr);
+  }
+
+  // Remove processing job records
+  await CallProcessingJob.deleteMany({ callId: String(call._id) }).catch(() => {});
+
+  return { storageDeleted, storageError };
+}
+
+const bulkDeleteSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'Please select at least one record to delete.').max(200),
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// DELETE /api/admin/calls/:id — Delete entire call & all associated data
+// ──────────────────────────────────────────────────────────────────────────
+router.delete('/calls/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const call = await Call.findById(req.params.id);
+    if (!call) return res.status(404).json({ message: 'Call record not found.' });
+
+    const { storageDeleted, storageError } = await cleanupCallResources(call);
+    await Call.findByIdAndDelete(req.params.id);
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'CALL_DELETED',
+      targetType: 'CALL',
+      targetId: String(call._id),
+      details: `Administrator deleted complete call record (storage ${storageDeleted ? 'cleaned' : 'warning: ' + storageError})`,
+      ipAddress: req.ip,
+    });
+
+    return res.json({
+      message: storageDeleted
+        ? 'Call record and all associated resources deleted successfully.'
+        : `Call deleted from database, but audio cleanup failed: ${storageError}`,
+      storageDeleted,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to delete call';
+    return res.status(500).json({ message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// DELETE /api/admin/calls/:id/recording — Delete call recording only
+// ──────────────────────────────────────────────────────────────────────────
+router.delete('/calls/:id/recording', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const call = await Call.findById(req.params.id);
+    if (!call) return res.status(404).json({ message: 'Call not found.' });
+    if (!call.recording && !call.recordingUrl) {
+      return res.status(400).json({ message: 'No recording file is attached to this call.' });
+    }
+
+    const storageKey = call.recording?.storageKey || call.recording?.fileName || (call.recordingUrl ? call.recordingUrl.split('/').pop() : undefined);
+    let storageDeleted = true;
+    let storageError: string | undefined;
+
+    if (storageKey) {
+      try {
+        const storageProvider = createStorageProvider();
+        await storageProvider.deleteFile(storageKey);
+      } catch (err) {
+        storageDeleted = false;
+        storageError = err instanceof Error ? err.message : String(err);
+      }
+    }
+
+    await Call.findByIdAndUpdate(req.params.id, {
+      $unset: { recording: 1, recordingUrl: 1 },
+      $set: { recordingStatus: 'failed' },
+    });
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'CALL',
+      targetId: String(call._id),
+      details: 'Administrator deleted audio recording from call.',
+      ipAddress: req.ip,
+    });
+
+    return res.json({
+      message: storageDeleted
+        ? 'Call recording file deleted successfully.'
+        : `Recording removed from call, but storage file cleanup reported: ${storageError}`,
+      storageDeleted,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to delete recording';
+    return res.status(500).json({ message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// DELETE /api/admin/calls/:id/summary — Delete call summary only
+// ──────────────────────────────────────────────────────────────────────────
+router.delete('/calls/:id/summary', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const call = await Call.findById(req.params.id);
+    if (!call) return res.status(404).json({ message: 'Call not found.' });
+
+    await Call.findByIdAndUpdate(req.params.id, {
+      $unset: { summary: 1, summaryVersions: 1 },
+      $set: { 'aiSummary.shortSummary': '' },
+    });
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'CALL',
+      targetId: String(call._id),
+      details: 'Administrator deleted summary from call.',
+      ipAddress: req.ip,
+    });
+
+    return res.json({ message: 'Call summary deleted successfully.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to delete summary';
+    return res.status(500).json({ message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// DELETE /api/admin/calls/:id/intelligence — Delete call intelligence only
+// ──────────────────────────────────────────────────────────────────────────
+router.delete('/calls/:id/intelligence', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const call = await Call.findById(req.params.id);
+    if (!call) return res.status(404).json({ message: 'Call not found.' });
+
+    await Call.findByIdAndUpdate(req.params.id, {
+      $unset: { aiSummary: 1 },
+      $set: {
+        keyDiscussionPoints: [],
+        studentConcerns: [],
+        actionItems: [],
+        followUpRecommendations: [],
+        topicsDiscussed: [],
+        aiStatus: 'pending',
+      },
+    });
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'CALL',
+      targetId: String(call._id),
+      details: 'Administrator deleted AI intelligence analysis from call.',
+      ipAddress: req.ip,
+    });
+
+    return res.json({ message: 'Call intelligence deleted successfully.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to delete intelligence';
+    return res.status(500).json({ message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/admin/calls/bulk-delete — Bulk delete calls
+// ──────────────────────────────────────────────────────────────────────────
+router.post('/calls/bulk-delete', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const parsed = bulkDeleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Invalid request body.' });
+    }
+
+    const ids = parsed.data.ids;
+    const calls = await Call.find({ _id: { $in: ids } });
+
+    const deletedIds: string[] = [];
+    const failedIds: string[] = [];
+    const errors: string[] = [];
+
+    for (const call of calls) {
+      try {
+        await cleanupCallResources(call);
+        await Call.findByIdAndDelete(call._id);
+        deletedIds.push(String(call._id));
+      } catch (err) {
+        failedIds.push(String(call._id));
+        errors.push(err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    // Any IDs requested that didn't exist in DB
+    const foundIds = new Set(calls.map((c) => String(c._id)));
+    for (const id of ids) {
+      if (!foundIds.has(id) && !failedIds.includes(id)) {
+        failedIds.push(id);
+      }
+    }
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'CALL_DELETED',
+      targetType: 'CALL',
+      targetId: 'BULK',
+      details: `Administrator bulk deleted ${deletedIds.length} calls (${failedIds.length} failed).`,
+      ipAddress: req.ip,
+    });
+
+    return res.json({
+      message: `${deletedIds.length} ${deletedIds.length === 1 ? 'call' : 'calls'} deleted successfully.${failedIds.length > 0 ? ` (${failedIds.length} could not be deleted)` : ''}`,
+      deletedCount: deletedIds.length,
+      deletedIds,
+      failedIds,
+      errors: errors.length > 0 ? errors : undefined,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to bulk delete calls';
+    return res.status(500).json({ message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// GET /api/admin/daily-performance — List all mentee daily performance entries
+// ──────────────────────────────────────────────────────────────────────────
+router.get('/daily-performance', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { menteeId, from, to, search, limit = '100', skip = '0' } = req.query;
+    const filter: Record<string, unknown> = {};
+
+    if (menteeId) filter.menteeId = String(menteeId);
+    if (from || to) {
+      filter.date = {};
+      if (from) (filter.date as Record<string, string>).$gte = String(from);
+      if (to) (filter.date as Record<string, string>).$lte = String(to);
+    }
+
+    if (search) {
+      const searchRegex = new RegExp(String(search), 'i');
+      const matchingMentees = await Mentee.find({
+        $or: [{ name: searchRegex }, { makid: searchRegex }],
+      }).select('_id').lean();
+      const matchingMenteeIds = matchingMentees.map((m) => String(m._id));
+      if (!menteeId) {
+        filter.$or = [
+          { menteeId: { $in: matchingMenteeIds } },
+          { dailyReflection: searchRegex },
+          { difficultyNote: searchRegex },
+          { mentorHelpNote: searchRegex },
+        ];
+      }
+    }
+
+    const [records, totalCount] = await Promise.all([
+      DailyPerformance.find(filter)
+        .sort({ date: -1, createdAt: -1 })
+        .skip(Number(skip))
+        .limit(Number(limit))
+        .lean(),
+      DailyPerformance.countDocuments(filter),
+    ]);
+
+    // Enrich with mentee details
+    const uniqueMenteeIds = [...new Set(records.map((r) => r.menteeId))];
+    const mentees = await Mentee.find({ _id: { $in: uniqueMenteeIds } })
+      .select('_id name makid standard')
+      .lean();
+    const menteeMap = new Map(mentees.map((m) => [String(m._id), m]));
+
+    const enriched = records.map((r) => {
+      const menteeInfo = menteeMap.get(r.menteeId);
+      return {
+        ...r,
+        id: String(r._id),
+        menteeName: menteeInfo?.name || 'Unknown Mentee',
+        menteeMakid: menteeInfo?.makid || '',
+        menteeStandard: menteeInfo?.standard || '',
+      };
+    });
+
+    return res.json({ records: enriched, totalCount });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to fetch daily performance records';
+    return res.status(500).json({ message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// DELETE /api/admin/daily-performance/:id — Delete single daily performance record
+// ──────────────────────────────────────────────────────────────────────────
+router.delete('/daily-performance/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const record = await DailyPerformance.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: 'Daily performance record not found.' });
+    }
+
+    await DailyPerformance.findByIdAndDelete(req.params.id);
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'DAILY_PERFORMANCE',
+      targetId: String(record._id),
+      details: `Administrator deleted daily performance response for date ${record.date}`,
+      ipAddress: req.ip,
+    });
+
+    return res.json({ message: 'Daily performance response deleted successfully.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to delete daily performance entry';
+    return res.status(500).json({ message });
+  }
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// POST /api/admin/daily-performance/bulk-delete — Bulk delete daily performance records
+// ──────────────────────────────────────────────────────────────────────────
+router.post('/daily-performance/bulk-delete', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const parsed = bulkDeleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Invalid request body.' });
+    }
+
+    const ids = parsed.data.ids;
+    const result = await DailyPerformance.deleteMany({ _id: { $in: ids } });
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'DAILY_PERFORMANCE',
+      targetId: 'BULK',
+      details: `Administrator bulk deleted ${result.deletedCount} daily performance entries.`,
+      ipAddress: req.ip,
+    });
+
+    return res.json({
+      message: `${result.deletedCount} ${result.deletedCount === 1 ? 'daily performance entry' : 'daily performance entries'} deleted successfully.`,
+      deletedCount: result.deletedCount,
+      deletedIds: ids,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to bulk delete daily performance entries';
     return res.status(500).json({ message });
   }
 });

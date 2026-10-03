@@ -285,14 +285,66 @@ export async function getCallAudioUrl(token: string, callId: string): Promise<{ 
   return response.json();
 }
 
-export async function deleteCall(token: string, callId: string): Promise<{ message: string }> {
-  const response = await fetch(`${API_BASE_URL}/calls/${callId}`, {
+export async function deleteCall(token: string, callId: string): Promise<{ message: string; storageDeleted?: boolean }> {
+  const response = await fetch(`${API_BASE_URL}/admin/calls/${callId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to delete call record.');
+  }
+  return response.json();
+}
+
+export async function deleteCallRecording(token: string, callId: string): Promise<{ message: string; storageDeleted?: boolean }> {
+  const response = await fetch(`${API_BASE_URL}/admin/calls/${callId}/recording`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({}));
     throw new Error(errorPayload.message ?? 'Unable to delete call recording.');
+  }
+  return response.json();
+}
+
+export async function deleteCallSummary(token: string, callId: string): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE_URL}/admin/calls/${callId}/summary`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to delete call summary.');
+  }
+  return response.json();
+}
+
+export async function deleteCallIntelligence(token: string, callId: string): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE_URL}/admin/calls/${callId}/intelligence`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to delete call intelligence.');
+  }
+  return response.json();
+}
+
+export async function bulkDeleteCalls(token: string, ids: string[]): Promise<{ message: string; deletedCount: number; deletedIds: string[]; failedIds?: string[] }> {
+  const response = await fetch(`${API_BASE_URL}/admin/calls/bulk-delete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ ids }),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to bulk delete calls.');
   }
   return response.json();
 }
@@ -727,6 +779,63 @@ export async function updateDailyPerformance(id: string, payload: any) {
   if (!response.ok) {
     const errorPayload = await response.json().catch(() => ({}));
     throw new Error(errorPayload.message ?? 'Unable to update performance');
+  }
+  return response.json();
+}
+
+export async function getAdminDailyPerformance(params?: {
+  menteeId?: string;
+  mentorId?: string;
+  from?: string;
+  to?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  skip?: number;
+}) {
+  const token = getToken();
+  const searchParams = new URLSearchParams();
+  if (params?.menteeId) searchParams.set('menteeId', params.menteeId);
+  if (params?.mentorId) searchParams.set('mentorId', params.mentorId);
+  if (params?.from) searchParams.set('from', params.from);
+  if (params?.to) searchParams.set('to', params.to);
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.page) searchParams.set('page', String(params.page));
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.skip) searchParams.set('skip', String(params.skip));
+
+  const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
+  const response = await fetch(`${API_BASE_URL}/admin/daily-performance${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error('Unable to load daily performance records.');
+  return response.json();
+}
+
+export async function deleteDailyPerformance(token: string, id: string): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE_URL}/admin/daily-performance/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to delete daily performance entry.');
+  }
+  return response.json();
+}
+
+export async function bulkDeleteDailyPerformance(token: string, ids: string[]): Promise<{ message: string; deletedCount: number; deletedIds: string[] }> {
+  const response = await fetch(`${API_BASE_URL}/admin/daily-performance/bulk-delete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ ids }),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to bulk delete daily performance entries.');
   }
   return response.json();
 }

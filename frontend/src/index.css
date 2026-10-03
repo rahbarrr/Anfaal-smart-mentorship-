@@ -3087,6 +3087,7 @@ tr:last-child td { border-bottom: none; }
 @media (max-width: 639px) {
   /* Show cards, hide table */
   .desktop-table { display: none !important; }
+  .mobile-select-all-row { display: flex !important; }
   .mobile-card-list {
     display: flex;
     flex-direction: column;
@@ -3129,6 +3130,7 @@ tr:last-child td { border-bottom: none; }
 ═══════════════════════════════════════════════════════════════════════════ */
 @media (min-width: 640px) {
   .desktop-table { display: block !important; }
+  .mobile-select-all-row { display: none !important; }
   .mobile-card-list { display: none !important; }
   .search-full { max-width: 400px; }
 }
