@@ -196,30 +196,41 @@ export function MenteeProfilePage() {
           <div style={{ marginTop: 12, fontWeight: 700, fontSize: '1.05rem', wordBreak: 'break-word' }}>{mentee.guardian || '—'}</div>
           <div className="change">{mentee.phone || ''}</div>
         </div>
-        <div className="dashboard-card">
+        <div className="dashboard-card approved-calls-card">
           <div className="label">Approved Calls</div>
-          <div className="value">{calls.filter((c) => c.reviewStatus === 'Approved').length}</div>
-          <div className="change">of {calls.length} sessions</div>
+          <div className="value" style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 6 }}>
+            <span>{calls.filter((c) => c.reviewStatus === 'Approved').length} / {calls.length}</span>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>sessions</span>
+          </div>
+          <div className="call-progress-track">
+            <div
+              className="call-progress-bar"
+              style={{
+                width: `${calls.length > 0 ? Math.round((calls.filter((c) => c.reviewStatus === 'Approved').length / calls.length) * 100) : 0}%`,
+              }}
+            />
+          </div>
+          <div className="change" style={{ marginTop: 6, fontSize: '0.78rem' }}>
+            {calls.length > 0 ? Math.round((calls.filter((c) => c.reviewStatus === 'Approved').length / calls.length) * 100) : 0}% completed
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="profile-tabs" style={{ display: 'flex', gap: 6, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 0, overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              background: 'none', border: 'none', padding: '10px 16px', cursor: 'pointer', fontWeight: 700,
-              fontSize: '0.88rem', borderBottom: activeTab === tab.id ? '2px solid var(--primary)' : '2px solid transparent',
-              color: activeTab === tab.id ? 'var(--primary)' : 'var(--text-secondary)',
-              transition: 'color 0.15s',
-              flexShrink: 0,
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="profile-tabs-wrapper">
+        <div className="profile-tabs" role="tablist">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`profile-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Overview tab */}
@@ -276,41 +287,155 @@ export function MenteeProfilePage() {
 
       {/* Calls tab */}
       {activeTab === 'calls' && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Duration</th>
-                <th>Status</th>
-                <th>Topics</th>
-                <th>Summary</th>
-                <th>Intelligence</th>
-              </tr>
-            </thead>
-            <tbody>
-              {calls.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No calls recorded yet.</td></tr>
-              ) : calls.map((call) => (
-                <tr key={call.id}>
-                  <td style={{ fontWeight: 600 }}>{new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                  <td>{call.duration} min</td>
-                  <td><StatusBadge status={call.reviewStatus} /></td>
-                  <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{call.topicsDiscussed?.slice(0, 2).join(', ') || '—'}</td>
-                  <td style={{ fontSize: '0.85rem', maxWidth: 240 }}>{call.summary ? call.summary.slice(0, 70) + (call.summary.length > 70 ? '…' : '') : '—'}</td>
-                  <td>
+        <div className="call-history-section-wrap">
+          <div className="call-history-header-bar">
+            <div>
+              <div className="eyebrow" style={{ marginBottom: 2 }}>Call History</div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '2px 0 0', color: 'var(--text-primary)' }}>
+                {calls.length} {calls.length === 1 ? 'Recorded Session' : 'Recorded Sessions'}
+              </h3>
+            </div>
+            <span className="muted" style={{ fontSize: '0.84rem' }}>
+              {calls.filter((c) => c.reviewStatus === 'Approved').length} approved of {calls.length} total
+            </span>
+          </div>
+
+          {calls.length === 0 ? (
+            <div className="call-history-empty-card">
+              <PhoneCall size={32} style={{ color: 'var(--text-secondary)', margin: '0 auto 8px', opacity: 0.6 }} />
+              <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>No calls recorded yet</div>
+              <p className="muted" style={{ fontSize: '0.85rem', margin: '4px 0 16px' }}>
+                Sessions uploaded for this mentee will appear here with automated summaries, topics, and AI intelligence.
+              </p>
+              <button
+                className="btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={() => navigate(isAdmin ? '/admin/calls' : '/mentor/upload')}
+              >
+                {isAdmin ? 'View Call Library' : '+ Upload Call'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Desktop Table (> 640px) */}
+              <div className="call-history-desktop-wrap">
+                <table className="call-history-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '16%' }}>Call / Date</th>
+                      <th style={{ width: '10%' }}>Duration</th>
+                      <th style={{ width: '14%' }}>Status</th>
+                      <th style={{ width: '22%' }}>Topics</th>
+                      <th style={{ width: '26%' }}>Summary</th>
+                      <th style={{ width: '12%', textAlign: 'right' }}>Intelligence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {calls.map((call, idx) => (
+                      <tr key={call.id}>
+                        <td>
+                          <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
+                            Call #{String(calls.length - idx).padStart(2, '0')}
+                          </div>
+                          <div className="muted" style={{ fontSize: '0.78rem' }}>
+                            {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </div>
+                        </td>
+                        <td style={{ fontSize: '0.85rem' }}>{call.duration} min</td>
+                        <td><StatusBadge status={call.reviewStatus} /></td>
+                        <td>
+                          {call.topicsDiscussed && call.topicsDiscussed.length > 0 ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {call.topicsDiscussed.map((topic, i) => (
+                                <span key={i} className="call-topic-chip">{topic}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="muted" style={{ fontSize: '0.82rem' }}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ fontSize: '0.85rem', lineHeight: 1.45, color: 'var(--text-primary)' }}>
+                            {call.summary ? (
+                              call.summary.length > 120 ? `${call.summary.slice(0, 120)}…` : call.summary
+                            ) : (
+                              <span className="muted">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button
+                            className="btn-outline btn-sm call-desktop-intel-btn"
+                            onClick={() => navigate(isAdmin ? `/admin/calls/${call.id}` : `/mentor/calls/${call.id}`)}
+                            title="View Call Intelligence"
+                          >
+                            <Sparkles size={13} />
+                            <span>Intelligence</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards (<= 640px) */}
+              <div className="call-history-mobile-cards">
+                {calls.map((call, idx) => (
+                  <div key={call.id} className="call-history-card">
+                    {/* Header: Call number + date + duration + status */}
+                    <div className="call-history-card-header">
+                      <div className="call-history-card-left">
+                        <span className="call-number-badge">
+                          CALL #{String(calls.length - idx).padStart(2, '0')}
+                        </span>
+                        <span className="call-card-date">
+                          {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                      <div className="call-history-card-right">
+                        <span className="call-card-duration">{call.duration} min</span>
+                        <StatusBadge status={call.reviewStatus} />
+                      </div>
+                    </div>
+
+                    <div className="call-history-card-divider" />
+
+                    {/* Topics */}
+                    <div className="call-history-card-field">
+                      <div className="call-history-field-label">TOPICS</div>
+                      {call.topicsDiscussed && call.topicsDiscussed.length > 0 ? (
+                        <div className="call-card-topics-chips">
+                          {call.topicsDiscussed.map((topic, i) => (
+                            <span key={i} className="call-topic-chip">{topic}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="muted" style={{ fontSize: '0.84rem' }}>No specific topics recorded</span>
+                      )}
+                    </div>
+
+                    {/* Summary */}
+                    <div className="call-history-card-field">
+                      <div className="call-history-field-label">SUMMARY</div>
+                      <p className="call-card-summary">
+                        {call.summary || 'No summary recorded for this mentorship call.'}
+                      </p>
+                    </div>
+
+                    {/* Full-width Intelligence Action Button */}
                     <button
-                      className="btn-outline btn-sm"
-                      style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                      className="btn-primary call-history-card-btn"
                       onClick={() => navigate(isAdmin ? `/admin/calls/${call.id}` : `/mentor/calls/${call.id}`)}
                     >
-                      <Sparkles size={12} /> Intelligence
+                      <Sparkles size={16} />
+                      <span>View Intelligence</span>
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
