@@ -31,6 +31,7 @@ import {
   exportBulkData,
 } from '../lib/api';
 import type { ImportType, ImportPreview, ImportProgress, ImportHistoryItem } from '../types';
+import { formatDateTime, formatDateOnly } from '../lib/dateTime';
 
 export function BulkImportPage() {
   const navigate = useNavigate();
@@ -727,7 +728,7 @@ export function BulkImportPage() {
               {/* Preview Table */}
               <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
                 <div style={{ overflowX: 'auto', maxHeight: 420 }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem', textAlign: 'left' }}>
+                  <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', fontSize: '0.86rem', textAlign: 'left' }}>
                     <thead style={{ background: 'var(--surface-muted)', position: 'sticky', top: 0, zIndex: 10 }}>
                       <tr>
                         <th style={{ padding: '10px 14px', width: 60, fontWeight: 700 }}>Row</th>
@@ -1178,33 +1179,39 @@ export function BulkImportPage() {
               <div className="desktop-table">
                 <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
                   <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', textAlign: 'left' }}>
+                    <table style={{ width: '100%', minWidth: 1040, borderCollapse: 'collapse', fontSize: '0.88rem', textAlign: 'left' }}>
                       <thead style={{ background: 'var(--surface-muted)' }}>
                         <tr>
-                          <th style={{ padding: '12px 16px', fontWeight: 700 }}>Date</th>
-                          <th style={{ padding: '12px 16px', fontWeight: 700 }}>Type</th>
-                          <th style={{ padding: '12px 16px', fontWeight: 700 }}>File Name</th>
-                          <th style={{ padding: '12px 16px', fontWeight: 700 }}>Total</th>
-                          <th style={{ padding: '12px 16px', fontWeight: 700 }}>Created</th>
-                          <th style={{ padding: '12px 16px', fontWeight: 700 }}>Updated</th>
-                          <th style={{ padding: '12px 16px', fontWeight: 700 }}>Skipped / Failed</th>
-                          <th style={{ padding: '12px 16px', fontWeight: 700 }}>Imported By</th>
-                          <th style={{ padding: '12px 16px', fontWeight: 700 }}>Actions</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>Date</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>Type</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, minWidth: 180 }}>File Name</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>Total</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>Created</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>Updated</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>Skipped / Failed</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>Imported By</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {historyItems.map((job) => (
                           <tr key={job.id} style={{ borderBottom: '1px solid var(--border)' }}>
                             <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
-                              {new Date(job.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              <div style={{ fontWeight: 600 }}>{formatDateOnly(job.createdAt)}</div>
+                              <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                                {new Date(job.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                              </div>
                             </td>
-                            <td style={{ padding: '12px 16px' }}>
+                            <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                               <span
                                 style={{
+                                  display: 'inline-block',
+                                  whiteSpace: 'nowrap',
                                   padding: '4px 10px',
                                   borderRadius: 14,
                                   fontSize: '0.75rem',
                                   fontWeight: 700,
+                                  letterSpacing: '0.02em',
                                   background:
                                     job.type === 'MENTORS'
                                       ? 'rgba(143,63,102,0.1)'
@@ -1222,17 +1229,17 @@ export function BulkImportPage() {
                                 {job.type}
                               </span>
                             </td>
-                            <td style={{ padding: '12px 16px', fontWeight: 600 }}>{job.fileName}</td>
-                            <td style={{ padding: '12px 16px' }}>{job.totalRows}</td>
-                            <td style={{ padding: '12px 16px', color: 'var(--success)', fontWeight: 600 }}>{job.createdCount}</td>
-                            <td style={{ padding: '12px 16px', color: 'var(--info)', fontWeight: 600 }}>{job.updatedCount}</td>
-                            <td style={{ padding: '12px 16px' }}>
+                            <td style={{ padding: '12px 16px', fontWeight: 600, minWidth: 220, whiteSpace: 'nowrap' }}>{job.fileName}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>{job.totalRows}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--success)', fontWeight: 600, whiteSpace: 'nowrap' }}>{job.createdCount}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--info)', fontWeight: 600, whiteSpace: 'nowrap' }}>{job.updatedCount}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                               <span style={{ color: 'var(--warning)', fontWeight: 600 }}>{job.skippedCount}</span> /{' '}
                               <span style={{ color: 'var(--danger)', fontWeight: 600 }}>{job.failedCount}</span>
                             </td>
-                            <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>{job.uploadedBy}</td>
-                            <td style={{ padding: '12px 16px' }}>
-                              <div style={{ display: 'flex', gap: 8 }}>
+                            <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{job.uploadedBy}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                                 <button
                                   type="button"
                                   className="btn-ghost"
@@ -1271,11 +1278,13 @@ export function BulkImportPage() {
                           {job.fileName}
                         </div>
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-                          {new Date(job.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} · By {job.uploadedBy}
+                          {formatDateTime(job.createdAt)} · By {job.uploadedBy}
                         </div>
                       </div>
                       <span
                         style={{
+                          display: 'inline-block',
+                          whiteSpace: 'nowrap',
                           padding: '4px 10px',
                           borderRadius: 14,
                           fontSize: '0.75rem',
@@ -1402,7 +1411,7 @@ export function BulkImportPage() {
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-secondary)' }}>Date:</span>
-                    <div style={{ fontWeight: 600 }}>{new Date(selectedHistoryJob.createdAt).toLocaleString()}</div>
+                    <div style={{ fontWeight: 600 }}>{formatDateTime(selectedHistoryJob.createdAt)}</div>
                   </div>
                 </div>
 
