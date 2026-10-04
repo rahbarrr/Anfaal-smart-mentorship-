@@ -217,7 +217,7 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
           }
         : undefined,
       recordingStatus: hasRecording ? 'uploaded' : 'pending',
-      ...(hasRecording ? { uploadedAt: new Date() } : {}),
+      uploadedAt: new Date(),
       processingStatus: 'queued',
       reviewStatus: 'Draft',
       aiStatus: 'pending',
@@ -388,7 +388,7 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
           }
         : undefined,
       recordingStatus: storageKey ? 'uploaded' : 'pending',
-      ...(storageKey ? { uploadedAt: new Date() } : {}),
+      uploadedAt: new Date(),
       processingStatus: 'queued',
       reviewStatus: 'Draft',
       aiStatus: 'pending',
@@ -533,6 +533,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
           menteeId: call.menteeId,
           menteeName,
           date: call.date,
+          uploadedAt: call.uploadedAt || call.createdAt || call.date,
+          createdAt: call.createdAt,
           duration: call.duration,
           status: call.reviewStatus,
           aiStatus: call.aiStatus,
@@ -669,6 +671,7 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
         mentorName,
         menteeName: mentee?.name || 'Mentee',
         menteeStandard: mentee?.standard || '',
+        uploadedAt: call.uploadedAt || call.createdAt || call.date,
       },
       processingJob: effectiveJob,
     });

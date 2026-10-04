@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Filter, Plus } from 'lucide-react';
 import { getPerformanceHistory } from '../lib/api';
+import { formatDateOnly, formatSubmissionTimestamps } from '../lib/dateTime';
 
 const MOOD_MAP: Record<number, string> = {
   1: '😞',
@@ -18,15 +19,6 @@ function formatDuration(min: number): string {
   if (h > 0 && m > 0) return `${h}h ${m}m`;
   if (h > 0) return `${h}h`;
   return `${m}m`;
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return dateStr;
-  }
 }
 
 export function MenteePerformanceHistoryPage() {
@@ -181,32 +173,45 @@ export function MenteePerformanceHistoryPage() {
                   </td>
                 </tr>
               ) : (
-                records.map((r) => (
-                  <tr key={r._id || r.id || r.date}>
-                    <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      {formatDate(r.date)}
-                    </td>
-                    <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
-                      {formatDuration(r.studyMinutes)}
-                    </td>
-                    <td>{r.quran?.ruku ?? 0}</td>
-                    <td>{r.quran?.ayat ?? 0}</td>
-                    <td>{r.quran?.pages ?? 0}</td>
-                    <td>{formatDuration(r.readingMinutes)}</td>
-                    <td style={{ fontSize: '1.4rem' }}>
-                      {MOOD_MAP[r.dayRating] ?? '—'}
-                    </td>
-                    <td style={{ fontSize: '0.85rem', maxWidth: 260 }}>
-                      {r.dailyReflection ? (
-                        <span title={r.dailyReflection}>
-                          {r.dailyReflection.length > 60 ? r.dailyReflection.slice(0, 60) + '…' : r.dailyReflection}
-                        </span>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                records.map((r) => {
+                  const timestamps = formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt);
+                  return (
+                    <tr key={r._id || r.id || r.date}>
+                      <td>
+                        <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {formatDateOnly(r.date)}
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: 2, whiteSpace: 'nowrap' }}>
+                          Submitted: {timestamps.submittedFormatted}
+                        </div>
+                        {timestamps.isEdited && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                            Updated: {timestamps.updatedFormatted}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                        {formatDuration(r.studyMinutes)}
+                      </td>
+                      <td>{r.quran?.ruku ?? 0}</td>
+                      <td>{r.quran?.ayat ?? 0}</td>
+                      <td>{r.quran?.pages ?? 0}</td>
+                      <td>{formatDuration(r.readingMinutes)}</td>
+                      <td style={{ fontSize: '1.4rem' }}>
+                        {MOOD_MAP[r.dayRating] ?? '—'}
+                      </td>
+                      <td style={{ fontSize: '0.85rem', maxWidth: 260 }}>
+                        {r.dailyReflection ? (
+                          <span title={r.dailyReflection}>
+                            {r.dailyReflection.length > 60 ? r.dailyReflection.slice(0, 60) + '…' : r.dailyReflection}
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -225,20 +230,32 @@ export function MenteePerformanceHistoryPage() {
             <div style={{ fontSize: '0.88rem' }}>Start logging your daily progress to see your history table.</div>
           </div>
         ) : (
-          records.map((r) => (
-            <div
-              key={r._id || r.id || r.date}
-              className="mobile-card"
-              style={{ padding: '16px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                  {formatDate(r.date)}
-                </span>
-                <span style={{ fontSize: '1.5rem', lineHeight: 1 }} title={`Day rating: ${r.dayRating}/5`}>
-                  {MOOD_MAP[r.dayRating] ?? '🙂'}
-                </span>
-              </div>
+          records.map((r) => {
+            const timestamps = formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt);
+            return (
+              <div
+                key={r._id || r.id || r.date}
+                className="mobile-card"
+                style={{ padding: '16px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div>
+                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                      Performance: {formatDateOnly(r.date)}
+                    </span>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                      Submitted: {timestamps.submittedFormatted}
+                    </div>
+                    {timestamps.isEdited && (
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                        Updated: {timestamps.updatedFormatted}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ fontSize: '1.5rem', lineHeight: 1 }} title={`Day rating: ${r.dayRating}/5`}>
+                    {MOOD_MAP[r.dayRating] ?? '🙂'}
+                  </span>
+                </div>
 
               <div
                 style={{
@@ -283,8 +300,9 @@ export function MenteePerformanceHistoryPage() {
                 </div>
               )}
             </div>
-          ))
-        )}
+          );
+        })
+      )}
       </div>
     </div>
   );

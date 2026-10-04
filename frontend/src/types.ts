@@ -26,6 +26,7 @@ export interface DailyPerformanceRecord {
   difficultyNote?: string;
   needsMentorHelp?: boolean;
   mentorHelpNote?: string;
+  submittedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -108,6 +109,7 @@ export interface CallRecord {
   id: string;
   mentee: string;
   date: string;
+  uploadedAt?: string;
   duration: string;
   status: 'Completed' | 'Processing' | 'Pending Review' | 'Submitted' | 'Failed';
   summary: string;

@@ -151,6 +151,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
     const record = await DailyPerformance.create({
       menteeId,
       date: targetDate,
+      submittedAt: new Date(),
       studyMinutes: parsed.data.studyMinutes,
       quran: parsed.data.quran,
       readingMinutes: parsed.data.readingMinutes,
@@ -186,8 +187,14 @@ router.get('/today', requireAuth, async (req: AuthRequest, res: Response) => {
 
     const date = (req.query.date as string) || getTodayString();
     const record = await DailyPerformance.findOne({ menteeId, date }).lean();
+    const enrichedRecord = record
+      ? {
+          ...record,
+          submittedAt: record.submittedAt || record.createdAt,
+        }
+      : null;
 
-    return res.json({ record: record ?? null, date });
+    return res.json({ record: enrichedRecord, date });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch today performance';
     return res.status(500).json({ message });
@@ -220,7 +227,12 @@ router.get('/history', requireAuth, async (req: AuthRequest, res: Response) => {
 
     const totalCount = await DailyPerformance.countDocuments(filter);
 
-    return res.json({ records, totalCount });
+    const enrichedRecords = records.map((r) => ({
+      ...r,
+      submittedAt: r.submittedAt || r.createdAt,
+    }));
+
+    return res.json({ records: enrichedRecords, totalCount });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch history';
     return res.status(500).json({ message });
@@ -365,6 +377,11 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Preserve original submittedAt. If legacy record lacked submittedAt, fallback to createdAt or current time.
+    if (!record.submittedAt) {
+      record.submittedAt = record.createdAt || new Date();
+    }
+
     if (parsed.data.studyMinutes !== undefined) record.studyMinutes = parsed.data.studyMinutes;
     if (parsed.data.quran !== undefined) {
       record.quran = {
@@ -447,8 +464,16 @@ router.get(['/mentor-view/:menteeId', '/mentor/mentees/:menteeId/performance', '
       ? Number((weekRecords.reduce((acc, r) => acc + (r.dayRating || 0), 0) / weekDaysSubmitted).toFixed(1))
       : 0;
 
+    const enrichedToday = todayRecord
+      ? { ...todayRecord, submittedAt: todayRecord.submittedAt || todayRecord.createdAt }
+      : null;
+    const enrichedHistory = allHistory.map((r) => ({
+      ...r,
+      submittedAt: r.submittedAt || r.createdAt,
+    }));
+
     return res.json({
-      today: todayRecord ?? null,
+      today: enrichedToday,
       weekly: {
         startDate: dates[0],
         endDate: dates[dates.length - 1],
@@ -463,7 +488,7 @@ router.get(['/mentor-view/:menteeId', '/mentor/mentees/:menteeId/performance', '
         totalReadingMinutes: weekTotalReadingMin,
         averageDayRating: weekAvgRating,
       },
-      history: allHistory,
+      history: enrichedHistory,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch mentee performance';

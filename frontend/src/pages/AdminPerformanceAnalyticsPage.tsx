@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BookOpen, Filter, Sparkles, RefreshCw, Trash2, Search, X, ChevronLeft, ChevronRight, CalendarCheck } from 'lucide-react';
 import { getAdminPerformanceAnalytics, getMentors, getMentees, getAdminDailyPerformance, deleteDailyPerformance, bulkDeleteDailyPerformance } from '../lib/api';
+import { formatDateOnly, formatSubmissionTimestamps } from '../lib/dateTime';
 
 const MOOD_MAP: Record<number, { emoji: string; label: string }> = {
   1: { emoji: '😞', label: 'Very difficult' },
@@ -545,8 +546,18 @@ export function AdminPerformanceAnalyticsPage() {
                             {standard && <span>• {standard}</span>}
                           </div>
                         </td>
-                        <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                          {new Date(r.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        <td>
+                          <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            {formatDateOnly(r.date)}
+                          </div>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 2, whiteSpace: 'nowrap' }}>
+                            Submitted: {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).submittedFormatted}
+                          </div>
+                          {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).isEdited && (
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                              Updated: {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).updatedFormatted}
+                            </div>
+                          )}
                         </td>
                         <td style={{ fontWeight: 700, color: 'var(--primary)', whiteSpace: 'nowrap' }}>
                           {formatDuration(r.studyMinutes)}
@@ -654,9 +665,19 @@ export function AdminPerformanceAnalyticsPage() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    <CalendarCheck size={14} color="var(--primary)" />
-                    <strong>{new Date(r.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</strong>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)' }}>
+                      <CalendarCheck size={14} color="var(--primary)" />
+                      <strong>Performance: {formatDateOnly(r.date)}</strong>
+                    </div>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', paddingLeft: 22 }}>
+                      Submitted: {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).submittedFormatted}
+                    </div>
+                    {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).isEdited && (
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', paddingLeft: 22 }}>
+                        Updated: {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).updatedFormatted}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, padding: '10px 12px', background: 'var(--surface-muted)', borderRadius: 10, fontSize: '0.85rem' }}>

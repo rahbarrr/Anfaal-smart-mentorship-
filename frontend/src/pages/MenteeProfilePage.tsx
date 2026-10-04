@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getMenteeProfile, getMenteePerformance, getMenteePerformanceAnalytics, getMenteeAiInsights, deleteDailyPerformance, bulkDeleteDailyPerformance } from '../lib/api';
 import { ArrowLeft, PhoneCall, BookOpen, Calendar, CheckSquare, AlertCircle, MessageSquare, Sparkles, TrendingUp, HelpCircle, BarChart3, Clock, BookMarked, Star, CircleDot, Trash2, X } from 'lucide-react';
 import type { PerformanceAnalyticsData, AiInsightsResult } from '../types';
+import { formatDateTime, formatDateOnly, formatSubmissionTimestamps } from '../lib/dateTime';
 
 type MenteeProfile = {
   id: string;
@@ -18,6 +19,7 @@ type MenteeProfile = {
 type CallRecord = {
   id: string;
   date: string;
+  uploadedAt?: string;
   duration: number;
   reviewStatus: string;
   summary?: string;
@@ -417,10 +419,10 @@ export function MenteeProfilePage() {
                       <tr key={call.id}>
                         <td>
                           <div style={{ fontWeight: 700, fontSize: '0.86rem', color: 'var(--text-primary)' }}>
-                            Call #{String(calls.length - idx).padStart(2, '0')}
+                            Call #{String(calls.length - idx).padStart(2, '0')} • {formatDateOnly(call.date)}
                           </div>
-                          <div className="muted" style={{ fontSize: '0.78rem' }}>
-                            {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                            Uploaded: {formatDateTime(call.uploadedAt)}
                           </div>
                         </td>
                         <td style={{ fontSize: '0.85rem' }}>{call.duration} min</td>
@@ -471,9 +473,12 @@ export function MenteeProfilePage() {
                         <span className="call-number-badge">
                           CALL #{String(calls.length - idx).padStart(2, '0')}
                         </span>
-                        <span className="call-card-date">
-                          {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span className="call-card-date">Call: {formatDateOnly(call.date)}</span>
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                            Uploaded: {formatDateTime(call.uploadedAt)}
+                          </span>
+                        </div>
                       </div>
                       <div className="call-history-card-right">
                         <span className="call-card-duration">{call.duration} min</span>
@@ -593,7 +598,7 @@ export function MenteeProfilePage() {
                 <span className="status-badge-dot" />
                 <span>
                   {perfData?.today
-                    ? `Submitted • ${new Date(perfData.today.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`
+                    ? `Submitted • ${formatDateOnly(perfData.today.date)}`
                     : 'Status: Not submitted'}
                 </span>
               </div>
@@ -651,6 +656,15 @@ export function MenteeProfilePage() {
                     )}
                   </div>
                 )}
+
+                <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(46, 125, 50, 0.06)', borderRadius: 10, fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ color: '#2e7d32', fontWeight: 600 }}>
+                    ✓ Submitted {formatDateTime(perfData.today.submittedAt || perfData.today.createdAt)}
+                  </span>
+                  {perfData.today.updatedAt && perfData.today.submittedAt && new Date(perfData.today.updatedAt).getTime() - new Date(perfData.today.submittedAt).getTime() > 30000 && (
+                    <span>• Last updated: <strong style={{ color: 'var(--text-primary)' }}>{formatDateTime(perfData.today.updatedAt)}</strong></span>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="today-status-empty-box">
@@ -1193,8 +1207,18 @@ export function MenteeProfilePage() {
                                 </div>
                               </td>
                             )}
-                            <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                              {new Date(r.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                            <td>
+                              <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                {formatDateOnly(r.date)}
+                              </div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 2, whiteSpace: 'nowrap' }}>
+                                Submitted: {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).submittedFormatted}
+                              </div>
+                              {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).isEdited && (
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                                  Updated: {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).updatedFormatted}
+                                </div>
+                              )}
                             </td>
                             <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
                               {formatDuration(r.studyMinutes)}
@@ -1285,8 +1309,16 @@ export function MenteeProfilePage() {
                               Daily Performance
                             </div>
                             <div style={{ fontSize: '1rem', fontWeight: 800 }}>
-                              {new Date(r.date).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                              {formatDateOnly(r.date)}
                             </div>
+                            <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                              Submitted: {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).submittedFormatted}
+                            </div>
+                            {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).isEdited && (
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                Updated: {formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt).updatedFormatted}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div style={{ fontSize: '1.4rem' }}>

@@ -133,6 +133,8 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
                 readingMinutes: todayPerf.readingMinutes || 0,
                 dayRating: todayPerf.dayRating,
                 submitted: true,
+                submittedAt: todayPerf.submittedAt || todayPerf.createdAt,
+                updatedAt: todayPerf.updatedAt,
                 needsMentorHelp: Boolean(todayPerf.needsMentorHelp),
                 mentorHelpNote: todayPerf.mentorHelpNote || '',
                 dailyReflection: todayPerf.dailyReflection || '',
@@ -210,6 +212,7 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       calls: calls.map((call) => ({
         id: String(call._id),
         date: call.date,
+        uploadedAt: call.uploadedAt || call.createdAt || call.date,
         duration: call.duration,
         reviewStatus: call.reviewStatus,
         summary: call.summary,

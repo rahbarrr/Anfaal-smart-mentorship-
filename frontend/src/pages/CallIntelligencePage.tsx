@@ -33,7 +33,9 @@ import {
   ChevronUp,
   Volume2,
   Trash2,
+  Upload,
 } from 'lucide-react';
+import { formatDateTime, formatDateOnly } from '../lib/dateTime';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TranscriptSegment = {
@@ -75,6 +77,8 @@ type CallData = {
   menteeName?: string;
   menteeStandard?: string;
   date: string;
+  uploadedAt?: string;
+  createdAt?: string;
   duration: number;
   reviewStatus: string;
   aiStatus: string;
@@ -482,8 +486,9 @@ export function CallIntelligencePage() {
         <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)}>
           <ArrowLeft size={16} /> Back
         </button>
-        <div className="call-intel-meta">
-          <span><Calendar size={14} /> {new Date(call.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+        <div className="call-intel-meta" style={{ flexWrap: 'wrap', gap: 10 }}>
+          <span><Calendar size={14} /> Call Date: {formatDateOnly(call.date)}</span>
+          <span><Upload size={14} /> Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}</span>
           <span><Clock size={14} /> {call.duration} mins</span>
           <span className={`status-badge ${isApproved ? 'status-approved' : isProcessing ? 'status-processing' : 'status-pending'}`}>
             {isApproved ? (
@@ -619,8 +624,13 @@ export function CallIntelligencePage() {
               </div>
               <span style={{ color: 'var(--border)' }}>•</span>
               <div>
-                <span className="muted" style={{ fontSize: '0.82rem' }}>Date: </span>
-                <strong>{new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>
+                <span className="muted" style={{ fontSize: '0.82rem' }}>Call Date: </span>
+                <strong>{formatDateOnly(call.date)}</strong>
+              </div>
+              <span style={{ color: 'var(--border)' }}>•</span>
+              <div>
+                <span className="muted" style={{ fontSize: '0.82rem' }}>Uploaded: </span>
+                <strong style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{formatDateTime(call.uploadedAt || call.createdAt)}</strong>
               </div>
               <span style={{ color: 'var(--border)' }}>•</span>
               <div>

@@ -310,6 +310,7 @@ router.get('/calls/pending', requireAuth, requireRole('ADMIN'), async (_req: Aut
         mentorId: call.mentorId,
         menteeId: call.menteeId,
         date: call.date,
+        uploadedAt: call.uploadedAt || call.createdAt || call.date,
         duration: call.duration,
         summary: call.summary,
         recordingUrl: call.recordingUrl,
@@ -776,6 +777,8 @@ router.get('/daily-performance', requireAuth, requireRole('ADMIN'), async (req: 
         menteeName: menteeInfo?.name || 'Unknown Mentee',
         menteeMakid: menteeInfo?.makid || '',
         menteeStandard: menteeInfo?.standard || '',
+        submittedAt: r.submittedAt || r.createdAt,
+        updatedAt: r.updatedAt,
       };
     });
 

@@ -66,6 +66,7 @@ export interface DailyPerformanceDocument {
   difficultyNote?: string;
   needsMentorHelp?: boolean;
   mentorHelpNote?: string;
+  submittedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

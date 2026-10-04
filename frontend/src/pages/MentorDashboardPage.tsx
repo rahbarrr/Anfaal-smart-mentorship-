@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMentorCalls, getMyMentees } from '../lib/api';
+import { formatDateTime, formatDateOnly, formatSubmissionTimestamps } from '../lib/dateTime';
 import {
   Users,
   ArrowRight,
@@ -16,6 +17,8 @@ interface TodayProgress {
   readingMinutes: number;
   dayRating: number;
   submitted: boolean;
+  submittedAt?: string;
+  updatedAt?: string;
   needsMentorHelp: boolean;
   mentorHelpNote?: string;
 }
@@ -214,6 +217,20 @@ export function MentorDashboardPage() {
                             : '—'}
                         </span>
                       </div>
+                      {hasSubmitted && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                          <span>Submitted:</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {formatSubmissionTimestamps(p!.submittedAt, p!.updatedAt).submittedFormatted}
+                          </span>
+                        </div>
+                      )}
+                      {hasSubmitted && formatSubmissionTimestamps(p!.submittedAt, p!.updatedAt).isEdited && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                          <span>Updated:</span>
+                          <span>{formatSubmissionTimestamps(p!.submittedAt, p!.updatedAt).updatedFormatted}</span>
+                        </div>
+                      )}
                       {needsHelp && p?.mentorHelpNote && (
                         <div
                           style={{
@@ -294,7 +311,10 @@ export function MentorDashboardPage() {
                     <tr key={call.id}>
                       <td style={{ fontWeight: 600 }}>{call.menteeName || 'Mentee'}</td>
                       <td>
-                        {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        <div style={{ fontWeight: 600 }}>{formatDateOnly(call.date)}</div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                          Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}
+                        </div>
                       </td>
                       <td>{call.duration} min</td>
                       <td>
@@ -342,8 +362,11 @@ export function MentorDashboardPage() {
                 <div className="call-mobile-card-header">
                   <div className="call-mobile-card-names">
                     <div className="call-mobile-card-title">{call.menteeName || 'Mentee'}</div>
-                    <div className="call-mobile-card-subtitle">
-                      {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    <div className="call-mobile-card-subtitle" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span>Call Date: {formatDateOnly(call.date)}</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}
+                      </span>
                     </div>
                   </div>
                   <StatusBadge status={call.status} />
@@ -354,8 +377,10 @@ export function MentorDashboardPage() {
                     <span className="call-mobile-card-meta-value">{call.duration} min</span>
                   </div>
                   <div className="call-mobile-card-meta-item">
-                    <span className="call-mobile-card-meta-label">Date</span>
-                    <span className="call-mobile-card-meta-value">{new Date(call.date).toLocaleDateString()}</span>
+                    <span className="call-mobile-card-meta-label">Uploaded</span>
+                    <span className="call-mobile-card-meta-value" style={{ overflowWrap: 'break-word' }}>
+                      {formatDateTime(call.uploadedAt || call.createdAt)}
+                    </span>
                   </div>
                 </div>
                 {call.summary && (

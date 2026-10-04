@@ -55,6 +55,7 @@ export async function getDashboardSummary(): Promise<Record<string, unknown>> {
       return {
         id: String(c._id),
         date: c.date,
+        uploadedAt: c.uploadedAt || c.createdAt || c.date,
         duration: c.duration,
         mentorName: mentorNames.get(String(c.mentorId)) || 'Mentor',
         menteeName: menteeNames.get(String(c.menteeId)) || 'Mentee',
@@ -72,6 +73,8 @@ export async function getDashboardSummary(): Promise<Record<string, unknown>> {
         menteeId: p.menteeId,
         menteeName: menteeNames.get(String(p.menteeId)) || 'Mentee',
         date: p.date,
+        submittedAt: p.submittedAt || p.createdAt,
+        updatedAt: p.updatedAt,
         studyMinutes: p.studyMinutes,
         quranRuku: p.quran?.ruku || 0,
         dayRating: p.dayRating,

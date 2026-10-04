@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react';
+import { formatDateTime, formatDateOnly } from '../lib/dateTime';
 
 interface CallRecord {
   id: string;
@@ -30,6 +31,8 @@ interface CallRecord {
   menteeId: string;
   menteeName: string;
   date: string;
+  uploadedAt?: string;
+  createdAt?: string;
   duration: number;
   status: string;
   aiStatus: string;
@@ -565,9 +568,12 @@ export function AdminCallsPage() {
                       </td>
                       <td>
                         <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>
-                          {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {formatDateOnly(call.date)}
                         </div>
-                        <div className="muted" style={{ fontSize: '0.75rem' }}>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                          Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}
+                        </div>
+                        <div className="muted" style={{ fontSize: '0.72rem', marginTop: 2 }}>
                           ID: {call.id.slice(-6).toUpperCase()}
                         </div>
                       </td>
@@ -718,8 +724,11 @@ export function AdminCallsPage() {
 
                   <div className="call-mobile-card-names" style={{ flex: 1, minWidth: 0 }}>
                     <div className="call-mobile-card-title">{call.mentorName} → {call.menteeName}</div>
-                    <div className="call-mobile-card-subtitle">
-                      {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} • {call.duration} min
+                    <div className="call-mobile-card-subtitle" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <div>Call Date: {formatDateOnly(call.date)} • {call.duration} min</div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                        Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}
+                      </div>
                     </div>
                   </div>
                   <StatusBadge status={call.status} />

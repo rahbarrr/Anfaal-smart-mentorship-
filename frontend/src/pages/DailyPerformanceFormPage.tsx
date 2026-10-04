@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Clock, BookOpen, AlertCircle, HelpCircle, ArrowLeft, Calendar, Edit3 } from 'lucide-react';
 import { submitDailyPerformance, getTodayPerformance, updateDailyPerformance } from '../lib/api';
+import { formatDateTime, formatDateOnly } from '../lib/dateTime';
 
 const STUDY_PRESETS = [
   { label: '0 hrs', minutes: 0 },
@@ -83,6 +84,7 @@ export function DailyPerformanceFormPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingRecordId, setExistingRecordId] = useState<string | null>(null);
   const [existingRecordDate, setExistingRecordDate] = useState<string | null>(null);
+  const [currentRecord, setCurrentRecord] = useState<any>(null);
   const [alreadySubmittedToday, setAlreadySubmittedToday] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -93,10 +95,12 @@ export function DailyPerformanceFormPage() {
     getTodayPerformance(selectedDate)
       .then((res) => {
         if (res.record) {
+          setCurrentRecord(res.record);
           setExistingRecordId(res.record._id || res.record.id);
           setExistingRecordDate(res.record.date);
           setAlreadySubmittedToday(true);
         } else {
+          setCurrentRecord(null);
           setExistingRecordId(null);
           setAlreadySubmittedToday(false);
         }
@@ -108,6 +112,7 @@ export function DailyPerformanceFormPage() {
 
   const populateForEditing = (record: any) => {
     if (!record) return;
+    setCurrentRecord(record);
     setStudyMinutes(record.studyMinutes ?? 0);
     setRuku(record.quran?.ruku ? String(record.quran.ruku) : '');
     setAyat(record.quran?.ayat ? String(record.quran.ayat) : '');
@@ -163,10 +168,12 @@ export function DailyPerformanceFormPage() {
 
     try {
       if (isEditing && existingRecordId) {
-        await updateDailyPerformance(existingRecordId, payload);
+        const res = await updateDailyPerformance(existingRecordId, payload);
+        setCurrentRecord(res.record || null);
         setSuccessMessage('Your daily progress has been updated. Your mentor can now see your updated progress.');
       } else {
-        await submitDailyPerformance(payload);
+        const res = await submitDailyPerformance(payload);
+        setCurrentRecord(res.record || null);
         setSuccessMessage('Your daily progress has been recorded. Your mentor can now see your progress.');
       }
       setAlreadySubmittedToday(true);
@@ -175,6 +182,7 @@ export function DailyPerformanceFormPage() {
       if (err.status === 409 || err.message?.includes('already submitted')) {
         setAlreadySubmittedToday(true);
         if (err.existingId) setExistingRecordId(err.existingId);
+        if (err.existing) setCurrentRecord(err.existing);
         setErrorMessage("Today's progress already submitted. You can edit your entry below.");
       } else {
         setErrorMessage(err.message || 'Unable to submit daily progress. Please check your connection.');
@@ -219,10 +227,37 @@ export function DailyPerformanceFormPage() {
           }}
         >
           <CheckCircle2 size={40} color="#2e7d32" style={{ margin: '0 auto 12px' }} />
-          <h3 style={{ margin: 0, color: '#1b5e20', fontWeight: 800 }}>Your daily progress has been recorded.</h3>
+          <h3 style={{ margin: 0, color: '#1b5e20', fontWeight: 800 }}>
+            {isEditing ? 'Your daily progress has been updated.' : 'Your daily progress has been recorded.'}
+          </h3>
           <p style={{ color: '#2e7d32', marginTop: 6, fontSize: '0.95rem' }}>
             "Your mentor can now see your progress."
           </p>
+
+          {currentRecord && (
+            <div
+              style={{
+                marginTop: 12,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                background: 'rgba(46, 125, 50, 0.1)',
+                padding: '6px 14px',
+                borderRadius: 20,
+                fontSize: '0.85rem',
+                color: '#1b5e20',
+                fontWeight: 600,
+              }}
+            >
+              <span>✓ Submitted {formatDateTime(currentRecord.submittedAt || currentRecord.createdAt)}</span>
+              {currentRecord.updatedAt && currentRecord.submittedAt && new Date(currentRecord.updatedAt).getTime() - new Date(currentRecord.submittedAt).getTime() > 30000 && (
+                <span style={{ color: '#2e7d32' }}>• Last updated: {formatDateTime(currentRecord.updatedAt)}</span>
+              )}
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 16 }}>
             <button className="btn-secondary" onClick={() => navigate('/mentee')}>
               View Dashboard
@@ -252,9 +287,21 @@ export function DailyPerformanceFormPage() {
               Today's progress already submitted
             </h3>
           </div>
-          <p className="muted" style={{ margin: '6px 0 18px', fontSize: '0.92rem' }}>
-            You have already recorded an entry for {existingRecordDate ?? selectedDate}. Would you like to update it?
+          <p className="muted" style={{ margin: '6px 0 10px', fontSize: '0.92rem' }}>
+            You have already recorded an entry for {formatDateOnly(existingRecordDate ?? selectedDate)}. Would you like to update it?
           </p>
+
+          {currentRecord && (
+            <div style={{ margin: '8px 0 16px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <span>Submitted: <strong style={{ color: 'var(--text-primary)' }}>{formatDateTime(currentRecord.submittedAt || currentRecord.createdAt)}</strong></span>
+                {currentRecord.updatedAt && currentRecord.submittedAt && new Date(currentRecord.updatedAt).getTime() - new Date(currentRecord.submittedAt).getTime() > 30000 && (
+                  <span>• Last updated: <strong style={{ color: 'var(--text-primary)' }}>{formatDateTime(currentRecord.updatedAt)}</strong></span>
+                )}
+              </span>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'center', gap: 12 }}>
             <button className="btn-primary" onClick={handleEditClick} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <Edit3 size={16} /> Edit Today's Entry
@@ -749,7 +796,7 @@ export function DailyPerformanceFormPage() {
                 textAlign: 'center',
               }}
             >
-              {isSubmitting ? 'Saving...' : isEditing ? "Update Today's Progress" : "Submit Today's Progress"}
+              {isSubmitting ? 'Submitting...' : isEditing ? "Update Today's Progress" : "Submit Today's Progress"}
             </button>
           </div>
         </form>

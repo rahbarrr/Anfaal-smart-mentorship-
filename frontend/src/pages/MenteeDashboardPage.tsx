@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarCheck, CheckCircle2, Edit3, ArrowRight, History, Clock, BookOpen, BookMarked, Star, CircleDot } from 'lucide-react';
 import { getTodayPerformance, getWeeklyPerformance } from '../lib/api';
+import { formatSubmissionTimestamps } from '../lib/dateTime';
 
 const MOOD_MAP: Record<number, { emoji: string; label: string }> = {
   1: { emoji: '😞', label: 'Very difficult' },
@@ -53,10 +54,20 @@ export function MenteeDashboardPage() {
             </h2>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div className={`today-status-badge ${todayRecord ? 'submitted' : 'pending'}`}>
-              <span className="status-badge-dot" />
-              <span>{todayRecord ? 'Submitted' : 'Status: Not submitted'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <div className={`today-status-badge ${todayRecord ? 'submitted' : 'pending'}`}>
+                <span className="status-badge-dot" />
+                <span>{todayRecord ? 'Submitted' : 'Status: Not submitted'}</span>
+              </div>
+              {todayRecord && (
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                  <span style={{ color: '#2e7d32', fontWeight: 600 }}>✓ Submitted {formatSubmissionTimestamps(todayRecord.submittedAt || todayRecord.createdAt, todayRecord.updatedAt).submittedFormatted}</span>
+                  {formatSubmissionTimestamps(todayRecord.submittedAt || todayRecord.createdAt, todayRecord.updatedAt).isEdited && (
+                    <span> • Updated {formatSubmissionTimestamps(todayRecord.submittedAt || todayRecord.createdAt, todayRecord.updatedAt).updatedFormatted}</span>
+                  )}
+                </div>
+              )}
             </div>
 
             {todayRecord ? (
