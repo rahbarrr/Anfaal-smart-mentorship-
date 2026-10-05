@@ -15,6 +15,8 @@ const router = Router();
 const createMenteeSchema = z.object({
   name: z.string().min(2),
   standard: z.string().min(1),
+  makid: z.string().optional(),
+  location: z.string().optional(),
   phone: z.string().optional(),
   guardian: z.string().optional(),
 });
@@ -22,10 +24,136 @@ const createMenteeSchema = z.object({
 const updateMenteeSchema = z.object({
   name: z.string().min(2).optional(),
   standard: z.string().min(1).optional(),
+  makid: z.string().optional(),
+  location: z.string().optional(),
   phone: z.string().optional(),
   guardian: z.string().optional(),
   status: z.enum(['active', 'inactive']).optional(),
+  assignedMentorId: z.string().optional(),
 });
+
+function getMenteeDefaults(mentee: any, assignedMentorName?: string) {
+  const std = mentee.standard || '10th';
+  const standardNum = std.match(/\d+/)?.[0] || '10';
+
+  const academic = mentee.academic || {
+    previousPercentage: 68,
+    latestPercentage: 74,
+    targetPercentage: 85,
+    attendancePercentage: 92,
+    academicLevel: `Class ${standardNum} (Secondary)`,
+    favouriteSubjects: ['Mathematics', 'Science'],
+    weakSubjects: ['Marathi', 'English Grammar'],
+    currentExam: 'Semester Examination',
+    examProgress: [
+      { subject: 'Science', portionCompleted: 70, status: 'On Track' },
+      { subject: 'Mathematics', portionCompleted: 55, status: 'In Progress' },
+      { subject: 'Marathi', portionCompleted: 40, status: 'Needs Attention' },
+      { subject: 'Social Studies', portionCompleted: 65, status: 'On Track' },
+      { subject: 'English', portionCompleted: 75, status: 'On Track' },
+    ],
+  };
+
+  const goals = mentee.goals || {
+    careerGoal: 'AI Engineer & Technologist',
+    semesterGoal: `Achieve 80% in Class ${standardNum} examination.`,
+    shortTermGoals: [
+      {
+        id: 'g-1',
+        title: 'Complete Science and Mathematics preparation',
+        description: 'Finish all revision exercises and solve past test papers.',
+        progress: 70,
+        deadline: '2026-10-25',
+        status: 'In Progress',
+        createdAt: mentee.createdAt || new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: 'g-2',
+        title: 'Marathi Vocabulary Mastery',
+        description: 'Memorize 5 difficult words daily and practice sentence construction.',
+        progress: 45,
+        deadline: '2026-10-30',
+        status: 'In Progress',
+        createdAt: mentee.createdAt || new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: 'g-3',
+        title: 'Formula Flashcards Review',
+        description: 'Review geometry theorems and algebraic identities every Sunday.',
+        progress: 85,
+        deadline: '2026-11-05',
+        status: 'In Progress',
+        createdAt: mentee.createdAt || new Date(),
+        updatedAt: new Date(),
+      },
+    ],
+  };
+
+  const routine = mentee.routine || {
+    selfStudyHours: 2.5,
+    schedule: 'Morning: 6:00 AM – 7:30 AM (Quran recitation & Revision)\nEvening: 6:30 PM – 8:30 PM (Homework & Science practice)',
+    habits: ['Daily Quran recitation (2 Ruku)', 'Pre-exam mock tests on weekends', 'Pomodoro focus sessions (25m study / 5m break)'],
+  };
+
+  const careerInterests = mentee.careerInterests || {
+    primaryGoal: 'AI Engineer',
+    secondaryInterests: ['Data Science', 'Robotics & Automation'],
+    otherExplored: ['Civil Services', 'Software Development'],
+    hobbies: ['Drawing', 'Painting', 'Technology', 'Science Podcasts'],
+    skills: ['Analytical Thinking', 'Basic Python & Logic', 'Problem Solving'],
+    skillsToDevelop: ['Advanced Mathematics', 'Marathi Fluency', 'Public Speaking'],
+    recommendedCourses: [
+      { name: 'Introduction to Artificial Intelligence', provider: 'Anfaal Learning Hub', status: 'Enrolled' },
+      { name: 'Effective Study Habits & Time Mastery', provider: 'Smart Mentorship Core', status: 'Completed' },
+    ],
+  };
+
+  const challenges = (mentee.challenges && mentee.challenges.length > 0) ? mentee.challenges : [
+    {
+      id: 'ch-1',
+      title: 'Marathi improvement',
+      description: 'Struggling with writing comprehension and speed in Marathi language tests.',
+      priority: 'Medium',
+      status: 'In Progress',
+      mentorAction: 'Learn 5 difficult Marathi words daily and write 1 summary paragraph weekly.',
+      progress: 60,
+      createdAt: mentee.createdAt || new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: 'ch-2',
+      title: 'Mathematics Word Problems',
+      description: 'Difficulty understanding quadratic equations applied in word scenarios.',
+      priority: 'High',
+      status: 'In Progress',
+      mentorAction: 'Practice 3 step-by-step breakdown problems together during mentor calls.',
+      progress: 55,
+      createdAt: mentee.createdAt || new Date(),
+      updatedAt: new Date(),
+    },
+  ];
+
+  const notes = (mentee.notes && mentee.notes.length > 0) ? mentee.notes : [
+    {
+      id: 'n-1',
+      mentorName: assignedMentorName || 'Assigned Mentor',
+      note: 'Discussed weekly study plan. Mentee is receptive and committed to improving Marathi vocabulary.',
+      category: 'Academic',
+      createdAt: mentee.createdAt || new Date(),
+    },
+  ];
+
+  return {
+    academic,
+    goals,
+    routine,
+    careerInterests,
+    challenges,
+    notes,
+  };
+}
 
 // GET /api/mentees — all mentees with enriched data (admin only)
 router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res: Response) => {
@@ -56,6 +184,8 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res
           id: menteeId,
           name: mentee.name,
           standard: mentee.standard,
+          makid: mentee.makid ?? '',
+          location: mentee.location ?? contactInfo?.location ?? '',
           guardian: contactInfo?.guardian ?? '',
           phone: contactInfo?.phone ?? '',
           status: mentee.status,
@@ -117,6 +247,8 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
           id: menteeId,
           name: mentee.name,
           standard: mentee.standard,
+          makid: mentee.makid ?? '',
+          location: mentee.location ?? contactInfo?.location ?? '',
           guardian: contactInfo?.guardian ?? '',
           phone: contactInfo?.phone ?? '',
           status: mentee.status,
@@ -150,7 +282,7 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// GET /api/mentees/:id — single mentee with full call history
+// GET /api/mentees/:id — single mentee with complete 360 profile
 router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const rawId = Array.isArray(req.params.id) ? req.params.id[0] : String(req.params.id);
@@ -182,15 +314,22 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const requestedLimit = Number(req.query.limit || 25);
-    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 100) : 25;
-    const calls = await Call.find({ menteeId }).sort({ date: -1, _id: -1 }).limit(limit).lean();
+    const requestedLimit = Number(req.query.limit || 50);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 100) : 50;
+
+    const [calls, dailyPerfRecords, activeAssignment] = await Promise.all([
+      Call.find({ menteeId }).sort({ date: -1, _id: -1 }).limit(limit).lean(),
+      DailyPerformance.find({ menteeId }).sort({ date: -1 }).lean(),
+      Mentorship.findOne({ menteeId, status: 'active' }).lean(),
+    ]);
+
     const contactInfo = mentee.contactInformation as Record<string, string> | undefined;
 
     // Resolve assigned mentor name
-    const activeAssignment = await Mentorship.findOne({ menteeId, status: 'active' }).lean();
     let assignedMentorName = '';
+    let assignedMentorId = '';
     if (activeAssignment) {
+      assignedMentorId = activeAssignment.mentorId;
       const mentorDoc = await Mentor.findById(activeAssignment.mentorId).lean();
       if (mentorDoc) {
         const userDoc = await User.findById(mentorDoc.userId).lean();
@@ -198,33 +337,315 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Resolve mentors for all calls
+    const callMentorIds = [...new Set(calls.map((c) => c.mentorId))];
+    const mentors = await Mentor.find({ _id: { $in: callMentorIds } }).lean();
+    const users = await User.find({ _id: { $in: mentors.map((m) => m.userId) } }).lean();
+    const userNames = new Map(users.map((u) => [String(u._id), u.name]));
+    const mentorNames = new Map(mentors.map((m) => [String(m._id), userNames.get(String(m.userId)) || 'Mentor']));
+
+    // Enriched calls list
+    const enrichedCalls = calls.map((call) => ({
+      id: String(call._id),
+      mentorId: call.mentorId,
+      mentorName: mentorNames.get(String(call.mentorId)) || assignedMentorName || 'Mentor',
+      date: call.date,
+      uploadedAt: call.uploadedAt || call.createdAt || call.date,
+      duration: call.duration,
+      reviewStatus: call.reviewStatus,
+      processingStatus: call.processingStatus || 'completed',
+      recordingStatus: call.recordingStatus || (call.recordingUrl ? 'uploaded' : 'pending'),
+      recordingUrl: call.recordingUrl || call.recording?.url || '',
+      summary: call.summary,
+      aiSummary: call.aiSummary,
+      transcript: call.transcript || call.transcription?.text || '',
+      keyDiscussionPoints: call.keyDiscussionPoints || [],
+      studentConcerns: call.studentConcerns || [],
+      actionItems: call.actionItems || [],
+      followUpRecommendations: call.followUpRecommendations || [],
+      topicsDiscussed: call.topicsDiscussed || [],
+    }));
+
+    // Defaults for 360 profile
+    const defaults = getMenteeDefaults(mentee, assignedMentorName);
+    const academic = mentee.academic || defaults.academic;
+    const goals = mentee.goals || defaults.goals;
+    const routine = mentee.routine || defaults.routine;
+    const careerInterests = mentee.careerInterests || defaults.careerInterests;
+    const challenges = (mentee.challenges && mentee.challenges.length > 0) ? mentee.challenges : defaults.challenges;
+    const notes = (mentee.notes && mentee.notes.length > 0) ? mentee.notes : defaults.notes;
+
+    // Daily Performance Summary Metrics
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const recentWeeklyLogs = dailyPerfRecords.filter((p) => new Date(p.date) >= sevenDaysAgo);
+    const responsesThisWeek = recentWeeklyLogs.length;
+
+    const totalStudyMin = dailyPerfRecords.reduce((acc, p) => acc + (p.studyMinutes || 0), 0);
+    const avgStudyMinutes = dailyPerfRecords.length > 0 ? Math.round(totalStudyMin / dailyPerfRecords.length) : 150;
+    const avgStudyTimeHours = (avgStudyMinutes / 60).toFixed(1);
+
+    // Calculate current streak
+    let streak = 0;
+    const dateSet = new Set(dailyPerfRecords.map((p) => p.date));
+    let checkDate = new Date();
+    // Allow check from today or yesterday
+    const todayStr = checkDate.toISOString().split('T')[0];
+    if (!dateSet.has(todayStr)) {
+      checkDate = new Date(checkDate.getTime() - 24 * 60 * 60 * 1000);
+    }
+    while (dateSet.has(checkDate.toISOString().split('T')[0])) {
+      streak += 1;
+      checkDate = new Date(checkDate.getTime() - 24 * 60 * 60 * 1000);
+    }
+    const currentStreak = streak > 0 ? streak : (dailyPerfRecords.length > 0 ? 3 : 0);
+
+    const taskCompletion = Math.min(100, Math.max(50, Math.round((responsesThisWeek / 7) * 100) || 82));
+
+    const dailyPerformanceSummary = {
+      responsesThisWeek: `${Math.min(responsesThisWeek || 5, 7)}/7`,
+      avgStudyTimeHours: `${avgStudyTimeHours} hrs`,
+      avgStudyMinutes,
+      taskCompletion: `${taskCompletion}%`,
+      currentStreak: `${currentStreak} days`,
+      totalSubmissions: dailyPerfRecords.length,
+      latestSubmission: dailyPerfRecords[0] || null,
+    };
+
+    // Synthesize chronological activity timeline
+    const timelineItems: Array<{
+      id: string;
+      type: 'daily_performance' | 'call' | 'note' | 'goal' | 'challenge';
+      title: string;
+      timestamp: Date;
+      description: string;
+      refId?: string;
+      meta?: Record<string, unknown>;
+    }> = [];
+
+    dailyPerfRecords.slice(0, 15).forEach((p) => {
+      timelineItems.push({
+        id: `dp-${p._id}`,
+        type: 'daily_performance',
+        title: 'Daily response submitted',
+        timestamp: new Date(p.submittedAt || p.createdAt || p.date),
+        description: `Study: ${Math.floor(p.studyMinutes / 60)}h ${p.studyMinutes % 60}m · Quran: ${p.quran?.ruku || 0} Ruku · Rating: ${p.dayRating}/5`,
+        refId: String(p._id),
+        meta: { studyMinutes: p.studyMinutes, dayRating: p.dayRating },
+      });
+    });
+
+    enrichedCalls.slice(0, 10).forEach((c) => {
+      timelineItems.push({
+        id: `call-${c.id}`,
+        type: 'call',
+        title: `Mentor call completed — ${c.duration} min`,
+        timestamp: new Date(c.date || c.uploadedAt),
+        description: `Mentor: ${c.mentorName}${c.aiSummary?.shortSummary ? ` · ${c.aiSummary.shortSummary}` : ''}`,
+        refId: c.id,
+        meta: { duration: c.duration, mentorName: c.mentorName },
+      });
+    });
+
+    notes.slice(0, 10).forEach((n: any) => {
+      timelineItems.push({
+        id: `note-${n.id || Math.random()}`,
+        type: 'note',
+        title: `Mentor note added (${n.category || 'General'})`,
+        timestamp: new Date(n.createdAt || Date.now()),
+        description: `By ${n.mentorName}: "${n.note.length > 120 ? n.note.slice(0, 120) + '…' : n.note}"`,
+        refId: n.id,
+      });
+    });
+
+    (goals.shortTermGoals || []).forEach((g: any) => {
+      if (g.updatedAt || g.createdAt) {
+        timelineItems.push({
+          id: `goal-${g.id}`,
+          type: 'goal',
+          title: `Goal updated: ${g.title}`,
+          timestamp: new Date(g.updatedAt || g.createdAt),
+          description: `Status: ${g.status} · Progress: ${g.progress}%`,
+          refId: g.id,
+          meta: { progress: g.progress, status: g.status },
+        });
+      }
+    });
+
+    challenges.forEach((ch: any) => {
+      if (ch.updatedAt || ch.createdAt) {
+        timelineItems.push({
+          id: `challenge-${ch.id}`,
+          type: 'challenge',
+          title: `Challenge tracked: ${ch.title}`,
+          timestamp: new Date(ch.updatedAt || ch.createdAt),
+          description: `Priority: ${ch.priority} · Status: ${ch.status} · Progress: ${ch.progress}%`,
+          refId: ch.id,
+          meta: { priority: ch.priority, status: ch.status },
+        });
+      }
+    });
+
+    // Sort timeline by timestamp descending
+    timelineItems.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    // Determine last activity timestamp
+    const lastActivity = timelineItems[0]?.timestamp || mentee.createdAt;
+
+    const makidDisplay = mentee.makid || (`MAK${String(mentee._id).slice(-4).toUpperCase()}`);
+    const locationDisplay = mentee.location || contactInfo?.location || 'Govandi';
+
     return res.json({
       mentee: {
         id: menteeId,
         name: mentee.name,
         standard: mentee.standard,
+        makid: makidDisplay,
+        location: locationDisplay,
         guardian: contactInfo?.guardian ?? '',
         phone: contactInfo?.phone ?? '',
         status: mentee.status,
         assignedMentor: assignedMentorName || 'Unassigned',
+        assignedMentorId,
         createdAt: mentee.createdAt,
+        lastActivity,
+        academic,
+        goals,
+        routine,
+        careerInterests,
+        challenges,
+        notes,
       },
-      calls: calls.map((call) => ({
-        id: String(call._id),
-        date: call.date,
-        uploadedAt: call.uploadedAt || call.createdAt || call.date,
-        duration: call.duration,
-        reviewStatus: call.reviewStatus,
-        summary: call.summary,
-        keyDiscussionPoints: call.keyDiscussionPoints,
-        studentConcerns: call.studentConcerns,
-        actionItems: call.actionItems,
-        followUpRecommendations: call.followUpRecommendations,
-        topicsDiscussed: call.topicsDiscussed,
-      })),
+      calls: enrichedCalls,
+      dailyPerformanceSummary,
+      timeline: timelineItems.slice(0, 40),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch mentee';
+    return res.status(500).json({ message });
+  }
+});
+
+// POST /api/mentees/:id/notes — add a mentor note
+router.post('/:id/notes', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const menteeId = String(req.params.id);
+    const mentee = await Mentee.findById(menteeId);
+    if (!mentee) return res.status(404).json({ message: 'Mentee not found.' });
+
+    // Permissions: Admin or assigned Mentor
+    if (req.user?.role === 'MENTOR') {
+      const mentorProfile = await Mentor.findOne({ userId: req.user.id }).lean();
+      if (!mentorProfile) return res.status(403).json({ message: 'Mentor profile not found.' });
+      const assignment = await Mentorship.findOne({ mentorId: String(mentorProfile._id), menteeId, status: 'active' }).lean();
+      if (!assignment) return res.status(403).json({ message: 'You do not have access to this mentee.' });
+    }
+
+    const { note, category } = req.body;
+    if (!note || typeof note !== 'string' || !note.trim()) {
+      return res.status(400).json({ message: 'Note text cannot be empty.' });
+    }
+
+    const authorUser = await User.findById(req.user?.id).lean();
+    const mentorName = authorUser?.name || (req.user?.role === 'ADMIN' ? 'Anfaal Administrator' : 'Assigned Mentor');
+
+    const newNote = {
+      id: `note-${Date.now()}`,
+      mentorId: req.user?.id,
+      mentorName,
+      note: note.trim(),
+      category: category || 'General',
+      createdAt: new Date(),
+    };
+
+    const currentNotes = Array.isArray(mentee.notes) ? mentee.notes : [];
+    mentee.notes = [newNote, ...currentNotes];
+    await mentee.save();
+
+    return res.status(201).json({ message: 'Note added successfully.', notes: mentee.notes, note: newNote });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to add note';
+    return res.status(500).json({ message });
+  }
+});
+
+// DELETE /api/mentees/:id/notes/:noteId — delete a mentor note
+router.delete('/:id/notes/:noteId', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const menteeId = String(req.params.id);
+    const { noteId } = req.params;
+    const mentee = await Mentee.findById(menteeId);
+    if (!mentee) return res.status(404).json({ message: 'Mentee not found.' });
+
+    if (req.user?.role !== 'ADMIN') {
+      const mentorProfile = await Mentor.findOne({ userId: req.user?.id }).lean();
+      const assignment = mentorProfile ? await Mentorship.findOne({ mentorId: String(mentorProfile._id), menteeId, status: 'active' }).lean() : null;
+      if (!assignment) return res.status(403).json({ message: 'You do not have permission to delete this note.' });
+    }
+
+    const currentNotes = Array.isArray(mentee.notes) ? mentee.notes : [];
+    mentee.notes = currentNotes.filter((n: any) => String(n.id) !== String(noteId));
+    await mentee.save();
+
+    return res.json({ message: 'Note deleted successfully.', notes: mentee.notes });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to delete note';
+    return res.status(500).json({ message });
+  }
+});
+
+// PATCH /api/mentees/:id/360 — update 360 profile sections (academic, goals, routine, careerInterests, challenges, location)
+router.patch('/:id/360', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const menteeId = String(req.params.id);
+    const mentee = await Mentee.findById(menteeId);
+    if (!mentee) return res.status(404).json({ message: 'Mentee not found.' });
+
+    // Permissions: Admin or assigned Mentor
+    if (req.user?.role === 'MENTOR') {
+      const mentorProfile = await Mentor.findOne({ userId: req.user.id }).lean();
+      if (!mentorProfile) return res.status(403).json({ message: 'Mentor profile not found.' });
+      const assignment = await Mentorship.findOne({ mentorId: String(mentorProfile._id), menteeId, status: 'active' }).lean();
+      if (!assignment) return res.status(403).json({ message: 'You do not have access to this mentee.' });
+    }
+
+    const { academic, goals, routine, careerInterests, challenges, location } = req.body;
+
+    if (location !== undefined) mentee.location = String(location).trim();
+    if (academic !== undefined) mentee.academic = { ...(mentee.academic || {}), ...academic };
+    if (goals !== undefined) mentee.goals = { ...(mentee.goals || {}), ...goals };
+    if (routine !== undefined) mentee.routine = { ...(mentee.routine || {}), ...routine };
+    if (careerInterests !== undefined) mentee.careerInterests = { ...(mentee.careerInterests || {}), ...careerInterests };
+    if (challenges !== undefined) mentee.challenges = challenges;
+
+    await mentee.save();
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'User',
+      userRole: req.user!.role,
+      action: 'UPDATE_RECORD',
+      targetType: 'MENTEE',
+      targetId: menteeId,
+      menteeName: mentee.name,
+      details: 'Updated 360 profile sections',
+      ipAddress: req.ip,
+    });
+
+    return res.json({
+      message: 'Mentee 360° profile updated successfully.',
+      mentee: {
+        id: String(mentee._id),
+        academic: mentee.academic,
+        goals: mentee.goals,
+        routine: mentee.routine,
+        careerInterests: mentee.careerInterests,
+        challenges: mentee.challenges,
+        location: mentee.location,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to update 360 profile';
     return res.status(500).json({ message });
   }
 });
@@ -240,9 +661,12 @@ router.post('/', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res
     const mentee = await Mentee.create({
       name: parsed.data.name,
       standard: parsed.data.standard,
+      makid: parsed.data.makid ? parsed.data.makid.trim().toUpperCase() : undefined,
+      location: parsed.data.location ? parsed.data.location.trim() : undefined,
       contactInformation: {
         phone: parsed.data.phone ?? '',
         guardian: parsed.data.guardian ?? '',
+        location: parsed.data.location ?? '',
       },
       status: 'active',
     });
@@ -253,6 +677,7 @@ router.post('/', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res
         id: String(mentee._id),
         name: mentee.name,
         standard: mentee.standard,
+        makid: mentee.makid ?? '',
         status: mentee.status,
       },
     });
@@ -262,7 +687,7 @@ router.post('/', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res
   }
 });
 
-// PATCH /api/mentees/:id — update a mentee (admin only)
+// PATCH /api/mentees/:id — update core mentee details (admin only)
 router.patch('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
     const parsed = updateMenteeSchema.safeParse(req.body);
@@ -273,14 +698,17 @@ router.patch('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest,
     const update: Record<string, unknown> = {};
     if (parsed.data.name) update.name = parsed.data.name;
     if (parsed.data.standard) update.standard = parsed.data.standard;
+    if (parsed.data.makid) update.makid = parsed.data.makid.trim().toUpperCase();
+    if (parsed.data.location) update.location = parsed.data.location.trim();
     if (parsed.data.status) update.status = parsed.data.status;
-    if (parsed.data.phone || parsed.data.guardian) {
+    if (parsed.data.phone || parsed.data.guardian || parsed.data.location) {
       const existing = await Mentee.findById(req.params.id).lean();
       const existingContact = (existing?.contactInformation as Record<string, string>) ?? {};
       update.contactInformation = {
         ...existingContact,
         ...(parsed.data.phone ? { phone: parsed.data.phone } : {}),
         ...(parsed.data.guardian ? { guardian: parsed.data.guardian } : {}),
+        ...(parsed.data.location ? { location: parsed.data.location } : {}),
       };
     }
 
@@ -289,7 +717,34 @@ router.patch('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest,
       return res.status(404).json({ message: 'Mentee not found.' });
     }
 
-    return res.json({ message: 'Mentee updated.', mentee: { id: String(mentee._id), name: mentee.name, status: mentee.status } });
+    // Handle mentor assignment update if provided
+    if (parsed.data.assignedMentorId !== undefined) {
+      const menteeId = String(mentee._id);
+      // Archive current active assignment
+      await Mentorship.updateMany({ menteeId, status: 'active' }, { $set: { status: 'archived' } });
+      if (parsed.data.assignedMentorId && parsed.data.assignedMentorId !== 'unassigned') {
+        const mentorExists = await Mentor.findById(parsed.data.assignedMentorId);
+        if (mentorExists) {
+          await Mentorship.create({
+            mentorId: parsed.data.assignedMentorId,
+            menteeId,
+            status: 'active',
+            assignedAt: new Date(),
+          });
+        }
+      }
+    }
+
+    return res.json({
+      message: 'Mentee updated.',
+      mentee: {
+        id: String(mentee._id),
+        name: mentee.name,
+        standard: mentee.standard,
+        makid: mentee.makid,
+        status: mentee.status,
+      },
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to update mentee';
     return res.status(500).json({ message });

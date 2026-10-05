@@ -94,7 +94,10 @@ export function MyMenteesPage() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>{mentee.name}</div>
-                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600 }}>{mentee.standard}</div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600 }}>
+                      {mentee.makid ? <span style={{ color: 'var(--primary)', fontWeight: 700 }}>MAKID: {mentee.makid} • </span> : null}
+                      {mentee.standard}
+                    </div>
                   </div>
                   <span className={`status-badge ${mentee.status === 'active' ? 'status-completed' : 'status-failed'}`} style={{ fontSize: '0.68rem' }}>
                     {mentee.status}

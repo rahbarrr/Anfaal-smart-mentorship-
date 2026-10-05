@@ -46,7 +46,75 @@ export interface MenteeDocument {
   contactInformation?: Record<string, unknown>;
   status: 'active' | 'inactive';
   userId?: string;
+  location?: string;
+  academic?: {
+    previousPercentage?: number;
+    latestPercentage?: number;
+    targetPercentage?: number;
+    attendancePercentage?: number;
+    academicLevel?: string;
+    favouriteSubjects?: string[];
+    weakSubjects?: string[];
+    currentExam?: string;
+    examProgress?: Array<{
+      subject: string;
+      portionCompleted: number;
+      status?: string;
+    }>;
+  };
+  goals?: {
+    careerGoal?: string;
+    semesterGoal?: string;
+    shortTermGoals?: Array<{
+      id: string;
+      title: string;
+      description: string;
+      progress: number;
+      deadline?: string;
+      status: 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
+      createdAt?: Date;
+      updatedAt?: Date;
+    }>;
+  };
+  routine?: {
+    selfStudyHours?: number;
+    schedule?: string;
+    habits?: string[];
+  };
+  careerInterests?: {
+    primaryGoal?: string;
+    secondaryInterests?: string[];
+    otherExplored?: string[];
+    hobbies?: string[];
+    skills?: string[];
+    skillsToDevelop?: string[];
+    recommendedCourses?: Array<{
+      name: string;
+      provider?: string;
+      status?: string;
+    }>;
+  };
+  challenges?: Array<{
+    id: string;
+    title: string;
+    description: string;
+    priority: 'High' | 'Medium' | 'Low';
+    status: 'Open' | 'In Progress' | 'Resolved';
+    mentorAction: string;
+    progress: number;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }>;
+  notes?: Array<{
+    id: string;
+    mentorId?: string;
+    mentorName: string;
+    note: string;
+    category?: string;
+    createdAt?: Date;
+  }>;
   createdAt: Date;
+  updatedAt?: Date;
 }
 
 export interface DailyPerformanceDocument {

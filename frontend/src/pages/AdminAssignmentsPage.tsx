@@ -142,7 +142,9 @@ export function AdminAssignmentsPage() {
             <select className="input" value={selectedMenteeId} onChange={(event) => setSelectedMenteeId(event.target.value)}>
               <option value="">Select mentee</option>
               {mentees.map((mentee) => (
-                <option key={mentee.id} value={mentee.id}>{mentee.name}</option>
+                <option key={mentee.id} value={mentee.id}>
+                  {mentee.name} {mentee.makid ? `(MAKID: ${mentee.makid})` : ''}
+                </option>
               ))}
             </select>
           </div>

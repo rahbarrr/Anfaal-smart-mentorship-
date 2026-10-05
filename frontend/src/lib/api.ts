@@ -615,6 +615,44 @@ export async function deleteMentee(token: string, menteeId: string) {
   return response.json().catch(() => ({ message: 'Deleted' }));
 }
 
+export async function updateMentee360(token: string, menteeId: string, payload: Record<string, unknown>) {
+  const response = await fetch(`${API_BASE_URL}/mentees/${menteeId}/360`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to update 360 profile');
+  }
+  return response.json();
+}
+
+export async function addMenteeNote(token: string, menteeId: string, payload: { note: string; category?: string }) {
+  const response = await fetch(`${API_BASE_URL}/mentees/${menteeId}/notes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to add mentor note');
+  }
+  return response.json();
+}
+
+export async function deleteMenteeNote(token: string, menteeId: string, noteId: string) {
+  const response = await fetch(`${API_BASE_URL}/mentees/${menteeId}/notes/${noteId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to delete note');
+  }
+  return response.json();
+}
+
 // ─── Admin Review ─────────────────────────────────────────────────────────────
 
 export async function getReviewQueue(token: string) {

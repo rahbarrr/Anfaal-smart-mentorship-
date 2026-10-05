@@ -9,6 +9,13 @@ const menteeSchema = new Schema<MenteeDocument>(
     contactInformation: { type: Schema.Types.Mixed },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     userId: { type: String },
+    location: { type: String, trim: true, default: '' },
+    academic: { type: Schema.Types.Mixed },
+    goals: { type: Schema.Types.Mixed },
+    routine: { type: Schema.Types.Mixed },
+    careerInterests: { type: Schema.Types.Mixed },
+    challenges: [{ type: Schema.Types.Mixed }],
+    notes: [{ type: Schema.Types.Mixed }],
   },
   { timestamps: true },
 );

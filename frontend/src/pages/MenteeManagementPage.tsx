@@ -267,6 +267,9 @@ export function MenteeManagementPage() {
                         {mentee.name}
                         <ExternalLink size={12} style={{ opacity: 0.6 }} />
                       </button>
+                      <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', display: 'block', fontWeight: 600 }}>
+                        MAKID: {mentee.makid || 'Pending'}
+                      </span>
                     </td>
                     <td>{mentee.standard}</td>
                     <td style={{ fontSize: '0.88rem' }}>{mentee.assignedMentor || 'Unassigned'}</td>
@@ -335,6 +338,9 @@ export function MenteeManagementPage() {
                     >
                       {mentee.name}
                     </button>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                      MAKID: {mentee.makid || 'Pending'}
+                    </div>
                     <span className={`status-badge ${mentee.status === 'active' ? 'status-completed' : 'status-failed'}`} style={{ marginTop: 4, display: 'inline-flex' }}>
                       {mentee.status}
                     </span>

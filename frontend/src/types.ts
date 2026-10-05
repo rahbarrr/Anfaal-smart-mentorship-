@@ -195,3 +195,90 @@ export interface ImportHistoryItem {
   completedAt?: string;
 }
 
+export interface ShortTermGoal {
+  id: string;
+  title: string;
+  description: string;
+  progress: number;
+  deadline?: string;
+  status: 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MenteeChallenge {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'High' | 'Medium' | 'Low';
+  status: 'Open' | 'In Progress' | 'Resolved';
+  mentorAction: string;
+  progress: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MentorNote {
+  id: string;
+  mentorId?: string;
+  mentorName: string;
+  note: string;
+  category?: string;
+  createdAt: string;
+}
+
+export interface Mentee360Profile {
+  id: string;
+  name: string;
+  standard: string;
+  makid: string;
+  location: string;
+  guardian: string;
+  phone: string;
+  status: 'active' | 'inactive';
+  assignedMentor?: string;
+  assignedMentorId?: string;
+  createdAt: string;
+  lastActivity?: string;
+  academic: {
+    previousPercentage?: number;
+    latestPercentage?: number;
+    targetPercentage?: number;
+    attendancePercentage?: number;
+    academicLevel?: string;
+    favouriteSubjects?: string[];
+    weakSubjects?: string[];
+    currentExam?: string;
+    examProgress?: Array<{
+      subject: string;
+      portionCompleted: number;
+      status?: string;
+    }>;
+  };
+  goals: {
+    careerGoal?: string;
+    semesterGoal?: string;
+    shortTermGoals?: ShortTermGoal[];
+  };
+  routine: {
+    selfStudyHours?: number;
+    schedule?: string;
+    habits?: string[];
+  };
+  careerInterests: {
+    primaryGoal?: string;
+    secondaryInterests?: string[];
+    otherExplored?: string[];
+    hobbies?: string[];
+    skills?: string[];
+    skillsToDevelop?: string[];
+    recommendedCourses?: Array<{
+      name: string;
+      provider?: string;
+      status?: string;
+    }>;
+  };
+  challenges: MenteeChallenge[];
+  notes: MentorNote[];
+}
+
