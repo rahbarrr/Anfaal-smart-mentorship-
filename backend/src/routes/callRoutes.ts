@@ -496,7 +496,7 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
     }
 
     const calls = await Call.find(filter)
-      .select('-transcription.segments -transcription.words')
+      .select('-transcription.segments -transcription.words -summaryVersions')
       .sort({ date: -1, _id: -1 })
       .limit(limit + 1)
       .lean();

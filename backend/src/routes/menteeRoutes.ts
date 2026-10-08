@@ -139,13 +139,31 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
     const menteeIds = assignments.map((a) => a.menteeId);
     const todayStr = new Date().toISOString().split('T')[0];
     const [mentees, callStats, todayPerformances] = await Promise.all([
-      Mentee.find({ _id: { $in: menteeIds } }).lean(),
+      Mentee.find(
+        { _id: { $in: menteeIds } },
+        { name: 1, standard: 1, makid: 1, location: 1, contactInformation: 1, status: 1 }
+      ).lean(),
       Call.aggregate<{ _id: string; totalCalls: number; lastCallDate: Date; lastCallSummary?: string }>([
         { $match: { menteeId: { $in: menteeIds }, mentorId } },
         { $sort: { date: -1 } },
         { $group: { _id: '$menteeId', totalCalls: { $sum: 1 }, lastCallDate: { $first: '$date' }, lastCallSummary: { $first: { $ifNull: ['$aiSummary.shortSummary', '$summary'] } } } },
       ]),
-      DailyPerformance.find({ menteeId: { $in: menteeIds }, date: todayStr }).lean(),
+      DailyPerformance.find(
+        { menteeId: { $in: menteeIds }, date: todayStr },
+        {
+          menteeId: 1,
+          studyMinutes: 1,
+          quran: 1,
+          readingMinutes: 1,
+          dayRating: 1,
+          submittedAt: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          needsMentorHelp: 1,
+          mentorHelpNote: 1,
+          dailyReflection: 1,
+        }
+      ).lean(),
     ]);
 
     const callStatsMap = new Map(callStats.map((stat) => [String(stat._id), stat]));

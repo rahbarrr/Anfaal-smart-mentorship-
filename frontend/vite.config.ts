@@ -49,6 +49,10 @@ export default defineConfig({
         // (public, immutable) are cached at runtime. Everything else goes to network.
         runtimeCaching: [
           {
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
+            handler: 'NetworkOnly',
+          },
+          {
             urlPattern: ({ url }) => url.origin === 'https://fonts.googleapis.com',
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'anfaal-google-fonts-css' },

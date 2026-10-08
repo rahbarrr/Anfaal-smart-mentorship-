@@ -132,7 +132,13 @@ export async function getDashboardSummary(): Promise<Record<string, unknown>> {
     });
   }
 
-  const helpRequests = await DailyPerformance.find({ needsMentorHelp: true }).sort({ createdAt: -1 }).limit(3).lean();
+  const helpRequests = await DailyPerformance.find(
+    { needsMentorHelp: true },
+    { menteeId: 1, mentorHelpNote: 1, createdAt: 1 }
+  )
+    .sort({ createdAt: -1 })
+    .limit(3)
+    .lean();
   const helpMentees = await Mentee.find({ _id: { $in: helpRequests.map((h) => h.menteeId) } }, { name: 1 }).lean();
   const helpNames = new Map(helpMentees.map((m) => [String(m._id), m.name]));
   for (const h of helpRequests) {

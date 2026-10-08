@@ -25,6 +25,7 @@ const dailyPerformanceSchema = new Schema<DailyPerformanceDocument>(
 
 // Compound unique index prevents multiple daily submissions for the same mentee/date
 dailyPerformanceSchema.index({ menteeId: 1, date: 1 }, { unique: true });
+dailyPerformanceSchema.index({ menteeId: 1, date: -1 });
 dailyPerformanceSchema.index({ menteeId: 1, createdAt: -1 });
 dailyPerformanceSchema.index({ date: 1 });
 dailyPerformanceSchema.index({ needsMentorHelp: 1, createdAt: -1 });
