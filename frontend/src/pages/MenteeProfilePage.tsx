@@ -543,7 +543,7 @@ export function MenteeProfilePage() {
               {/* Badges / Metadata row */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 14px', alignItems: 'center', marginTop: 8, fontSize: '0.85rem' }}>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(143,63,102,0.08)', color: 'var(--primary)', padding: '3px 10px', borderRadius: 8, fontWeight: 700 }}>
-                  <span>MAKID:</span> <span>{mentee.makid || 'Pending'}</span>
+                  <span>MAKID:</span> <span>{mentee.makid || 'Not assigned'}</span>
                 </div>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--text-secondary)' }}>
                   <GraduationCap size={15} color="var(--primary)" />
@@ -551,7 +551,7 @@ export function MenteeProfilePage() {
                 </div>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--text-secondary)' }}>
                   <MapPin size={14} color="var(--primary)" />
-                  <strong style={{ color: 'var(--text-primary)' }}>Location:</strong> {mentee.location || 'Govandi'}
+                  <strong style={{ color: 'var(--text-primary)' }}>Location:</strong> {mentee.location || 'Not provided'}
                 </div>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--text-secondary)' }}>
                   <UserCheck size={14} color="var(--primary)" />
@@ -664,40 +664,52 @@ export function MenteeProfilePage() {
                     <div>
                       <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Previous</div>
                       <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>
-                        {mentee.academic?.previousPercentage || 68}%
+                        {mentee.academic?.previousPercentage !== undefined && mentee.academic?.previousPercentage !== null
+                          ? `${mentee.academic.previousPercentage}%`
+                          : 'Not available'}
                       </div>
                     </div>
                     <div style={{ borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>
                       <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--primary)', fontWeight: 700 }}>Latest Exam</div>
                       <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
-                        {mentee.academic?.latestPercentage || 74}%
+                        {mentee.academic?.latestPercentage !== undefined && mentee.academic?.latestPercentage !== null
+                          ? `${mentee.academic.latestPercentage}%`
+                          : 'Not available'}
                       </div>
                     </div>
                     <div>
                       <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--success)', fontWeight: 700 }}>Target</div>
                       <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--success)', marginTop: 2 }}>
-                        {mentee.academic?.targetPercentage || 85}%
+                        {mentee.academic?.targetPercentage !== undefined && mentee.academic?.targetPercentage !== null
+                          ? `${mentee.academic.targetPercentage}%`
+                          : 'Not set'}
                       </div>
                     </div>
                   </div>
 
                   {/* Progress bar toward target */}
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          height: '100%',
-                          width: `${Math.min(100, Math.round(((mentee.academic?.latestPercentage || 74) / (mentee.academic?.targetPercentage || 85)) * 100))}%`,
-                          background: 'linear-gradient(90deg, var(--primary) 0%, var(--success) 100%)',
-                          borderRadius: 3,
-                        }}
-                      />
+                  {mentee.academic?.latestPercentage !== undefined && mentee.academic?.targetPercentage ? (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            height: '100%',
+                            width: `${Math.min(100, Math.round((mentee.academic.latestPercentage / mentee.academic.targetPercentage) * 100))}%`,
+                            background: 'linear-gradient(90deg, var(--primary) 0%, var(--success) 100%)',
+                            borderRadius: 3,
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                        <span>Progress toward target</span>
+                        <span>{Math.min(100, Math.round((mentee.academic.latestPercentage / mentee.academic.targetPercentage) * 100))}% achieved</span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                      <span>Progress toward target</span>
-                      <span>{Math.min(100, Math.round(((mentee.academic?.latestPercentage || 74) / (mentee.academic?.targetPercentage || 85)) * 100))}% achieved</span>
+                  ) : (
+                    <div style={{ marginTop: 10, textAlign: 'center', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                      No benchmark target progress available yet.
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Metrics pair */}
@@ -705,13 +717,17 @@ export function MenteeProfilePage() {
                   <div style={{ padding: '10px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>Self-study Hours</span>
                     <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)', marginTop: 2 }}>
-                      {mentee.routine?.selfStudyHours || 2.5} hrs / day
+                      {mentee.routine?.selfStudyHours !== undefined && mentee.routine?.selfStudyHours !== null
+                        ? `${mentee.routine.selfStudyHours} hrs / day`
+                        : 'Not provided'}
                     </div>
                   </div>
                   <div style={{ padding: '10px 12px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10 }}>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>Attendance</span>
                     <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--success)', marginTop: 2 }}>
-                      {mentee.academic?.attendancePercentage || 92}%
+                      {mentee.academic?.attendancePercentage !== undefined && mentee.academic?.attendancePercentage !== null
+                        ? `${mentee.academic.attendancePercentage}%`
+                        : 'Not available'}
                     </div>
                   </div>
                 </div>
@@ -721,11 +737,11 @@ export function MenteeProfilePage() {
               <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: '0.82rem' }}>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
                   <strong style={{ color: 'var(--success)' }}>Strong:</strong>
-                  <span>{(mentee.academic?.favouriteSubjects || ['Science', 'Math']).join(', ')}</span>
+                  <span>{(mentee.academic?.favouriteSubjects && mentee.academic.favouriteSubjects.length > 0) ? mentee.academic.favouriteSubjects.join(', ') : 'Not provided'}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <strong style={{ color: '#e65100' }}>Needs Focus:</strong>
-                  <span>{(mentee.academic?.weakSubjects || ['Marathi']).join(', ')}</span>
+                  <span>{(mentee.academic?.weakSubjects && mentee.academic.weakSubjects.length > 0) ? mentee.academic.weakSubjects.join(', ') : 'None flagged'}</span>
                 </div>
               </div>
             </div>
@@ -752,14 +768,14 @@ export function MenteeProfilePage() {
                   <div style={{ padding: '10px 12px', background: 'rgba(143,63,102,0.04)', border: '1px solid rgba(143,63,102,0.12)', borderRadius: 10 }}>
                     <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--primary)', fontWeight: 700 }}>Semester Goal</div>
                     <div style={{ fontWeight: 700, fontSize: '0.92rem', marginTop: 2, color: 'var(--text-primary)' }}>
-                      {mentee.goals?.semesterGoal || 'Achieve 80% in semester examination.'}
+                      {mentee.goals?.semesterGoal || 'Not set'}
                     </div>
                   </div>
 
                   <div style={{ padding: '10px 12px', background: 'rgba(93,126,184,0.05)', border: '1px solid rgba(93,126,184,0.15)', borderRadius: 10 }}>
                     <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--info)', fontWeight: 700 }}>Final Career Aspiration</div>
                     <div style={{ fontWeight: 700, fontSize: '0.92rem', marginTop: 2, color: 'var(--text-primary)' }}>
-                      {mentee.goals?.careerGoal || mentee.careerInterests?.primaryGoal || 'AI Engineer & Technologist'}
+                      {mentee.goals?.careerGoal || mentee.careerInterests?.primaryGoal || 'Not set'}
                     </div>
                   </div>
                 </div>
@@ -769,17 +785,23 @@ export function MenteeProfilePage() {
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>
                     Active Milestones
                   </div>
-                  {(mentee.goals?.shortTermGoals || []).slice(0, 2).map((g) => (
-                    <div key={g.id} style={{ padding: '8px 12px', background: 'var(--surface-muted)', borderRadius: 8, fontSize: '0.85rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontWeight: 600 }}>{g.title}</span>
-                        <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.8rem' }}>{g.progress}%</span>
-                      </div>
-                      <div style={{ height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.06)', overflow: 'hidden', marginTop: 6 }}>
-                        <div style={{ height: '100%', width: `${g.progress}%`, background: 'var(--primary)', borderRadius: 2 }} />
-                      </div>
+                  {(mentee.goals?.shortTermGoals || []).length === 0 ? (
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', padding: '6px 0' }}>
+                      No short-term milestones set yet.
                     </div>
-                  ))}
+                  ) : (
+                    (mentee.goals?.shortTermGoals || []).slice(0, 2).map((g) => (
+                      <div key={g.id} style={{ padding: '8px 12px', background: 'var(--surface-muted)', borderRadius: 8, fontSize: '0.85rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontWeight: 600 }}>{g.title}</span>
+                          <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.8rem' }}>{g.progress}%</span>
+                        </div>
+                        <div style={{ height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.06)', overflow: 'hidden', marginTop: 6 }}>
+                          <div style={{ height: '100%', width: `${g.progress}%`, background: 'var(--primary)', borderRadius: 2 }} />
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -816,7 +838,12 @@ export function MenteeProfilePage() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {(mentee.challenges || []).slice(0, 2).map((ch) => (
+                  {(mentee.challenges || []).length === 0 ? (
+                    <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', padding: '12px 0', textAlign: 'center' }}>
+                      No active challenges flagged yet.
+                    </div>
+                  ) : (
+                    (mentee.challenges || []).slice(0, 2).map((ch) => (
                     <div
                       key={ch.id}
                       style={{
@@ -850,7 +877,8 @@ export function MenteeProfilePage() {
                         </div>
                       )}
                     </div>
-                  ))}
+                  ))
+                )}
                 </div>
               </div>
 
@@ -997,23 +1025,39 @@ export function MenteeProfilePage() {
             <div className="summary-card" style={{ textAlign: 'center', padding: '18px 14px' }}>
               <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Current Class</div>
               <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--text-primary)' }}>{mentee.standard}</div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>{mentee.academic?.academicLevel || 'Secondary School'}</div>
+              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>{mentee.academic?.academicLevel || 'Not specified'}</div>
             </div>
             <div className="summary-card" style={{ textAlign: 'center', padding: '18px 14px' }}>
               <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Previous Exam</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--text-primary)' }}>{mentee.academic?.previousPercentage || 68}%</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--text-primary)' }}>
+                {mentee.academic?.previousPercentage !== undefined && mentee.academic?.previousPercentage !== null
+                  ? `${mentee.academic.previousPercentage}%`
+                  : 'Not available'}
+              </div>
               <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>Baseline percentage</div>
             </div>
             <div className="summary-card" style={{ textAlign: 'center', padding: '18px 14px', border: '1.5px solid var(--primary)', background: 'rgba(143,63,102,0.02)' }}>
               <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--primary)', fontWeight: 700 }}>Latest Exam</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--primary)' }}>{mentee.academic?.latestPercentage || 74}%</div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--success)', fontWeight: 700, marginTop: 2 }}>
-                +{((mentee.academic?.latestPercentage || 74) - (mentee.academic?.previousPercentage || 68))}% improvement
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--primary)' }}>
+                {mentee.academic?.latestPercentage !== undefined && mentee.academic?.latestPercentage !== null
+                  ? `${mentee.academic.latestPercentage}%`
+                  : 'Not available'}
               </div>
+              {mentee.academic?.latestPercentage !== undefined && mentee.academic?.previousPercentage !== undefined ? (
+                <div style={{ fontSize: '0.76rem', color: (mentee.academic.latestPercentage - mentee.academic.previousPercentage) >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700, marginTop: 2 }}>
+                  {(mentee.academic.latestPercentage - mentee.academic.previousPercentage) >= 0 ? '+' : ''}{mentee.academic.latestPercentage - mentee.academic.previousPercentage}% improvement
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>No baseline comparison</div>
+              )}
             </div>
             <div className="summary-card" style={{ textAlign: 'center', padding: '18px 14px' }}>
               <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--success)', fontWeight: 700 }}>Target Exam</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--success)' }}>{mentee.academic?.targetPercentage || 85}%</div>
+              <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--success)' }}>
+                {mentee.academic?.targetPercentage !== undefined && mentee.academic?.targetPercentage !== null
+                  ? `${mentee.academic.targetPercentage}%`
+                  : 'Not set'}
+              </div>
               <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>Aim for semester</div>
             </div>
           </div>
@@ -1028,25 +1072,29 @@ export function MenteeProfilePage() {
               </div>
               <p className="muted" style={{ fontSize: '0.82rem', marginBottom: 12 }}>Subjects where mentee demonstrates natural aptitude and high confidence.</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {(mentee.academic?.favouriteSubjects || ['Mathematics', 'Science']).map((sub) => (
-                  <span
-                    key={sub}
-                    style={{
-                      background: 'rgba(43,138,91,0.08)',
-                      border: '1px solid rgba(43,138,91,0.2)',
-                      color: 'var(--success)',
-                      padding: '6px 12px',
-                      borderRadius: 10,
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    ★ {sub}
-                  </span>
-                ))}
+                {(mentee.academic?.favouriteSubjects && mentee.academic.favouriteSubjects.length > 0) ? (
+                  mentee.academic.favouriteSubjects.map((sub) => (
+                    <span
+                      key={sub}
+                      style={{
+                        background: 'rgba(43,138,91,0.08)',
+                        border: '1px solid rgba(43,138,91,0.2)',
+                        color: 'var(--success)',
+                        padding: '6px 12px',
+                        borderRadius: 10,
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      ★ {sub}
+                    </span>
+                  ))
+                ) : (
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0 }}>No favourite subjects specified yet.</p>
+                )}
               </div>
             </div>
 
@@ -1058,25 +1106,29 @@ export function MenteeProfilePage() {
               </div>
               <p className="muted" style={{ fontSize: '0.82rem', marginBottom: 12 }}>Prioritized for weekly mentor revision and active remediation.</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {(mentee.academic?.weakSubjects || ['Marathi', 'English Grammar']).map((sub) => (
-                  <span
-                    key={sub}
-                    style={{
-                      background: 'rgba(230,81,0,0.08)',
-                      border: '1px solid rgba(230,81,0,0.25)',
-                      color: '#e65100',
-                      padding: '6px 12px',
-                      borderRadius: 10,
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                    }}
-                  >
-                    ⚠️ {sub}
-                  </span>
-                ))}
+                {(mentee.academic?.weakSubjects && mentee.academic.weakSubjects.length > 0) ? (
+                  mentee.academic.weakSubjects.map((sub) => (
+                    <span
+                      key={sub}
+                      style={{
+                        background: 'rgba(230,81,0,0.08)',
+                        border: '1px solid rgba(230,81,0,0.25)',
+                        color: '#e65100',
+                        padding: '6px 12px',
+                        borderRadius: 10,
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      ⚠️ {sub}
+                    </span>
+                  ))
+                ) : (
+                  <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', margin: 0 }}>No improvement areas flagged yet.</p>
+                )}
               </div>
             </div>
           </div>
@@ -1086,53 +1138,53 @@ export function MenteeProfilePage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div>
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>
-                  Exam Preparation: {mentee.academic?.currentExam || 'Semester Examination'}
+                  Exam Preparation: {mentee.academic?.currentExam || 'Not specified'}
                 </h3>
                 <p className="muted" style={{ fontSize: '0.82rem' }}>Portion completion progress per syllabus topic</p>
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {(mentee.academic?.examProgress || [
-                { subject: 'Science', portionCompleted: 70, status: 'On Track' },
-                { subject: 'Mathematics', portionCompleted: 55, status: 'In Progress' },
-                { subject: 'Marathi', portionCompleted: 40, status: 'Needs Attention' },
-                { subject: 'Social Studies', portionCompleted: 65, status: 'On Track' },
-                { subject: 'English', portionCompleted: 75, status: 'On Track' },
-              ]).map((prog) => (
-                <div key={prog.subject} style={{ padding: '10px 14px', background: 'var(--surface-muted)', borderRadius: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{prog.subject}</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span
+              {(mentee.academic?.examProgress && mentee.academic.examProgress.length > 0) ? (
+                mentee.academic.examProgress.map((prog) => (
+                  <div key={prog.subject} style={{ padding: '10px 14px', background: 'var(--surface-muted)', borderRadius: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{prog.subject}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 8,
+                            background: prog.portionCompleted >= 70 ? 'rgba(43,138,91,0.1)' : prog.portionCompleted >= 50 ? 'rgba(93,126,184,0.1)' : 'rgba(230,81,0,0.1)',
+                            color: prog.portionCompleted >= 70 ? 'var(--success)' : prog.portionCompleted >= 50 ? 'var(--info)' : '#e65100',
+                          }}
+                        >
+                          {prog.status || (prog.portionCompleted >= 70 ? 'Ahead' : prog.portionCompleted >= 50 ? 'In Progress' : 'Needs Focus')}
+                        </span>
+                        <span style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-primary)', minWidth: 42, textAlign: 'right' }}>
+                          {prog.portionCompleted}%
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                      <div
                         style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: 8,
-                          background: prog.portionCompleted >= 70 ? 'rgba(43,138,91,0.1)' : prog.portionCompleted >= 50 ? 'rgba(93,126,184,0.1)' : 'rgba(230,81,0,0.1)',
-                          color: prog.portionCompleted >= 70 ? 'var(--success)' : prog.portionCompleted >= 50 ? 'var(--info)' : '#e65100',
+                          height: '100%',
+                          width: `${prog.portionCompleted}%`,
+                          background: prog.portionCompleted >= 70 ? 'var(--success)' : prog.portionCompleted >= 50 ? 'var(--primary)' : '#e65100',
+                          borderRadius: 3,
                         }}
-                      >
-                        {prog.status || (prog.portionCompleted >= 70 ? 'Ahead' : prog.portionCompleted >= 50 ? 'In Progress' : 'Needs Focus')}
-                      </span>
-                      <span style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-primary)', minWidth: 42, textAlign: 'right' }}>
-                        {prog.portionCompleted}%
-                      </span>
+                      />
                     </div>
                   </div>
-                  <div style={{ height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        height: '100%',
-                        width: `${prog.portionCompleted}%`,
-                        background: prog.portionCompleted >= 70 ? 'var(--success)' : prog.portionCompleted >= 50 ? 'var(--primary)' : '#e65100',
-                        borderRadius: 3,
-                      }}
-                    />
-                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+                  No syllabus or exam portion records added yet.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
@@ -1317,25 +1369,25 @@ export function MenteeProfilePage() {
               <div style={{ padding: '14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
                 <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Responses This Week</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--primary)', marginTop: 4 }}>
-                  {perfSummary?.responsesThisWeek || '6/7'}
+                  {perfSummary?.responsesThisWeek || '0/7'}
                 </div>
               </div>
               <div style={{ padding: '14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
                 <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Average Study Time</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
-                  {perfSummary?.avgStudyTimeHours || `${mentee.routine?.selfStudyHours || 2.5} hrs`}
+                  {perfSummary?.avgStudyTimeHours || (mentee.routine?.selfStudyHours ? `${mentee.routine.selfStudyHours} hrs` : 'Not provided')}
                 </div>
               </div>
               <div style={{ padding: '14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
                 <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Task Completion</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--success)', marginTop: 4 }}>
-                  {perfSummary?.taskCompletion || '82%'}
+                  {perfSummary?.taskCompletion || '0%'}
                 </div>
               </div>
               <div style={{ padding: '14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
                 <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Current Streak</div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#e65100', marginTop: 4 }}>
-                  🔥 {perfSummary?.currentStreak || '5 days'}
+                  {perfSummary?.currentStreak ? `🔥 ${perfSummary.currentStreak}` : '0 days'}
                 </div>
               </div>
             </div>
@@ -1368,8 +1420,8 @@ export function MenteeProfilePage() {
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Clock size={18} color="var(--primary)" /> Daily Study Schedule
               </h3>
-              <div style={{ background: 'var(--surface-muted)', padding: '14px 16px', borderRadius: 12, whiteSpace: 'pre-line', fontSize: '0.88rem', lineHeight: 1.6 }}>
-                {mentee.routine?.schedule || 'Morning: 6:00 AM – 7:30 AM (Quran recitation & Formula revision)\nEvening: 6:30 PM – 8:30 PM (Homework & Science practice)'}
+              <div style={{ background: 'var(--surface-muted)', padding: '14px 16px', borderRadius: 12, whiteSpace: 'pre-line', fontSize: '0.88rem', lineHeight: 1.6, color: mentee.routine?.schedule ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                {mentee.routine?.schedule || 'No study schedule provided yet.'}
               </div>
             </div>
 
@@ -1378,19 +1430,20 @@ export function MenteeProfilePage() {
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CheckSquare size={18} color="var(--success)" /> Core Study Habits
               </h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(mentee.routine?.habits || [
-                  'Daily Quran recitation (2 Ruku after Fajr)',
-                  'Weekend mock exam practice papers',
-                  'Pomodoro focus sessions (25m study / 5m break)',
-                  'Review formulas before sleep',
-                ]).map((habit, idx) => (
-                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--surface-muted)', borderRadius: 8, fontSize: '0.85rem' }}>
-                    <CheckCircle2 size={16} color="var(--success)" />
-                    <span>{habit}</span>
-                  </div>
-                ))}
-              </div>
+              {(mentee.routine?.habits || []).length === 0 ? (
+                <div className="muted" style={{ fontSize: '0.88rem', padding: '12px 0' }}>
+                  No core study habits added yet.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(mentee.routine?.habits || []).map((habit, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--surface-muted)', borderRadius: 8, fontSize: '0.85rem' }}>
+                      <CheckCircle2 size={16} color="var(--success)" />
+                      <span>{habit}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1535,28 +1588,36 @@ export function MenteeProfilePage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 14 }}>
               <div style={{ padding: '14px', background: 'var(--surface-muted)', borderRadius: 10 }}>
                 <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--primary)', fontWeight: 800 }}>Primary Career Target</span>
-                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
-                  {mentee.careerInterests?.primaryGoal || 'AI Engineer & Technologist'}
+                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: mentee.careerInterests?.primaryGoal ? 'var(--text-primary)' : 'var(--text-secondary)', marginTop: 4 }}>
+                  {mentee.careerInterests?.primaryGoal || 'Not set'}
                 </div>
               </div>
               <div style={{ padding: '14px', background: 'var(--surface-muted)', borderRadius: 10 }}>
                 <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 800 }}>Secondary Interests</span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                  {(mentee.careerInterests?.secondaryInterests || ['Data Science', 'Robotics & Automation']).map((item) => (
-                    <span key={item} style={{ background: '#fff', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: 6, fontSize: '0.82rem', fontWeight: 600 }}>
-                      {item}
-                    </span>
-                  ))}
+                  {(mentee.careerInterests?.secondaryInterests || []).length === 0 ? (
+                    <span className="muted" style={{ fontSize: '0.85rem' }}>Not provided</span>
+                  ) : (
+                    (mentee.careerInterests?.secondaryInterests || []).map((item) => (
+                      <span key={item} style={{ background: '#fff', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: 6, fontSize: '0.82rem', fontWeight: 600 }}>
+                        {item}
+                      </span>
+                    ))
+                  )}
                 </div>
               </div>
               <div style={{ padding: '14px', background: 'var(--surface-muted)', borderRadius: 10 }}>
                 <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 800 }}>Explored Careers</span>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                  {(mentee.careerInterests?.otherExplored || ['Civil Services', 'Software Development']).map((item) => (
-                    <span key={item} style={{ background: '#fff', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: 6, fontSize: '0.82rem', fontWeight: 600 }}>
-                      {item}
-                    </span>
-                  ))}
+                  {(mentee.careerInterests?.otherExplored || []).length === 0 ? (
+                    <span className="muted" style={{ fontSize: '0.85rem' }}>Not provided</span>
+                  ) : (
+                    (mentee.careerInterests?.otherExplored || []).map((item) => (
+                      <span key={item} style={{ background: '#fff', border: '1px solid var(--border)', padding: '3px 8px', borderRadius: 6, fontSize: '0.82rem', fontWeight: 600 }}>
+                        {item}
+                      </span>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -1569,24 +1630,28 @@ export function MenteeProfilePage() {
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Compass size={18} color="var(--primary)" /> Interests & Hobbies
               </h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {(mentee.careerInterests?.hobbies || ['Drawing', 'Painting', 'Technology', 'Science Podcasts', 'Reading History']).map((hobby) => (
-                  <span
-                    key={hobby}
-                    style={{
-                      background: 'rgba(143,63,102,0.06)',
-                      color: 'var(--primary)',
-                      border: '1px solid rgba(143,63,102,0.15)',
-                      padding: '6px 12px',
-                      borderRadius: 14,
-                      fontSize: '0.85rem',
-                      fontWeight: 700,
-                    }}
-                  >
-                    🎨 {hobby}
-                  </span>
-                ))}
-              </div>
+              {(mentee.careerInterests?.hobbies || []).length === 0 ? (
+                <p className="muted" style={{ fontSize: '0.88rem', margin: '8px 0' }}>No hobbies or interests added yet.</p>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {(mentee.careerInterests?.hobbies || []).map((hobby) => (
+                    <span
+                      key={hobby}
+                      style={{
+                        background: 'rgba(143,63,102,0.06)',
+                        color: 'var(--primary)',
+                        border: '1px solid rgba(143,63,102,0.15)',
+                        padding: '6px 12px',
+                        borderRadius: 14,
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                      }}
+                    >
+                      🎨 {hobby}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Skills Profile */}
@@ -1596,22 +1661,30 @@ export function MenteeProfilePage() {
               </h3>
               <div>
                 <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Existing Skills</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
-                  {(mentee.careerInterests?.skills || ['Analytical Thinking', 'Basic Python & Logic', 'Time Management']).map((s) => (
-                    <span key={s} style={{ background: 'rgba(43,138,91,0.08)', color: 'var(--success)', padding: '4px 10px', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600 }}>
-                      ✓ {s}
-                    </span>
-                  ))}
-                </div>
+                {(mentee.careerInterests?.skills || []).length === 0 ? (
+                  <p className="muted" style={{ fontSize: '0.85rem', margin: '0 0 14px' }}>None recorded yet</p>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                    {(mentee.careerInterests?.skills || []).map((s) => (
+                      <span key={s} style={{ background: 'rgba(43,138,91,0.08)', color: 'var(--success)', padding: '4px 10px', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600 }}>
+                        ✓ {s}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 6 }}>Skills to Develop</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {(mentee.careerInterests?.skillsToDevelop || ['Advanced Mathematics', 'Marathi Fluency', 'Public Speaking']).map((s) => (
-                    <span key={s} style={{ background: 'rgba(93,126,184,0.08)', color: 'var(--info)', padding: '4px 10px', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600 }}>
-                      ⚡ {s}
-                    </span>
-                  ))}
-                </div>
+                {(mentee.careerInterests?.skillsToDevelop || []).length === 0 ? (
+                  <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>None recorded yet</p>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {(mentee.careerInterests?.skillsToDevelop || []).map((s) => (
+                      <span key={s} style={{ background: 'rgba(93,126,184,0.08)', color: 'var(--info)', padding: '4px 10px', borderRadius: 8, fontSize: '0.82rem', fontWeight: 600 }}>
+                        ⚡ {s}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1621,20 +1694,21 @@ export function MenteeProfilePage() {
             <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               <BookOpen size={18} color="var(--primary)" /> Recommended & Assigned Courses
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 12 }}>
-              {(mentee.careerInterests?.recommendedCourses || [
-                { name: 'Foundations of Computer Science & Logic', provider: 'Anfaal Learning Hub', status: 'Enrolled' },
-                { name: 'Effective Study Habits & Time Mastery', provider: 'Smart Mentorship Core', status: 'Completed' },
-              ]).map((c, idx) => (
-                <div key={idx} style={{ padding: '12px 14px', background: 'var(--surface-muted)', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{c.name}</div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>{c.provider || 'Anfaal Platform'}</div>
+            {(mentee.careerInterests?.recommendedCourses || []).length === 0 ? (
+              <p className="muted" style={{ fontSize: '0.88rem', margin: 0 }}>No recommended courses added yet.</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 12 }}>
+                {(mentee.careerInterests?.recommendedCourses || []).map((c, idx) => (
+                  <div key={idx} style={{ padding: '12px 14px', background: 'var(--surface-muted)', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{c.name}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>{c.provider || 'Anfaal Platform'}</div>
+                    </div>
+                    <StatusBadge status={c.status || 'Enrolled'} />
                   </div>
-                  <StatusBadge status={c.status || 'Enrolled'} />
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2429,7 +2503,7 @@ function EditProfileModal({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Location</label>
-              <input className="input-field" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Govandi" />
+              <input className="input-field" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Area, City" />
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Status</label>
@@ -2479,26 +2553,34 @@ function EditAcademicModal({
   onClose: () => void;
   onSave: (data: any) => Promise<void>;
 }) {
-  const [previousPercentage, setPreviousPercentage] = useState(academic?.previousPercentage ?? 68);
-  const [latestPercentage, setLatestPercentage] = useState(academic?.latestPercentage ?? 74);
-  const [targetPercentage, setTargetPercentage] = useState(academic?.targetPercentage ?? 85);
-  const [attendancePercentage, setAttendancePercentage] = useState(academic?.attendancePercentage ?? 92);
+  const [previousPercentage, setPreviousPercentage] = useState<string>(
+    academic?.previousPercentage !== undefined && academic?.previousPercentage !== null ? String(academic.previousPercentage) : ''
+  );
+  const [latestPercentage, setLatestPercentage] = useState<string>(
+    academic?.latestPercentage !== undefined && academic?.latestPercentage !== null ? String(academic.latestPercentage) : ''
+  );
+  const [targetPercentage, setTargetPercentage] = useState<string>(
+    academic?.targetPercentage !== undefined && academic?.targetPercentage !== null ? String(academic.targetPercentage) : ''
+  );
+  const [attendancePercentage, setAttendancePercentage] = useState<string>(
+    academic?.attendancePercentage !== undefined && academic?.attendancePercentage !== null ? String(academic.attendancePercentage) : ''
+  );
   const [academicLevel, setAcademicLevel] = useState(academic?.academicLevel ?? '');
-  const [currentExam, setCurrentExam] = useState(academic?.currentExam ?? 'Semester Examination');
-  const [favSubjectsStr, setFavSubjectsStr] = useState((academic?.favouriteSubjects ?? ['Mathematics', 'Science']).join(', '));
-  const [weakSubjectsStr, setWeakSubjectsStr] = useState((academic?.weakSubjects ?? ['Marathi']).join(', '));
+  const [currentExam, setCurrentExam] = useState(academic?.currentExam ?? '');
+  const [favSubjectsStr, setFavSubjectsStr] = useState((academic?.favouriteSubjects ?? []).join(', '));
+  const [weakSubjectsStr, setWeakSubjectsStr] = useState((academic?.weakSubjects ?? []).join(', '));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     await onSave({
-      previousPercentage: Number(previousPercentage),
-      latestPercentage: Number(latestPercentage),
-      targetPercentage: Number(targetPercentage),
-      attendancePercentage: Number(attendancePercentage),
-      academicLevel,
-      currentExam,
+      previousPercentage: previousPercentage.trim() !== '' ? Number(previousPercentage) : undefined,
+      latestPercentage: latestPercentage.trim() !== '' ? Number(latestPercentage) : undefined,
+      targetPercentage: targetPercentage.trim() !== '' ? Number(targetPercentage) : undefined,
+      attendancePercentage: attendancePercentage.trim() !== '' ? Number(attendancePercentage) : undefined,
+      academicLevel: academicLevel.trim() || undefined,
+      currentExam: currentExam.trim() || undefined,
       favouriteSubjects: favSubjectsStr.split(',').map((s) => s.trim()).filter(Boolean),
       weakSubjects: weakSubjectsStr.split(',').map((s) => s.trim()).filter(Boolean),
       examProgress: academic?.examProgress || [],
@@ -2517,21 +2599,21 @@ function EditAcademicModal({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Previous %</label>
-              <input type="number" className="input-field" value={previousPercentage} onChange={(e) => setPreviousPercentage(Number(e.target.value))} />
+              <input type="number" className="input-field" value={previousPercentage} onChange={(e) => setPreviousPercentage(e.target.value)} placeholder="e.g. 68" />
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Latest Exam %</label>
-              <input type="number" className="input-field" value={latestPercentage} onChange={(e) => setLatestPercentage(Number(e.target.value))} />
+              <input type="number" className="input-field" value={latestPercentage} onChange={(e) => setLatestPercentage(e.target.value)} placeholder="e.g. 74" />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Target %</label>
-              <input type="number" className="input-field" value={targetPercentage} onChange={(e) => setTargetPercentage(Number(e.target.value))} />
+              <input type="number" className="input-field" value={targetPercentage} onChange={(e) => setTargetPercentage(e.target.value)} placeholder="e.g. 85" />
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Attendance %</label>
-              <input type="number" className="input-field" value={attendancePercentage} onChange={(e) => setAttendancePercentage(Number(e.target.value))} />
+              <input type="number" className="input-field" value={attendancePercentage} onChange={(e) => setAttendancePercentage(e.target.value)} placeholder="e.g. 90" />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -2541,7 +2623,7 @@ function EditAcademicModal({
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Current Exam</label>
-              <input className="input-field" value={currentExam} onChange={(e) => setCurrentExam(e.target.value)} />
+              <input className="input-field" placeholder="e.g. Semester Examination" value={currentExam} onChange={(e) => setCurrentExam(e.target.value)} />
             </div>
           </div>
           <div>
@@ -2765,7 +2847,9 @@ function EditRoutineModal({
   onClose: () => void;
   onSave: (data: any) => Promise<void>;
 }) {
-  const [selfStudyHours, setSelfStudyHours] = useState(routine?.selfStudyHours ?? 2.5);
+  const [selfStudyHours, setSelfStudyHours] = useState<string>(
+    routine?.selfStudyHours !== undefined && routine?.selfStudyHours !== null ? String(routine.selfStudyHours) : ''
+  );
   const [schedule, setSchedule] = useState(routine?.schedule ?? '');
   const [habitsStr, setHabitsStr] = useState((routine?.habits || []).join('\n'));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -2774,7 +2858,7 @@ function EditRoutineModal({
     e.preventDefault();
     setIsSubmitting(true);
     await onSave({
-      selfStudyHours: Number(selfStudyHours),
+      selfStudyHours: selfStudyHours.trim() !== '' ? Number(selfStudyHours) : undefined,
       schedule,
       habits: habitsStr.split('\n').map((h) => h.trim()).filter(Boolean),
     });
@@ -2791,7 +2875,7 @@ function EditRoutineModal({
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Daily Self-Study Hours</label>
-            <input type="number" step="0.5" className="input-field" value={selfStudyHours} onChange={(e) => setSelfStudyHours(Number(e.target.value))} />
+            <input type="number" step="0.5" className="input-field" value={selfStudyHours} onChange={(e) => setSelfStudyHours(e.target.value)} placeholder="e.g. 2.5" />
           </div>
           <div>
             <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Study Schedule</label>

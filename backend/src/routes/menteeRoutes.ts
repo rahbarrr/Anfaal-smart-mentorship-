@@ -32,129 +32,6 @@ const updateMenteeSchema = z.object({
   assignedMentorId: z.string().optional(),
 });
 
-function getMenteeDefaults(mentee: any, assignedMentorName?: string) {
-  const std = mentee.standard || '10th';
-  const standardNum = std.match(/\d+/)?.[0] || '10';
-
-  const academic = mentee.academic || {
-    previousPercentage: 68,
-    latestPercentage: 74,
-    targetPercentage: 85,
-    attendancePercentage: 92,
-    academicLevel: `Class ${standardNum} (Secondary)`,
-    favouriteSubjects: ['Mathematics', 'Science'],
-    weakSubjects: ['Marathi', 'English Grammar'],
-    currentExam: 'Semester Examination',
-    examProgress: [
-      { subject: 'Science', portionCompleted: 70, status: 'On Track' },
-      { subject: 'Mathematics', portionCompleted: 55, status: 'In Progress' },
-      { subject: 'Marathi', portionCompleted: 40, status: 'Needs Attention' },
-      { subject: 'Social Studies', portionCompleted: 65, status: 'On Track' },
-      { subject: 'English', portionCompleted: 75, status: 'On Track' },
-    ],
-  };
-
-  const goals = mentee.goals || {
-    careerGoal: 'AI Engineer & Technologist',
-    semesterGoal: `Achieve 80% in Class ${standardNum} examination.`,
-    shortTermGoals: [
-      {
-        id: 'g-1',
-        title: 'Complete Science and Mathematics preparation',
-        description: 'Finish all revision exercises and solve past test papers.',
-        progress: 70,
-        deadline: '2026-10-25',
-        status: 'In Progress',
-        createdAt: mentee.createdAt || new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: 'g-2',
-        title: 'Marathi Vocabulary Mastery',
-        description: 'Memorize 5 difficult words daily and practice sentence construction.',
-        progress: 45,
-        deadline: '2026-10-30',
-        status: 'In Progress',
-        createdAt: mentee.createdAt || new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: 'g-3',
-        title: 'Formula Flashcards Review',
-        description: 'Review geometry theorems and algebraic identities every Sunday.',
-        progress: 85,
-        deadline: '2026-11-05',
-        status: 'In Progress',
-        createdAt: mentee.createdAt || new Date(),
-        updatedAt: new Date(),
-      },
-    ],
-  };
-
-  const routine = mentee.routine || {
-    selfStudyHours: 2.5,
-    schedule: 'Morning: 6:00 AM – 7:30 AM (Quran recitation & Revision)\nEvening: 6:30 PM – 8:30 PM (Homework & Science practice)',
-    habits: ['Daily Quran recitation (2 Ruku)', 'Pre-exam mock tests on weekends', 'Pomodoro focus sessions (25m study / 5m break)'],
-  };
-
-  const careerInterests = mentee.careerInterests || {
-    primaryGoal: 'AI Engineer',
-    secondaryInterests: ['Data Science', 'Robotics & Automation'],
-    otherExplored: ['Civil Services', 'Software Development'],
-    hobbies: ['Drawing', 'Painting', 'Technology', 'Science Podcasts'],
-    skills: ['Analytical Thinking', 'Basic Python & Logic', 'Problem Solving'],
-    skillsToDevelop: ['Advanced Mathematics', 'Marathi Fluency', 'Public Speaking'],
-    recommendedCourses: [
-      { name: 'Introduction to Artificial Intelligence', provider: 'Anfaal Learning Hub', status: 'Enrolled' },
-      { name: 'Effective Study Habits & Time Mastery', provider: 'Smart Mentorship Core', status: 'Completed' },
-    ],
-  };
-
-  const challenges = (mentee.challenges && mentee.challenges.length > 0) ? mentee.challenges : [
-    {
-      id: 'ch-1',
-      title: 'Marathi improvement',
-      description: 'Struggling with writing comprehension and speed in Marathi language tests.',
-      priority: 'Medium',
-      status: 'In Progress',
-      mentorAction: 'Learn 5 difficult Marathi words daily and write 1 summary paragraph weekly.',
-      progress: 60,
-      createdAt: mentee.createdAt || new Date(),
-      updatedAt: new Date(),
-    },
-    {
-      id: 'ch-2',
-      title: 'Mathematics Word Problems',
-      description: 'Difficulty understanding quadratic equations applied in word scenarios.',
-      priority: 'High',
-      status: 'In Progress',
-      mentorAction: 'Practice 3 step-by-step breakdown problems together during mentor calls.',
-      progress: 55,
-      createdAt: mentee.createdAt || new Date(),
-      updatedAt: new Date(),
-    },
-  ];
-
-  const notes = (mentee.notes && mentee.notes.length > 0) ? mentee.notes : [
-    {
-      id: 'n-1',
-      mentorName: assignedMentorName || 'Assigned Mentor',
-      note: 'Discussed weekly study plan. Mentee is receptive and committed to improving Marathi vocabulary.',
-      category: 'Academic',
-      createdAt: mentee.createdAt || new Date(),
-    },
-  ];
-
-  return {
-    academic,
-    goals,
-    routine,
-    careerInterests,
-    challenges,
-    notes,
-  };
-}
-
 // GET /api/mentees — all mentees with enriched data (admin only)
 router.get('/', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
@@ -405,14 +282,12 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       topicsDiscussed: call.topicsDiscussed || [],
     }));
 
-    // Defaults for 360 profile
-    const defaults = getMenteeDefaults(mentee, assignedMentorName);
-    const academic = mentee.academic || defaults.academic;
-    const goals = mentee.goals || defaults.goals;
-    const routine = mentee.routine || defaults.routine;
-    const careerInterests = mentee.careerInterests || defaults.careerInterests;
-    const challenges = (mentee.challenges && mentee.challenges.length > 0) ? mentee.challenges : defaults.challenges;
-    const notes = (mentee.notes && mentee.notes.length > 0) ? mentee.notes : defaults.notes;
+    const academic = mentee.academic || null;
+    const goals = mentee.goals || null;
+    const routine = mentee.routine || null;
+    const careerInterests = mentee.careerInterests || null;
+    const challenges = Array.isArray(mentee.challenges) ? mentee.challenges : [];
+    const notes = Array.isArray(mentee.notes) ? mentee.notes : [];
 
     // Daily Performance Summary Metrics
     const now = new Date();
@@ -420,15 +295,15 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
     const recentWeeklyLogs = dailyPerfRecords.filter((p) => new Date(p.date) >= sevenDaysAgo);
     const responsesThisWeek = recentWeeklyLogs.length;
 
+    const totalSubmissions = dailyPerfRecords.length;
     const totalStudyMin = dailyPerfRecords.reduce((acc, p) => acc + (p.studyMinutes || 0), 0);
-    const avgStudyMinutes = dailyPerfRecords.length > 0 ? Math.round(totalStudyMin / dailyPerfRecords.length) : 150;
+    const avgStudyMinutes = totalSubmissions > 0 ? Math.round(totalStudyMin / totalSubmissions) : 0;
     const avgStudyTimeHours = (avgStudyMinutes / 60).toFixed(1);
 
     // Calculate current streak
     let streak = 0;
     const dateSet = new Set(dailyPerfRecords.map((p) => p.date));
     let checkDate = new Date();
-    // Allow check from today or yesterday
     const todayStr = checkDate.toISOString().split('T')[0];
     if (!dateSet.has(todayStr)) {
       checkDate = new Date(checkDate.getTime() - 24 * 60 * 60 * 1000);
@@ -437,17 +312,16 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       streak += 1;
       checkDate = new Date(checkDate.getTime() - 24 * 60 * 60 * 1000);
     }
-    const currentStreak = streak > 0 ? streak : (dailyPerfRecords.length > 0 ? 3 : 0);
-
-    const taskCompletion = Math.min(100, Math.max(50, Math.round((responsesThisWeek / 7) * 100) || 82));
+    const currentStreak = streak;
+    const taskCompletion = totalSubmissions > 0 ? Math.min(100, Math.round((responsesThisWeek / 7) * 100)) : 0;
 
     const dailyPerformanceSummary = {
-      responsesThisWeek: `${Math.min(responsesThisWeek || 5, 7)}/7`,
-      avgStudyTimeHours: `${avgStudyTimeHours} hrs`,
+      responsesThisWeek: `${Math.min(responsesThisWeek, 7)}/7`,
+      avgStudyTimeHours: totalSubmissions > 0 ? `${avgStudyTimeHours} hrs` : 'Not provided',
       avgStudyMinutes,
       taskCompletion: `${taskCompletion}%`,
       currentStreak: `${currentStreak} days`,
-      totalSubmissions: dailyPerfRecords.length,
+      totalSubmissions,
       latestSubmission: dailyPerfRecords[0] || null,
     };
 
@@ -487,38 +361,42 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
     });
 
     notes.slice(0, 10).forEach((n: any) => {
-      timelineItems.push({
-        id: `note-${n.id || Math.random()}`,
-        type: 'note',
-        title: `Mentor note added (${n.category || 'General'})`,
-        timestamp: new Date(n.createdAt || Date.now()),
-        description: `By ${n.mentorName}: "${n.note.length > 120 ? n.note.slice(0, 120) + '…' : n.note}"`,
-        refId: n.id,
-      });
-    });
-
-    (goals.shortTermGoals || []).forEach((g: any) => {
-      if (g.updatedAt || g.createdAt) {
+      if (n && n.note) {
         timelineItems.push({
-          id: `goal-${g.id}`,
-          type: 'goal',
-          title: `Goal updated: ${g.title}`,
-          timestamp: new Date(g.updatedAt || g.createdAt),
-          description: `Status: ${g.status} · Progress: ${g.progress}%`,
-          refId: g.id,
-          meta: { progress: g.progress, status: g.status },
+          id: `note-${n.id || Math.random()}`,
+          type: 'note',
+          title: `Mentor note added (${n.category || 'General'})`,
+          timestamp: new Date(n.createdAt || Date.now()),
+          description: `By ${n.mentorName || 'Mentor'}: "${n.note.length > 120 ? n.note.slice(0, 120) + '…' : n.note}"`,
+          refId: n.id,
         });
       }
     });
 
+    if (goals && Array.isArray(goals.shortTermGoals)) {
+      goals.shortTermGoals.forEach((g: any) => {
+        if (g && (g.updatedAt || g.createdAt)) {
+          timelineItems.push({
+            id: `goal-${g.id || Math.random()}`,
+            type: 'goal',
+            title: `Goal updated: ${g.title || 'Goal'}`,
+            timestamp: new Date(g.updatedAt || g.createdAt),
+            description: `Status: ${g.status || 'In Progress'} · Progress: ${g.progress ?? 0}%`,
+            refId: g.id,
+            meta: { progress: g.progress, status: g.status },
+          });
+        }
+      });
+    }
+
     challenges.forEach((ch: any) => {
-      if (ch.updatedAt || ch.createdAt) {
+      if (ch && (ch.updatedAt || ch.createdAt)) {
         timelineItems.push({
-          id: `challenge-${ch.id}`,
+          id: `challenge-${ch.id || Math.random()}`,
           type: 'challenge',
-          title: `Challenge tracked: ${ch.title}`,
+          title: `Challenge tracked: ${ch.title || 'Challenge'}`,
           timestamp: new Date(ch.updatedAt || ch.createdAt),
-          description: `Priority: ${ch.priority} · Status: ${ch.status} · Progress: ${ch.progress}%`,
+          description: `Priority: ${ch.priority || 'Medium'} · Status: ${ch.status || 'In Progress'} · Progress: ${ch.progress ?? 0}%`,
           refId: ch.id,
           meta: { priority: ch.priority, status: ch.status },
         });
@@ -531,8 +409,8 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
     // Determine last activity timestamp
     const lastActivity = timelineItems[0]?.timestamp || mentee.createdAt;
 
-    const makidDisplay = mentee.makid || (`MAK${String(mentee._id).slice(-4).toUpperCase()}`);
-    const locationDisplay = mentee.location || contactInfo?.location || 'Govandi';
+    const makidDisplay = mentee.makid ?? '';
+    const locationDisplay = mentee.location ?? contactInfo?.location ?? '';
 
     return res.json({
       mentee: {
