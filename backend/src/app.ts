@@ -14,6 +14,7 @@ import menteeRoutes from './routes/menteeRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import dailyPerformanceRoutes from './routes/dailyPerformanceRoutes.js';
 import bulkImportRoutes from './routes/bulkImportRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 import { checkRedisHealth } from './queue/callQueue.js';
 
 const app = express();
@@ -129,6 +130,7 @@ app.use('/api/mentees', menteeRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/daily-performance', dailyPerformanceRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/import', bulkImportRoutes);
 app.use('/api', bulkImportRoutes);
 app.use('/api', dailyPerformanceRoutes);

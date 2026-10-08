@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Clock, BookOpen, AlertCircle, HelpCircle, ArrowLeft, Calendar, Edit3 } from 'lucide-react';
 import { submitDailyPerformance, getTodayPerformance, updateDailyPerformance } from '../lib/api';
-import { formatDateTime, formatDateOnly } from '../lib/dateTime';
+import { formatDateTime, formatDateOnly, formatTimeOnly } from '../lib/dateTime';
 
 const STUDY_PRESETS = [
   { label: '0 hrs', minutes: 0 },
@@ -294,9 +294,9 @@ export function DailyPerformanceFormPage() {
           {currentRecord && (
             <div style={{ margin: '8px 0 16px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
-                <span>Submitted: <strong style={{ color: 'var(--text-primary)' }}>{formatDateTime(currentRecord.submittedAt || currentRecord.createdAt)}</strong></span>
+                <span>Submitted: <strong style={{ color: 'var(--text-primary)' }}>{formatDateOnly(currentRecord.submittedAt || currentRecord.createdAt)} • {formatTimeOnly(currentRecord.submittedAt || currentRecord.createdAt)}</strong></span>
                 {currentRecord.updatedAt && currentRecord.submittedAt && new Date(currentRecord.updatedAt).getTime() - new Date(currentRecord.submittedAt).getTime() > 30000 && (
-                  <span>• Last updated: <strong style={{ color: 'var(--text-primary)' }}>{formatDateTime(currentRecord.updatedAt)}</strong></span>
+                  <span>• Last updated: <strong style={{ color: 'var(--text-primary)' }}>{formatDateOnly(currentRecord.updatedAt)} • {formatTimeOnly(currentRecord.updatedAt)}</strong></span>
                 )}
               </span>
             </div>

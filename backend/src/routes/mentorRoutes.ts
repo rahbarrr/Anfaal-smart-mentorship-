@@ -7,6 +7,7 @@ import { Mentorship } from '../models/Mentorship.js';
 import { Call } from '../models/Call.js';
 import { User } from '../models/User.js';
 import { logAuditEvent } from '../services/auditService.js';
+import { notifyAdmins } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -154,6 +155,16 @@ router.post('/register', async (req, res) => {
       preferredSubjects: normalized.preferredSubjects,
       mentorApprovalStatus: 'PENDING',
       status: 'disabled',
+    });
+
+    // Notify administrators of pending mentor registration
+    void notifyAdmins({
+      type: 'MENTOR_APPROVAL_REQUIRED',
+      category: 'systemNotifications',
+      title: 'Mentor approval required',
+      message: `${user.name} has registered and requires approval.`,
+      link: '/admin/mentors',
+      metadata: { mentorId: String(mentor._id), userId: String(user._id) },
     });
 
     return res.status(201).json({

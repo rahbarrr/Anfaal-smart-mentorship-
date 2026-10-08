@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CalendarCheck, History, LogOut, Menu, X, Sparkles } from 'lucide-react';
+import { LayoutDashboard, CalendarCheck, History, LogOut, Menu, X, Sparkles, MoreHorizontal } from 'lucide-react';
+import { MobileHeader } from '../components/MobileHeader';
+import { MobileMoreDrawer, type MoreDrawerLink } from '../components/MobileMoreDrawer';
+import { NotificationCenter } from '../components/NotificationCenter';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 const links = [
   { to: '/mentee', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/mentee/daily', label: 'Daily Progress', icon: CalendarCheck, end: false },
   { to: '/mentee/history', label: 'History', icon: History, end: false },
+];
+
+const menteeDrawerLinks: MoreDrawerLink[] = [
+  { to: '/mentee', label: 'Learner Dashboard', icon: LayoutDashboard, description: 'Daily schedule, goals & mentor info', end: true },
+  { to: '/mentee/daily', label: "Record Today's Progress", icon: CalendarCheck, description: 'Log study hours, Quran & habits' },
+  { to: '/mentee/history', label: 'Submission History', icon: History, description: 'Browse and reflect on past entries' },
 ];
 
 function getStoredUser() {
@@ -21,6 +31,7 @@ export function MenteeLayout() {
   const navigate = useNavigate();
   const user = getStoredUser();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moreDrawerOpen, setMoreDrawerOpen] = useState(false);
 
   const handleSignOut = () => {
     localStorage.removeItem('anfaal-token');
@@ -30,6 +41,14 @@ export function MenteeLayout() {
 
   return (
     <div className="layout-shell">
+      {/* ── Native-feeling Mobile Header (phones & tablets) ──────────────── */}
+      <MobileHeader
+        portalName="Mentee Portal"
+        user={user}
+        onOpenMenu={() => setMoreDrawerOpen(true)}
+        rightAction={<NotificationCenter />}
+      />
+
       {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
       {/* ── Sidebar ──────────────────────────────────────────────────────── */}
       <aside className={`sidebar ${menuOpen ? 'mobile-menu-open' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
@@ -91,12 +110,17 @@ export function MenteeLayout() {
             </div>
             <h2 style={{ fontSize: '1.5rem', marginTop: '4px' }}>Daily Mentee Portal</h2>
           </div>
-          <button className="btn-primary" onClick={() => navigate('/mentee/daily')}>
-            + Record Today's Progress
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <NotificationCenter />
+            <button className="btn-primary" onClick={() => navigate('/mentee/daily')}>
+              + Record Today's Progress
+            </button>
+          </div>
         </header>
 
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {/* ── Mobile bottom navigation bar ─────────────────────────────────── */}
@@ -112,11 +136,26 @@ export function MenteeLayout() {
             <span>{label}</span>
           </NavLink>
         ))}
-        <button className="bottom-nav-item" onClick={handleSignOut} title="Sign out">
-          <LogOut size={20} />
-          <span>Sign out</span>
+        <button
+          type="button"
+          className={`bottom-nav-item ${moreDrawerOpen ? 'active' : ''}`}
+          onClick={() => setMoreDrawerOpen(true)}
+          aria-label="Open more options menu"
+        >
+          <MoreHorizontal size={20} />
+          <span>More</span>
         </button>
       </nav>
+
+      {/* ── Mobile More Bottom Sheet Drawer ──────────────────────────────── */}
+      <MobileMoreDrawer
+        isOpen={moreDrawerOpen}
+        onClose={() => setMoreDrawerOpen(false)}
+        title="Mentee Menu"
+        links={menteeDrawerLinks}
+        user={user}
+        onSignOut={handleSignOut}
+      />
     </div>
   );
 }

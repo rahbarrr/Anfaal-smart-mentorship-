@@ -97,6 +97,7 @@ export interface Mentee {
   id: string;
   name: string;
   standard: string;
+  makid?: string;
   age: string;
   status: 'Active' | 'At Risk' | 'Paused';
   assignedMentor: string;

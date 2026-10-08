@@ -1,6 +1,26 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, UserRound, FileText, BarChart3, FileSpreadsheet, Link2, ClipboardCheck, LogOut, Menu, X, CalendarCheck, UploadCloud, PhoneCall } from 'lucide-react';
+import {
+  LayoutDashboard,
+  Users,
+  UserRound,
+  FileText,
+  BarChart3,
+  FileSpreadsheet,
+  Link2,
+  ClipboardCheck,
+  LogOut,
+  Menu,
+  X,
+  CalendarCheck,
+  UploadCloud,
+  PhoneCall,
+  MoreHorizontal
+} from 'lucide-react';
+import { MobileHeader } from '../components/MobileHeader';
+import { MobileMoreDrawer, type MoreDrawerLink } from '../components/MobileMoreDrawer';
+import { NotificationCenter } from '../components/NotificationCenter';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 const links = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -15,20 +35,29 @@ const links = [
   { to: '/admin/reports', label: 'Reports', icon: FileSpreadsheet, end: false },
 ];
 
-// Links shown in sidebar only (not bottom nav — too many)
 const sidebarOnlyLinks = [
   { to: '/admin/mentorships', label: 'Mentorships', icon: FileText, end: false },
 ];
 
 const allLinks = [...links.slice(0, 1), ...sidebarOnlyLinks, ...links.slice(1)];
 
-// Bottom nav shows only the 5 most important core items
+// 4 primary destinations on mobile bottom bar (+ More button)
 const bottomLinks = [
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-  { to: '/admin/calls', label: 'Calls', icon: PhoneCall, end: false },
-  { to: '/admin/mentors', label: 'Mentors', icon: Users, end: false },
+  { to: '/admin', label: 'Home', icon: LayoutDashboard, end: true },
   { to: '/admin/mentees', label: 'Mentees', icon: UserRound, end: false },
-  { to: '/admin/assignments', label: 'Assign', icon: Link2, end: false },
+  { to: '/admin/mentors', label: 'Mentors', icon: Users, end: false },
+  { to: '/admin/calls', label: 'Calls', icon: PhoneCall, end: false },
+];
+
+// Secondary items accessible in mobile drawer
+const adminDrawerLinks: MoreDrawerLink[] = [
+  { to: '/admin/assignments', label: 'Assignments', icon: Link2, description: 'Assign mentees to mentors' },
+  { to: '/admin/bulk-import', label: 'Bulk Import', icon: UploadCloud, description: 'Upload mentee CSV datasets' },
+  { to: '/admin/performance', label: 'Performance', icon: CalendarCheck, description: 'Daily student logs & multi-select' },
+  { to: '/admin/reviews', label: 'Reviews', icon: ClipboardCheck, description: 'Mentor call evaluation forms' },
+  { to: '/admin/analytics', label: 'Analytics', icon: BarChart3, description: 'High-level mentorship insights' },
+  { to: '/admin/reports', label: 'Reports', icon: FileSpreadsheet, description: 'Export performance logs & data' },
+  { to: '/admin/mentorships', label: 'Mentorships', icon: FileText, description: 'Pairing status and records' },
 ];
 
 function getStoredUser() {
@@ -44,6 +73,7 @@ export function AdminLayout() {
   const navigate = useNavigate();
   const user = getStoredUser();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moreDrawerOpen, setMoreDrawerOpen] = useState(false);
 
   const handleSignOut = () => {
     localStorage.removeItem('anfaal-token');
@@ -53,8 +83,16 @@ export function AdminLayout() {
 
   return (
     <div className="layout-shell">
+      {/* ── Native-feeling Mobile Header (phones & tablets) ──────────────── */}
+      <MobileHeader
+        portalName="Admin Portal"
+        user={user}
+        onOpenMenu={() => setMoreDrawerOpen(true)}
+        rightAction={<NotificationCenter />}
+      />
+
       {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
-      {/* ── Sidebar / top header ─────────────────────────────────────────── */}
+      {/* ── Sidebar / top header (desktop & tablet drawer) ────────────────── */}
       <aside className={`sidebar ${menuOpen ? 'mobile-menu-open' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
         <div className="brand-block">
           <div className="brand-mark">A</div>
@@ -114,10 +152,15 @@ export function AdminLayout() {
             <div className="eyebrow">Anfaal Mentorship Dashboard</div>
             <h2 style={{ fontSize: '1.5rem', marginTop: '4px' }}>Operations overview</h2>
           </div>
-          <button className="btn-primary" onClick={() => navigate('/admin/reports')}>Export Report</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <NotificationCenter />
+            <button className="btn-primary" onClick={() => navigate('/admin/reports')}>Export Report</button>
+          </div>
         </header>
 
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {/* ── Mobile bottom navigation bar ─────────────────────────────────── */}
@@ -133,7 +176,26 @@ export function AdminLayout() {
             <span>{label}</span>
           </NavLink>
         ))}
+        <button
+          type="button"
+          className={`bottom-nav-item ${moreDrawerOpen ? 'active' : ''}`}
+          onClick={() => setMoreDrawerOpen(true)}
+          aria-label="Open more options menu"
+        >
+          <MoreHorizontal size={20} />
+          <span>More</span>
+        </button>
       </nav>
+
+      {/* ── Mobile More Bottom Sheet Drawer ──────────────────────────────── */}
+      <MobileMoreDrawer
+        isOpen={moreDrawerOpen}
+        onClose={() => setMoreDrawerOpen(false)}
+        title="Admin Menu"
+        links={adminDrawerLinks}
+        user={user}
+        onSignOut={handleSignOut}
+      />
     </div>
   );
 }

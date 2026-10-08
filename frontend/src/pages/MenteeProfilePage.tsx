@@ -9,6 +9,7 @@ import {
   deleteMenteeNote,
   deleteMentee,
   getMenteePerformance,
+  getMenteeAiInsights,
   deleteDailyPerformance,
   bulkDeleteDailyPerformance,
 } from '../lib/api';
@@ -41,7 +42,7 @@ import {
   FileText,
   Phone,
 } from 'lucide-react';
-import type { Mentee360Profile, ShortTermGoal, MenteeChallenge } from '../types';
+import type { Mentee360Profile, ShortTermGoal, MenteeChallenge, AiInsightsResult } from '../types';
 import { formatDateTime, formatDateOnly, formatSubmissionTimestamps } from '../lib/dateTime';
 
 type TabType = 'overview' | 'academic' | 'goals' | 'routine' | 'career' | 'challenges' | 'calls' | 'timeline';
@@ -163,6 +164,24 @@ export function MenteeProfilePage() {
   })();
   const isAdmin = user?.role === 'ADMIN';
   const token = localStorage.getItem('anfaal-token') || '';
+
+  // Supportive Intelligence (AI Insights)
+  const [aiInsights, setAiInsights] = useState<AiInsightsResult | null>(null);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  const handleGenerateAiInsights = async () => {
+    if (!menteeId) return;
+    setIsGeneratingAi(true);
+    try {
+      const res = await getMenteeAiInsights(menteeId);
+      setAiInsights(res);
+      setFeedback({ msg: 'Weekly AI progress insights generated successfully.', type: 'success' });
+    } catch (err: any) {
+      setFeedback({ msg: err.message || 'Unable to generate AI insights.', type: 'error' });
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
 
   // Load Mentee 360 Profile
   const loadProfile = async () => {
@@ -941,6 +960,13 @@ export function MenteeProfilePage() {
                 )}
               </div>
             </div>
+
+            {/* Supportive Intelligence: Weekly AI Progress Insights */}
+            <WeeklyAiInsightsCard
+              aiInsights={aiInsights}
+              isGeneratingAi={isGeneratingAi}
+              onGenerate={handleGenerateAiInsights}
+            />
           </div>
         </div>
       )}
@@ -1327,6 +1353,13 @@ export function MenteeProfilePage() {
               </button>
             </div>
           </div>
+
+          {/* Supportive Intelligence: Weekly AI Progress Insights */}
+          <WeeklyAiInsightsCard
+            aiInsights={aiInsights}
+            isGeneratingAi={isGeneratingAi}
+            onGenerate={handleGenerateAiInsights}
+          />
 
           {/* Study Routine & Habits */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 20 }}>
@@ -2851,3 +2884,73 @@ function EditCareerModal({
     </div>
   );
 }
+
+function WeeklyAiInsightsCard({
+  aiInsights,
+  isGeneratingAi,
+  onGenerate,
+}: {
+  aiInsights: AiInsightsResult | null;
+  isGeneratingAi: boolean;
+  onGenerate: () => void;
+}) {
+  return (
+    <div className="summary-card" style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
+      <div className="ai-insights-header">
+        <div>
+          <div className="eyebrow" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--primary)', fontWeight: 800 }}>
+            <Sparkles size={15} color="var(--primary)" /> Supportive Intelligence
+          </div>
+          <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '2px 0 0' }}>Weekly AI Progress Insights</h3>
+        </div>
+
+        <button
+          type="button"
+          className="btn-primary ai-insights-btn"
+          disabled={isGeneratingAi}
+          onClick={onGenerate}
+        >
+          <Sparkles size={16} />
+          {isGeneratingAi ? 'Analyzing Data…' : aiInsights ? 'Regenerate Insights' : 'Generate Weekly AI Insights'}
+        </button>
+      </div>
+
+      {aiInsights ? (
+        <div style={{ display: 'grid', gap: 16, minWidth: 0, width: '100%', maxWidth: '100%' }}>
+          <div style={{ padding: '14px 16px', background: 'rgba(143,63,102,0.05)', borderRadius: 14, border: '1px solid var(--border)', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+            <h4 style={{ margin: '0 0 6px', fontSize: '0.95rem', fontWeight: 800, color: 'var(--primary)' }}>
+              Weekly Progress Summary
+            </h4>
+            <p style={{ margin: 0, fontSize: '0.92rem', lineHeight: 1.6, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+              {aiInsights.weeklySummary}
+            </p>
+          </div>
+
+          <div style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
+            <h4 style={{ margin: '0 0 10px', fontSize: '0.95rem', fontWeight: 800 }}>
+              Suggested Mentor Discussion Points
+            </h4>
+            <ul style={{ paddingLeft: 20, margin: 0, display: 'grid', gap: 8 }}>
+              {aiInsights.discussionPoints.map((point, idx) => (
+                <li key={idx} style={{ fontSize: '0.9rem', lineHeight: 1.5, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+                  {point}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+            ℹ️ AI suggestions are strictly informational and supportive. They do not diagnose or evaluate medical/psychological wellbeing.
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '16px 20px', background: '#fdfbfb', borderRadius: 12, border: '1px dashed var(--border)', textAlign: 'center', minWidth: 0, width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+          <p className="muted" style={{ margin: 0, fontSize: '0.9rem' }}>
+            Click "Generate Weekly AI Insights" to generate a supportive summary and suggested talking points for your next mentorship check-in.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+

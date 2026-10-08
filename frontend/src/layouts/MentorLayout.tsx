@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Upload, FileText, UserCircle2, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Upload, FileText, UserCircle2, LogOut, Menu, X, MoreHorizontal } from 'lucide-react';
+import { MobileHeader } from '../components/MobileHeader';
+import { MobileMoreDrawer, type MoreDrawerLink } from '../components/MobileMoreDrawer';
+import { NotificationCenter } from '../components/NotificationCenter';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 const links = [
   { to: '/mentor', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -8,6 +12,20 @@ const links = [
   { to: '/mentor/upload', label: 'Upload', icon: Upload, end: false },
   { to: '/mentor/calls', label: 'Calls', icon: FileText, end: false },
   { to: '/mentor/profile', label: 'Profile', icon: UserCircle2, end: false },
+];
+
+// Mobile bottom bar items (4 items + More)
+const bottomLinks = [
+  { to: '/mentor', label: 'Home', icon: LayoutDashboard, end: true },
+  { to: '/mentor/mentees', label: 'Mentees', icon: Users, end: false },
+  { to: '/mentor/calls', label: 'Calls', icon: FileText, end: false },
+  { to: '/mentor/upload', label: 'Upload', icon: Upload, end: false },
+];
+
+const mentorDrawerLinks: MoreDrawerLink[] = [
+  { to: '/mentor/profile', label: 'My Profile', icon: UserCircle2, description: 'Personal details & account settings' },
+  { to: '/mentor/calls', label: 'Call History', icon: FileText, description: 'All recorded sessions and transcripts' },
+  { to: '/mentor/upload', label: 'Upload Recording', icon: Upload, description: 'Upload audio for AI transcription' },
 ];
 
 function getStoredUser() {
@@ -23,6 +41,7 @@ export function MentorLayout() {
   const navigate = useNavigate();
   const user = getStoredUser();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moreDrawerOpen, setMoreDrawerOpen] = useState(false);
 
   const handleSignOut = () => {
     localStorage.removeItem('anfaal-token');
@@ -32,8 +51,16 @@ export function MentorLayout() {
 
   return (
     <div className="layout-shell">
+      {/* ── Native-feeling Mobile Header (phones & tablets) ──────────────── */}
+      <MobileHeader
+        portalName="Mentor Portal"
+        user={user}
+        onOpenMenu={() => setMoreDrawerOpen(true)}
+        rightAction={<NotificationCenter />}
+      />
+
       {menuOpen && <div className="sidebar-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
-      {/* ── Sidebar / top header ─────────────────────────────────────────── */}
+      {/* ── Sidebar / top header (desktop & tablet drawer) ────────────────── */}
       <aside className={`sidebar ${menuOpen ? 'mobile-menu-open' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
         <div className="brand-block">
           <div className="brand-mark">A</div>
@@ -93,15 +120,20 @@ export function MentorLayout() {
             <div className="eyebrow">Welcome back, {user?.name ?? 'Mentor'}</div>
             <h2 style={{ fontSize: '1.5rem', marginTop: '4px' }}>Mentor dashboard</h2>
           </div>
-          <button className="btn-primary" onClick={() => navigate('/mentor/upload')}>+ Upload Call</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <NotificationCenter />
+            <button className="btn-primary" onClick={() => navigate('/mentor/upload')}>+ Upload Call</button>
+          </div>
         </header>
 
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {/* ── Mobile bottom navigation bar ─────────────────────────────────── */}
       <nav className="bottom-nav" aria-label="Mobile Navigation">
-        {links.map(({ to, label, icon: Icon, end }) => (
+        {bottomLinks.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}
@@ -112,7 +144,26 @@ export function MentorLayout() {
             <span>{label}</span>
           </NavLink>
         ))}
+        <button
+          type="button"
+          className={`bottom-nav-item ${moreDrawerOpen ? 'active' : ''}`}
+          onClick={() => setMoreDrawerOpen(true)}
+          aria-label="Open more options menu"
+        >
+          <MoreHorizontal size={20} />
+          <span>More</span>
+        </button>
       </nav>
+
+      {/* ── Mobile More Bottom Sheet Drawer ──────────────────────────────── */}
+      <MobileMoreDrawer
+        isOpen={moreDrawerOpen}
+        onClose={() => setMoreDrawerOpen(false)}
+        title="Mentor Menu"
+        links={mentorDrawerLinks}
+        user={user}
+        onSignOut={handleSignOut}
+      />
     </div>
   );
 }

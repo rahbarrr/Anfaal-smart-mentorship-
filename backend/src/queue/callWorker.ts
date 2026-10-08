@@ -11,6 +11,7 @@ import { boundedText } from '../services/chunking.js';
 import { invalidateCache } from '../services/cacheService.js';
 import { transcribeAudioInChunks } from '../services/chunkedTranscriptionService.js';
 import { classifyProcessingError } from '../services/processingErrorService.js';
+import { notifyCallCompletion, notifyCallFailure } from '../services/notificationService.js';
 
 export function isJobRunnable(status: string): boolean {
   return status === 'PENDING' || status === 'PROCESSING';
@@ -321,6 +322,7 @@ export async function processCallProcessingJob(
         completedAt: new Date(),
       });
       await invalidateCache('dashboard:summary');
+      void notifyCallCompletion(callId).catch(() => undefined);
 
       console.info(`[CALL_PROCESSING_COMPLETE] callId=${callId} durationMs=${Date.now() - pipelineStartedAt}`);
       console.info(`[CALL_PERFORMANCE] callId=${callId} totalMs=${Date.now() - pipelineStartedAt} queueWaitMs=${existingJob.createdAt ? Math.max(0, Date.now() - new Date(existingJob.createdAt).getTime()) : 0}`);
@@ -360,6 +362,10 @@ export async function processCallProcessingJob(
       errorCode: errorClassification.code,
       ...(willRetry ? {} : { completedAt: new Date() }),
     });
+
+    if (!willRetry) {
+      void notifyCallFailure(callId, finalError).catch(() => undefined);
+    }
 
     logAuditEvent({
       userId: call.mentorId,

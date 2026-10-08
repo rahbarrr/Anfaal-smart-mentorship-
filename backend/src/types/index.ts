@@ -231,3 +231,60 @@ export interface CallDocument {
   updatedAt: Date;
 }
 
+export type NotificationType =
+  | 'MENTEE_DAILY_SUBMITTED'
+  | 'MENTOR_REGISTERED'
+  | 'MENTOR_APPROVAL_REQUIRED'
+  | 'CALL_PROCESSING_COMPLETED'
+  | 'CALL_PROCESSING_FAILED'
+  | 'CALL_SUMMARY_AVAILABLE'
+  | 'MENTOR_ASSIGNED'
+  | 'MENTEE_ASSIGNED'
+  | 'DAILY_REMINDER'
+  | 'SYSTEM_ALERT';
+
+export type NotificationCategory =
+  | 'dailyReminders'
+  | 'mentorshipActivity'
+  | 'callUpdates'
+  | 'systemNotifications';
+
+export interface NotificationDocument {
+  _id: string;
+  userId: string;
+  type: NotificationType;
+  category: NotificationCategory;
+  title: string;
+  message: string;
+  link?: string;
+  read: boolean;
+  metadata?: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PushSubscriptionDocument {
+  _id: string;
+  userId: string;
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  userAgent?: string;
+  createdAt: Date;
+}
+
+export interface NotificationPreferenceDocument {
+  _id: string;
+  userId: string;
+  pushEnabled: boolean;
+  dailyReminders: boolean;
+  mentorshipActivity: boolean;
+  callUpdates: boolean;
+  systemNotifications: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+

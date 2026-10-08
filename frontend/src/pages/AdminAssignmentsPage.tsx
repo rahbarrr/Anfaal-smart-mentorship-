@@ -16,7 +16,7 @@ type AssignmentRow = {
 export function AdminAssignmentsPage() {
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [mentors, setMentors] = useState<Array<{ id: string; name: string; email: string }>>([]);
-  const [mentees, setMentees] = useState<Array<{ id: string; name: string; standard: string }>>([]);
+  const [mentees, setMentees] = useState<Array<{ id: string; name: string; standard: string; makid?: string }>>([]);
   const [selectedMentorId, setSelectedMentorId] = useState('');
   const [selectedMenteeId, setSelectedMenteeId] = useState('');
   const [isLoading, setIsLoading] = useState(true);

@@ -539,6 +539,8 @@ router.post('/:id/notes', requireAuth, async (req: AuthRequest, res: Response) =
       if (!mentorProfile) return res.status(403).json({ message: 'Mentor profile not found.' });
       const assignment = await Mentorship.findOne({ mentorId: String(mentorProfile._id), menteeId, status: 'active' }).lean();
       if (!assignment) return res.status(403).json({ message: 'You do not have access to this mentee.' });
+    } else if (req.user?.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Only mentors and administrators can add notes.' });
     }
 
     const { note, category } = req.body;
@@ -601,12 +603,19 @@ router.patch('/:id/360', requireAuth, async (req: AuthRequest, res: Response) =>
     const mentee = await Mentee.findById(menteeId);
     if (!mentee) return res.status(404).json({ message: 'Mentee not found.' });
 
-    // Permissions: Admin or assigned Mentor
+    // Permissions: Admin, assigned Mentor, or the Mentee themselves
     if (req.user?.role === 'MENTOR') {
       const mentorProfile = await Mentor.findOne({ userId: req.user.id }).lean();
       if (!mentorProfile) return res.status(403).json({ message: 'Mentor profile not found.' });
       const assignment = await Mentorship.findOne({ mentorId: String(mentorProfile._id), menteeId, status: 'active' }).lean();
       if (!assignment) return res.status(403).json({ message: 'You do not have access to this mentee.' });
+    } else if (req.user?.role === 'MENTEE') {
+      const allowedIds = [req.user.id, ...(req.user.menteeId ? [req.user.menteeId] : [])];
+      if (!allowedIds.includes(menteeId)) {
+        return res.status(403).json({ message: 'Access denied: You can only update your own profile.' });
+      }
+    } else if (req.user?.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Access denied.' });
     }
 
     const { academic, goals, routine, careerInterests, challenges, location } = req.body;

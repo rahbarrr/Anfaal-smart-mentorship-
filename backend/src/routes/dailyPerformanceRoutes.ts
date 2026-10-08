@@ -8,6 +8,7 @@ import { Mentor } from '../models/Mentor.js';
 import { Mentorship } from '../models/Mentorship.js';
 import { createDailyPerformanceAiService } from '../services/dailyPerformanceAiService.js';
 import { logAuditEvent } from '../services/auditService.js';
+import { notifyMentorsForMentee } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -136,6 +137,13 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Mentee profile could not be determined.' });
     }
 
+    if (req.user?.role === 'MENTOR') {
+      const isAssigned = await verifyMentorAccess(req.user.id, menteeId);
+      if (!isAssigned) {
+        return res.status(403).json({ message: 'Access denied: You are not assigned to this mentee.' });
+      }
+    }
+
     const targetDate = parsed.data.date || getTodayString();
 
     // Prevent accidental duplicate submissions
@@ -162,6 +170,24 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
       needsMentorHelp: parsed.data.needsMentorHelp,
       mentorHelpNote: parsed.data.needsMentorHelp ? parsed.data.mentorHelpNote?.trim() : undefined,
     });
+
+    // Notify assigned mentor(s) asynchronously
+    void (async () => {
+      try {
+        const menteeDoc = await Mentee.findById(menteeId).select('name').lean();
+        const menteeName = menteeDoc?.name || 'A mentee';
+        await notifyMentorsForMentee(menteeId, {
+          type: 'MENTEE_DAILY_SUBMITTED',
+          category: 'dailyReminders',
+          title: 'Daily response received',
+          message: `${menteeName} submitted today's daily response.`,
+          link: '/mentor/mentees',
+          metadata: { menteeId, recordId: record._id.toString(), date: targetDate },
+        });
+      } catch (err) {
+        console.error('[DailyPerformance] Failed to notify mentor:', err);
+      }
+    })();
 
     return res.status(201).json({
       message: 'Your daily progress has been recorded. Your mentor can now see your progress.',
@@ -375,6 +401,8 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       if (record.menteeId !== menteeId) {
         return res.status(403).json({ message: 'You can only edit your own performance records.' });
       }
+    } else if (req.user?.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Access denied: You cannot edit this record.' });
     }
 
     // Preserve original submittedAt. If legacy record lacked submittedAt, fallback to createdAt or current time.

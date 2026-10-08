@@ -1090,4 +1090,138 @@ export async function getAuditLogs(token: string, action?: string, limit: number
   return res.json();
 }
 
+// ─── Notifications & Web Push ────────────────────────────────────────────────
+
+export interface InAppNotification {
+  id: string;
+  type: string;
+  category: string;
+  title: string;
+  message: string;
+  link?: string;
+  read: boolean;
+  createdAt: string;
+  metadata?: Record<string, any>;
+}
+
+export interface NotificationPreferences {
+  pushEnabled: boolean;
+  dailyReminders: boolean;
+  mentorshipActivity: boolean;
+  callUpdates: boolean;
+  systemNotifications: boolean;
+}
+
+export async function getNotifications(
+  token: string,
+  unreadOnly = false,
+  limit = 40,
+): Promise<{ notifications: InAppNotification[]; unreadCount: number }> {
+  const params = new URLSearchParams();
+  if (unreadOnly) params.set('unread', 'true');
+  params.set('limit', String(limit));
+
+  const res = await fetch(`${API_BASE_URL}/notifications?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch notifications');
+  return res.json();
+}
+
+export async function getUnreadNotificationCount(token: string): Promise<{ unreadCount: number }> {
+  const res = await fetch(`${API_BASE_URL}/notifications/unread-count`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch unread notification count');
+  return res.json();
+}
+
+export async function markNotificationAsRead(
+  token: string,
+  id: string,
+): Promise<{ message: string; notification: { id: string; read: boolean }; unreadCount: number }> {
+  const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to mark notification as read');
+  return res.json();
+}
+
+export async function markAllNotificationsAsRead(
+  token: string,
+): Promise<{ message: string; unreadCount: number }> {
+  const res = await fetch(`${API_BASE_URL}/notifications/read-all`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to mark all notifications as read');
+  return res.json();
+}
+
+export async function getNotificationPreferences(
+  token: string,
+): Promise<{ preferences: NotificationPreferences }> {
+  const res = await fetch(`${API_BASE_URL}/notifications/preferences`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch notification preferences');
+  return res.json();
+}
+
+export async function updateNotificationPreferences(
+  token: string,
+  preferences: Partial<NotificationPreferences>,
+): Promise<{ message: string; preferences: NotificationPreferences }> {
+  const res = await fetch(`${API_BASE_URL}/notifications/preferences`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(preferences),
+  });
+  if (!res.ok) throw new Error('Failed to update notification preferences');
+  return res.json();
+}
+
+export async function getVapidPublicKey(): Promise<{ publicKey: string }> {
+  const res = await fetch(`${API_BASE_URL}/notifications/vapid-public-key`);
+  if (!res.ok) throw new Error('Failed to fetch VAPID public key');
+  return res.json();
+}
+
+export async function registerPushSubscription(
+  token: string,
+  subscription: PushSubscription,
+): Promise<{ message: string }> {
+  const rawKey = subscription.getKey ? subscription.getKey('p256dh') : null;
+  const rawAuth = subscription.getKey ? subscription.getKey('auth') : null;
+  const p256dh = rawKey ? btoa(String.fromCharCode(...new Uint8Array(rawKey))) : '';
+  const auth = rawAuth ? btoa(String.fromCharCode(...new Uint8Array(rawAuth))) : '';
+
+  const res = await fetch(`${API_BASE_URL}/notifications/push-subscription`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      endpoint: subscription.endpoint,
+      keys: { p256dh, auth },
+      userAgent: navigator.userAgent,
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to register push subscription');
+  return res.json();
+}
+
+export async function unregisterPushSubscription(
+  token: string,
+  endpoint?: string,
+): Promise<{ message: string }> {
+  const res = await fetch(`${API_BASE_URL}/notifications/push-subscription`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ endpoint }),
+  });
+  if (!res.ok) throw new Error('Failed to remove push subscription');
+  return res.json();
+}
+
+
 

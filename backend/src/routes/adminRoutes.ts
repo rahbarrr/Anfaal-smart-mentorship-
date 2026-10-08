@@ -14,6 +14,7 @@ import { createStorageProvider } from '../services/storageService.js';
 import { summarizeAssignments } from '../services/mentorshipService.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { removeCallProcessingJob } from '../queue/callQueue.js';
+import { createNotification } from '../services/notificationService.js';
 
 const createAssignmentSchema = z.object({
   mentorId: z.string().min(1),
@@ -222,6 +223,38 @@ router.post('/assignments', requireAuth, requireRole('ADMIN'), async (req: AuthR
       details: `Created assignment: Mentee ${mentee.name} to mentor ${parsed.data.mentorId}`,
       ipAddress: req.ip,
     });
+
+    // Notify mentor and mentee asynchronously
+    void (async () => {
+      try {
+        const mentorDoc = await Mentor.findById(parsed.data.mentorId).lean();
+        if (mentorDoc?.userId) {
+          await createNotification({
+            userId: mentorDoc.userId,
+            type: 'MENTEE_ASSIGNED',
+            category: 'mentorshipActivity',
+            title: 'New mentee assigned',
+            message: `${mentee.name} has been assigned to you.`,
+            link: '/mentor/mentees',
+            metadata: { menteeId: String(mentee._id) },
+          });
+        }
+        if (mentee.userId) {
+          const mentorUser = mentorDoc?.userId ? await User.findById(mentorDoc.userId).select('name').lean() : null;
+          await createNotification({
+            userId: mentee.userId,
+            type: 'MENTOR_ASSIGNED',
+            category: 'mentorshipActivity',
+            title: 'Mentor assigned',
+            message: `${mentorUser?.name || 'A mentor'} has been assigned to you.`,
+            link: '/mentee',
+            metadata: { mentorId: parsed.data.mentorId },
+          });
+        }
+      } catch (err) {
+        console.error('[AdminRoutes] Error notifying assignment:', err);
+      }
+    })();
 
     return res.status(201).json({
       message: 'Assignment created successfully.',

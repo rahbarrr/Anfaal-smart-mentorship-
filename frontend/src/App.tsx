@@ -6,6 +6,9 @@ import './App.css';
 import { AdminLayout } from './layouts/AdminLayout';
 import { MentorLayout } from './layouts/MentorLayout';
 import { MenteeLayout } from './layouts/MenteeLayout';
+import { PwaPrompts } from './pwa/PwaPrompts';
+import { OfflineBanner } from './components/OfflineBanner';
+import { ErrorBoundary } from './components/ErrorBoundary';
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
 const MentorDashboardPage = lazy(() => import('./pages/MentorDashboardPage').then((m) => ({ default: m.MentorDashboardPage })));
 const MenteeManagementPage = lazy(() => import('./pages/MenteeManagementPage').then((m) => ({ default: m.MenteeManagementPage })));
@@ -86,74 +89,78 @@ function App() {
   return (
     <BrowserRouter>
       <AuthSessionBoundary />
-      <Suspense fallback={<div className="page-loading">Loading…</div>}>
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
-        <Route path="/mentor/register" element={<MentorRegistrationPage />} />
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute requiredRole="ADMIN">
-              <AdminLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<AdminDashboardPage />} />
-          <Route path="mentorships" element={<AdminMentorshipPage />} />
-          <Route path="assignments" element={<AdminAssignmentsPage />} />
-          <Route path="bulk-import" element={<BulkImportPage />} />
-          <Route path="analytics" element={<AdminAnalyticsPage />} />
-          <Route path="reviews" element={<AdminReviewPage />} />
-          <Route path="mentors" element={<MentorManagementPage />} />
-          <Route path="mentees" element={<MenteeManagementPage />} />
-          <Route path="mentees/:menteeId" element={<MenteeProfilePage />} />
-          <Route path="performance" element={<AdminPerformanceAnalyticsPage />} />
-          <Route path="reports" element={<AdminReportsPage />} />
-          <Route path="calls" element={<AdminCallsPage />} />
-          <Route path="calls/:callId" element={<CallIntelligencePage />} />
-        </Route>
-        <Route path="/mentor/pending" element={<ProtectedRoute requiredRole="MENTOR"><MentorPendingApprovalPage /></ProtectedRoute>} />
-        <Route path="/mentor/rejected" element={<ProtectedRoute requiredRole="MENTOR"><MentorRejectedPage /></ProtectedRoute>} />
-        <Route
-          path="/mentor"
-          element={
-            <ProtectedRoute requiredRole="MENTOR">
-              <MentorLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<MentorDashboardPage />} />
-          <Route path="upload" element={<UploadCallPage />} />
-          <Route path="calls" element={<MyCallsPage />} />
-          <Route path="calls/:callId" element={<CallIntelligencePage />} />
-          <Route path="mentees" element={<MyMenteesPage />} />
-          <Route path="mentees/:menteeId" element={<MenteeProfilePage />} />
-          <Route path="profile" element={<MentorProfilePage />} />
-        </Route>
-        <Route
-          path="/mentee"
-          element={
-            <ProtectedRoute requiredRole="MENTEE">
-              <MenteeLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<MenteeDashboardPage />} />
-          <Route path="daily" element={<DailyPerformanceFormPage />} />
-          <Route path="history" element={<MenteePerformanceHistoryPage />} />
-        </Route>
-        <Route
-          path="/daily-performance"
-          element={
-            <ProtectedRoute requiredRole="MENTEE">
-              <MenteeLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<DailyPerformanceFormPage />} />
-        </Route>
-      </Routes>
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<div className="page-loading">Loading…</div>}>
+          <Routes>
+            <Route path="/" element={<LoginPage />} />
+            <Route path="/mentor/register" element={<MentorRegistrationPage />} />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute requiredRole="ADMIN">
+                  <AdminLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<AdminDashboardPage />} />
+              <Route path="mentorships" element={<AdminMentorshipPage />} />
+              <Route path="assignments" element={<AdminAssignmentsPage />} />
+              <Route path="bulk-import" element={<BulkImportPage />} />
+              <Route path="analytics" element={<AdminAnalyticsPage />} />
+              <Route path="reviews" element={<AdminReviewPage />} />
+              <Route path="mentors" element={<MentorManagementPage />} />
+              <Route path="mentees" element={<MenteeManagementPage />} />
+              <Route path="mentees/:menteeId" element={<MenteeProfilePage />} />
+              <Route path="performance" element={<AdminPerformanceAnalyticsPage />} />
+              <Route path="reports" element={<AdminReportsPage />} />
+              <Route path="calls" element={<AdminCallsPage />} />
+              <Route path="calls/:callId" element={<CallIntelligencePage />} />
+            </Route>
+            <Route path="/mentor/pending" element={<ProtectedRoute requiredRole="MENTOR"><MentorPendingApprovalPage /></ProtectedRoute>} />
+            <Route path="/mentor/rejected" element={<ProtectedRoute requiredRole="MENTOR"><MentorRejectedPage /></ProtectedRoute>} />
+            <Route
+              path="/mentor"
+              element={
+                <ProtectedRoute requiredRole="MENTOR">
+                  <MentorLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<MentorDashboardPage />} />
+              <Route path="upload" element={<UploadCallPage />} />
+              <Route path="calls" element={<MyCallsPage />} />
+              <Route path="calls/:callId" element={<CallIntelligencePage />} />
+              <Route path="mentees" element={<MyMenteesPage />} />
+              <Route path="mentees/:menteeId" element={<MenteeProfilePage />} />
+              <Route path="profile" element={<MentorProfilePage />} />
+            </Route>
+            <Route
+              path="/mentee"
+              element={
+                <ProtectedRoute requiredRole="MENTEE">
+                  <MenteeLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<MenteeDashboardPage />} />
+              <Route path="daily" element={<DailyPerformanceFormPage />} />
+              <Route path="history" element={<MenteePerformanceHistoryPage />} />
+            </Route>
+            <Route
+              path="/daily-performance"
+              element={
+                <ProtectedRoute requiredRole="MENTEE">
+                  <MenteeLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<DailyPerformanceFormPage />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
+      <OfflineBanner />
+      <PwaPrompts />
     </BrowserRouter>
   );
 }

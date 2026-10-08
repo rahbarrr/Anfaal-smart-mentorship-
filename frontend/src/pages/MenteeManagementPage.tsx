@@ -7,6 +7,7 @@ type MenteeRow = {
   id: string;
   name: string;
   standard: string;
+  makid?: string;
   guardian: string;
   phone: string;
   status: 'active' | 'inactive';
