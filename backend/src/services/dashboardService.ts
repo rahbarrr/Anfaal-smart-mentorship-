@@ -34,8 +34,38 @@ export async function getDashboardSummary(): Promise<Record<string, unknown>> {
   const [callsThisMonth, dailySubmissionsToday, recentCallsDocs, recentPerformanceDocs] = await Promise.all([
     Call.countDocuments({ createdAt: { $gte: thisMonth } }),
     DailyPerformance.countDocuments({ date: todayStr }),
-    Call.find().sort({ createdAt: -1 }).limit(5).lean(),
-    DailyPerformance.find().sort({ createdAt: -1 }).limit(5).lean(),
+    Call.find({}, {
+      date: 1,
+      uploadedAt: 1,
+      createdAt: 1,
+      duration: 1,
+      mentorId: 1,
+      menteeId: 1,
+      reviewStatus: 1,
+      aiStatus: 1,
+      'aiSummary.shortSummary': 1,
+      summary: 1,
+      recordingUrl: 1,
+      'recording.url': 1,
+    })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean(),
+    DailyPerformance.find({}, {
+      menteeId: 1,
+      date: 1,
+      submittedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      studyMinutes: 1,
+      'quran.ruku': 1,
+      dayRating: 1,
+      needsMentorHelp: 1,
+      mentorHelpNote: 1,
+    })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean(),
   ]);
 
   const recentMenteeIds = [...new Set([...recentCallsDocs.map((c) => c.menteeId), ...recentPerformanceDocs.map((p) => p.menteeId)])];

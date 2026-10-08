@@ -19,5 +19,6 @@ const mentorSchema = new Schema<MentorDocument>(
 
 mentorSchema.index({ status: 1 });
 mentorSchema.index({ mentorApprovalStatus: 1 });
+mentorSchema.index({ createdAt: -1 });
 
 export const Mentor = mongoose.model<MentorDocument>('Mentor', mentorSchema);

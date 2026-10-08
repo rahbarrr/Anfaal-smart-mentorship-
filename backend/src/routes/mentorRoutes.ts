@@ -70,7 +70,10 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res
   try {
     const requestedLimit = Number(_req.query.limit || 100);
     const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 250) : 100;
-    const mentors = await Mentor.find().limit(limit).lean();
+    const mentors = await Mentor.find({}, { userId: 1, phone: 1, bio: 1, status: 1, createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
     const userIds = mentors.map((m) => m.userId);
     const users = await User.find({ _id: { $in: userIds } }, { name: 1, email: 1, status: 1 }).lean();
     const userMap = new Map(users.map((u) => [String(u._id), u]));

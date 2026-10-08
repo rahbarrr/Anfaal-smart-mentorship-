@@ -24,5 +24,7 @@ menteeSchema.index({ status: 1 });
 menteeSchema.index({ standard: 1 });
 menteeSchema.index({ userId: 1 });
 menteeSchema.index({ makid: 1 });
+menteeSchema.index({ createdAt: -1 });
+menteeSchema.index({ name: 1 });
 
 export const Mentee = mongoose.model<MenteeDocument>('Mentee', menteeSchema);

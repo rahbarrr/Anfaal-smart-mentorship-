@@ -27,5 +27,7 @@ const dailyPerformanceSchema = new Schema<DailyPerformanceDocument>(
 dailyPerformanceSchema.index({ menteeId: 1, date: 1 }, { unique: true });
 dailyPerformanceSchema.index({ menteeId: 1, createdAt: -1 });
 dailyPerformanceSchema.index({ date: 1 });
+dailyPerformanceSchema.index({ needsMentorHelp: 1, createdAt: -1 });
+dailyPerformanceSchema.index({ createdAt: -1 });
 
 export const DailyPerformance = mongoose.model<DailyPerformanceDocument>('DailyPerformance', dailyPerformanceSchema);

@@ -156,11 +156,44 @@ function getMenteeDefaults(mentee: any, assignedMentorName?: string) {
 }
 
 // GET /api/mentees — all mentees with enriched data (admin only)
-router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res: Response) => {
+router.get('/', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
-    const requestedLimit = Number(_req.query.limit || 100);
-    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 250) : 100;
-    const mentees = await Mentee.find().sort({ createdAt: -1 }).limit(limit).lean();
+    const requestedLimit = Number(req.query.limit || 50);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 250) : 50;
+    const requestedPage = Number(req.query.page || 1);
+    const page = Number.isFinite(requestedPage) ? Math.max(Math.floor(requestedPage), 1) : 1;
+    const skip = (page - 1) * limit;
+
+    const filter: Record<string, unknown> = {};
+    if (typeof req.query.search === 'string' && req.query.search.trim()) {
+      const s = req.query.search.trim();
+      filter.$or = [
+        { name: { $regex: s, $options: 'i' } },
+        { makid: { $regex: s, $options: 'i' } },
+        { standard: { $regex: s, $options: 'i' } },
+      ];
+    }
+    if (typeof req.query.status === 'string' && (req.query.status === 'active' || req.query.status === 'inactive')) {
+      filter.status = req.query.status;
+    }
+
+    const [total, mentees] = await Promise.all([
+      Mentee.countDocuments(filter),
+      Mentee.find(filter, {
+        name: 1,
+        standard: 1,
+        makid: 1,
+        location: 1,
+        contactInformation: 1,
+        status: 1,
+        createdAt: 1,
+      })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ]);
+
     const menteeIds = mentees.map((mentee) => String(mentee._id));
     const [assignments, callStats] = await Promise.all([
       Mentorship.find({ menteeId: { $in: menteeIds }, status: 'active' }).lean(),
@@ -198,7 +231,13 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res
         };
       });
 
-    return res.json({ mentees: payload });
+    return res.json({
+      mentees: payload,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch mentees';
     return res.status(500).json({ message });

@@ -495,7 +495,11 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const calls = await Call.find(filter).sort({ date: -1, _id: -1 }).limit(limit + 1).lean();
+    const calls = await Call.find(filter)
+      .select('-transcription.segments -transcription.words')
+      .sort({ date: -1, _id: -1 })
+      .limit(limit + 1)
+      .lean();
     const page = calls.slice(0, limit);
     const menteeIds = [...new Set(page.map((call) => call.menteeId))];
     const mentorIds = [...new Set(page.map((call) => call.mentorId))];

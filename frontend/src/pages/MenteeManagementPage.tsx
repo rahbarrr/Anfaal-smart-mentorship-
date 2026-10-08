@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMentees, createMentee, updateMentee, deleteMentee } from '../lib/api';
-import { X, Trash2, ExternalLink } from 'lucide-react';
+import { X, Trash2, ExternalLink, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type MenteeRow = {
   id: string;
@@ -24,6 +24,10 @@ export function MenteeManagementPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [form, setForm] = useState({ name: '', standard: '', phone: '', guardian: '' });
 
   // selection state
@@ -37,22 +41,32 @@ export function MenteeManagementPage() {
 
   const token = localStorage.getItem('anfaal-token') ?? '';
 
-  const loadData = () => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const loadData = useCallback(() => {
     if (!token) { setIsLoading(false); return; }
-    getMentees(token)
-      .then((res) => { setMentees(res.mentees ?? []); setSelected(new Set()); })
+    setIsLoading(true);
+    getMentees(token, { page, limit: 25, search: debouncedSearch })
+      .then((res) => {
+        setMentees(res.mentees ?? []);
+        setTotalPages(res.totalPages || 1);
+        setTotalCount(res.total ?? (res.mentees?.length || 0));
+        setSelected(new Set());
+      })
       .catch(() => setMentees([]))
       .finally(() => setIsLoading(false));
-  };
+  }, [token, page, debouncedSearch]);
 
-  useEffect(() => { loadData(); }, [token]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  // ── filtered list ──────────────────────────────────────────────────────────
-  const filtered = mentees.filter((m) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return m.name.toLowerCase().includes(q) || m.standard.toLowerCase().includes(q) || m.assignedMentor?.toLowerCase().includes(q);
-  });
+  // ── filtered list (fallback client-side safety) ─────────────────────────────
+  const filtered = mentees;
 
   // ── selection helpers ──────────────────────────────────────────────────────
   const allChecked = filtered.length > 0 && filtered.every((m) => selected.has(m.id));
@@ -379,6 +393,36 @@ export function MenteeManagementPage() {
           })
         )}
       </div>
+
+      {/* ── Pagination Controls ──────────────────────────────────────────────── */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, padding: '12px 16px', background: 'var(--surface)', borderRadius: 10, border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
+            Showing {((page - 1) * 25) + 1}–{Math.min(page * 25, totalCount)} of {totalCount} mentees
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              className="btn-secondary"
+              disabled={page <= 1 || isLoading}
+              onClick={() => setPage((p) => Math.max(p - 1, 1))}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px', fontSize: '0.84rem', opacity: page <= 1 ? 0.5 : 1 }}
+            >
+              <ChevronLeft size={14} /> Previous
+            </button>
+            <span style={{ fontSize: '0.84rem', fontWeight: 600, padding: '0 4px' }}>
+              Page {page} of {totalPages}
+            </span>
+            <button
+              className="btn-secondary"
+              disabled={page >= totalPages || isLoading}
+              onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 12px', fontSize: '0.84rem', opacity: page >= totalPages ? 0.5 : 1 }}
+            >
+              Next <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Add Mentee Modal ─────────────────────────────────────────────────── */}
       {showModal && (

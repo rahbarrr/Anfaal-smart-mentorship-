@@ -553,8 +553,17 @@ export async function deleteMentor(token: string, mentorId: string) {
 
 // ─── Mentees ──────────────────────────────────────────────────────────────────
 
-export async function getMentees(token: string) {
-  const response = await fetch(`${API_BASE_URL}/mentees`, {
+export async function getMentees(
+  token: string,
+  options?: { page?: number; limit?: number; search?: string; status?: string },
+) {
+  const params = new URLSearchParams();
+  if (options?.page) params.set('page', String(options.page));
+  if (options?.limit) params.set('limit', String(options.limit));
+  if (options?.search) params.set('search', options.search);
+  if (options?.status) params.set('status', options.status);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const response = await fetch(`${API_BASE_URL}/mentees${qs}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error('Unable to load mentees');
@@ -1128,18 +1137,42 @@ export async function getNotifications(
   return res.json();
 }
 
+let inFlightUnreadCountPromise: Promise<{ unreadCount: number }> | null = null;
+let lastUnreadCountResult: { data: { unreadCount: number }; timestamp: number } | null = null;
+
+export function invalidateUnreadNotificationCountCache() {
+  lastUnreadCountResult = null;
+}
+
 export async function getUnreadNotificationCount(token: string): Promise<{ unreadCount: number }> {
-  const res = await fetch(`${API_BASE_URL}/notifications/unread-count`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error('Failed to fetch unread notification count');
-  return res.json();
+  const now = Date.now();
+  if (lastUnreadCountResult && now - lastUnreadCountResult.timestamp < 3000) {
+    return lastUnreadCountResult.data;
+  }
+  if (inFlightUnreadCountPromise) {
+    return inFlightUnreadCountPromise;
+  }
+  inFlightUnreadCountPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/notifications/unread-count`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch unread notification count');
+      const data = await res.json();
+      lastUnreadCountResult = { data, timestamp: Date.now() };
+      return data;
+    } finally {
+      inFlightUnreadCountPromise = null;
+    }
+  })();
+  return inFlightUnreadCountPromise;
 }
 
 export async function markNotificationAsRead(
   token: string,
   id: string,
 ): Promise<{ message: string; notification: { id: string; read: boolean }; unreadCount: number }> {
+  invalidateUnreadNotificationCountCache();
   const res = await fetch(`${API_BASE_URL}/notifications/${id}/read`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}` },
@@ -1151,6 +1184,7 @@ export async function markNotificationAsRead(
 export async function markAllNotificationsAsRead(
   token: string,
 ): Promise<{ message: string; unreadCount: number }> {
+  invalidateUnreadNotificationCountCache();
   const res = await fetch(`${API_BASE_URL}/notifications/read-all`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}` },
