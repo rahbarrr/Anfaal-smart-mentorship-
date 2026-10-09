@@ -1380,6 +1380,7 @@ function expressRawMiddleware() {
       next();
     });
   };
+}
 // ────────────────────────────────────────────────────────────────────────────
 // POST /api/calls/:id/extract-profile — on-demand profile extraction from call
 // ────────────────────────────────────────────────────────────────────────────
