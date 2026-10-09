@@ -524,9 +524,9 @@ export function NotificationCenter() {
                   <div className="settings-section-header">
                     <Smartphone size={18} className="text-primary" />
                     <div>
-                      <h4 className="font-semibold text-sm text-gray-900">Web Push Notifications</h4>
+                      <h4 className="font-semibold text-sm text-gray-900">Stay updated with Anfaal</h4>
                       <p className="text-xs text-gray-500">
-                        Receive instant alerts on this device for important mentorship activity.
+                        Receive notifications for daily responses, call summaries and important mentorship activity.
                       </p>
                     </div>
                   </div>
@@ -541,13 +541,10 @@ export function NotificationCenter() {
                     </div>
                   ) : (
                     <div className="push-action-card">
-                      <p className="text-xs text-gray-600 mb-2">
-                        Get notified when your mentor uploads a call summary, when a mentee submits a daily response, or when call processing completes.
-                      </p>
                       {preferences.pushEnabled && browserPermission === 'granted' ? (
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded">
-                            ✓ Push Active on this device
+                            ✓ Notifications Active on this device
                           </span>
                           <button
                             type="button"
@@ -565,7 +562,7 @@ export function NotificationCenter() {
                           disabled={pushLoading}
                           onClick={handleEnablePush}
                         >
-                          {pushLoading ? 'Enabling…' : 'Enable Push Notifications'}
+                          {pushLoading ? 'Enabling…' : 'Enable Notifications'}
                         </button>
                       )}
                     </div>

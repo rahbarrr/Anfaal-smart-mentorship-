@@ -38,33 +38,62 @@ export interface CreateNotificationParams {
   message: string;
   link?: string;
   metadata?: Record<string, unknown>;
+  idempotencyKey?: string;
 }
 
 /**
  * Creates an in-app notification record and dispatches Web Push if enabled.
+ * Uses idempotencyKey to prevent duplicate in-app records and duplicate push notifications.
  */
 export async function createNotification(params: CreateNotificationParams) {
   try {
-    const notification = await Notification.create({
-      userId: params.userId,
-      type: params.type,
-      category: params.category,
-      title: params.title,
-      message: params.message,
-      link: params.link,
-      metadata: params.metadata,
-      read: false,
-    });
+    if (params.idempotencyKey) {
+      const existing = await Notification.findOne({ idempotencyKey: params.idempotencyKey }).lean();
+      if (existing) {
+        console.info(`[NotificationService] Duplicate notification suppressed for idempotencyKey: ${params.idempotencyKey}`);
+        return existing;
+      }
+    }
+
+    let notification;
+    try {
+      notification = await Notification.create({
+        userId: params.userId,
+        type: params.type,
+        category: params.category,
+        title: params.title,
+        message: params.message,
+        link: params.link,
+        metadata: params.metadata,
+        idempotencyKey: params.idempotencyKey,
+        read: false,
+      });
+    } catch (createErr: any) {
+      // Catch concurrent creation race condition
+      if (createErr?.code === 11000 && params.idempotencyKey) {
+        console.info(`[NotificationService] Concurrent duplicate notification prevented for idempotencyKey: ${params.idempotencyKey}`);
+        return await Notification.findOne({ idempotencyKey: params.idempotencyKey }).lean();
+      }
+      throw createErr;
+    }
 
     // Check user preference before sending push
+    const targetUrl = params.link || '/';
     void sendPushIfAllowed(params.userId, params.category, {
       title: params.title,
       body: params.message,
-      link: params.link || '/',
-      tag: params.type,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      url: targetUrl,
+      link: targetUrl,
+      tag: params.idempotencyKey || params.type,
+      notificationId: notification._id.toString(),
+      type: params.type,
       data: {
+        url: targetUrl,
+        link: targetUrl,
         notificationId: notification._id.toString(),
-        link: params.link || '/',
+        type: params.type,
       },
     });
 
@@ -84,8 +113,13 @@ async function sendPushIfAllowed(
   payload: {
     title: string;
     body: string;
-    link: string;
+    icon?: string;
+    badge?: string;
+    url?: string;
+    link?: string;
     tag: string;
+    notificationId?: string;
+    type?: string;
     data?: Record<string, unknown>;
   },
 ) {
@@ -145,6 +179,7 @@ export async function notifyAdmins(params: Omit<CreateNotificationParams, 'userI
         createNotification({
           ...params,
           userId: admin._id.toString(),
+          idempotencyKey: params.idempotencyKey ? `${params.idempotencyKey}:admin:${admin._id}` : undefined,
         }),
       ),
     );
@@ -168,9 +203,13 @@ export async function notifyMentorsForMentee(
       // Find mentor record to get their userId
       const mentor = await Mentor.findById(ms.mentorId).lean();
       if (mentor?.userId) {
+        const idempotencyKey = params.idempotencyKey
+          ? `${params.idempotencyKey}:mentor:${mentor.userId}`
+          : undefined;
         await createNotification({
           ...params,
           userId: mentor.userId,
+          idempotencyKey,
         });
       }
     }
@@ -181,6 +220,7 @@ export async function notifyMentorsForMentee(
 
 /**
  * Notifies mentor and mentee when call processing finishes successfully.
+ * Enforces idempotency per call and recipient to prevent duplicate notifications on job retries.
  */
 export async function notifyCallCompletion(callId: string) {
   try {
@@ -190,7 +230,7 @@ export async function notifyCallCompletion(callId: string) {
 
     const mentee = await (await import('../models/Mentee.js')).Mentee.findById(call.menteeId).select('name userId').lean();
     const mentor = await Mentor.findById(call.mentorId).select('userId').lean();
-    const menteeName = mentee?.name || 'student';
+    const menteeName = mentee?.name || 'Student';
 
     // 1. Notify mentor
     if (mentor?.userId) {
@@ -198,10 +238,11 @@ export async function notifyCallCompletion(callId: string) {
         userId: mentor.userId,
         type: 'CALL_PROCESSING_COMPLETED',
         category: 'callUpdates',
-        title: 'Call processing completed',
-        message: `Processing for call with ${menteeName} is completed. AI summary is ready for review.`,
+        title: 'Call Summary Ready',
+        message: `The AI transcript and summary for ${menteeName}'s call are ready.`,
         link: `/mentor/calls/${callId}`,
         metadata: { callId, menteeId: call.menteeId },
+        idempotencyKey: `call-completed:${callId}:mentor:${mentor.userId}`,
       });
     }
 
@@ -211,10 +252,11 @@ export async function notifyCallCompletion(callId: string) {
         userId: mentee.userId,
         type: 'CALL_SUMMARY_AVAILABLE',
         category: 'callUpdates',
-        title: 'Call summary ready',
-        message: `Your mentor's call summary is now available.`,
-        link: `/mentee/history`,
+        title: 'Your Call Summary Is Ready',
+        message: "Your mentor's call summary is now available.",
+        link: '/mentee/history',
         metadata: { callId, mentorId: call.mentorId },
+        idempotencyKey: `call-completed:${callId}:mentee:${mentee.userId}`,
       });
     }
   } catch (err) {

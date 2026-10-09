@@ -31,6 +31,7 @@ const notificationSchema = new Schema<NotificationDocument>(
     link: { type: String, trim: true },
     read: { type: Boolean, default: false },
     metadata: { type: Schema.Types.Mixed },
+    idempotencyKey: { type: String },
   },
   { timestamps: true },
 );
@@ -38,5 +39,6 @@ const notificationSchema = new Schema<NotificationDocument>(
 // Indexes for fast lookup of user notifications, unread counts, and sorting
 notificationSchema.index({ userId: 1, createdAt: -1 });
 notificationSchema.index({ userId: 1, read: 1 });
+notificationSchema.index({ idempotencyKey: 1 }, { unique: true, sparse: true });
 
 export const Notification = mongoose.model<NotificationDocument>('Notification', notificationSchema);

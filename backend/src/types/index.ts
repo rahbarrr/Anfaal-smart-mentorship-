@@ -270,6 +270,7 @@ export interface NotificationDocument {
   link?: string;
   read: boolean;
   metadata?: Record<string, unknown>;
+  idempotencyKey?: string;
   createdAt: Date;
   updatedAt: Date;
 }

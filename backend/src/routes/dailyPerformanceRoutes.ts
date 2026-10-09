@@ -175,14 +175,15 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
     void (async () => {
       try {
         const menteeDoc = await Mentee.findById(menteeId).select('name').lean();
-        const menteeName = menteeDoc?.name || 'A mentee';
+        const menteeName = menteeDoc?.name || 'Your mentee';
         await notifyMentorsForMentee(menteeId, {
           type: 'MENTEE_DAILY_SUBMITTED',
           category: 'dailyReminders',
-          title: 'Daily response received',
-          message: `${menteeName} submitted today's daily response.`,
-          link: '/mentor/mentees',
+          title: 'Daily Log Submitted',
+          message: `${menteeName} submitted today's daily performance.`,
+          link: `/mentor/mentees/${menteeId}`,
           metadata: { menteeId, recordId: record._id.toString(), date: targetDate },
+          idempotencyKey: `daily-submitted:${record._id.toString()}`,
         });
       } catch (err) {
         console.error('[DailyPerformance] Failed to notify mentor:', err);
