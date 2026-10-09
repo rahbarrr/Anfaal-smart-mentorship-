@@ -663,24 +663,45 @@ export function MenteeProfilePage() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, textAlign: 'center' }}>
                     <div>
                       <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Previous</div>
-                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>
-                        {mentee.academic?.previousPercentage !== undefined && mentee.academic?.previousPercentage !== null
+                      <div
+                        style={{
+                          fontSize: mentee.academic?.previousPercentage != null ? '1.3rem' : '0.92rem',
+                          fontWeight: mentee.academic?.previousPercentage != null ? 800 : 600,
+                          color: 'var(--text-secondary)',
+                          marginTop: 4,
+                        }}
+                      >
+                        {mentee.academic?.previousPercentage != null
                           ? `${mentee.academic.previousPercentage}%`
                           : 'Not available'}
                       </div>
                     </div>
                     <div style={{ borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>
-                      <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--primary)', fontWeight: 700 }}>Latest Exam</div>
-                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--primary)', marginTop: 2 }}>
-                        {mentee.academic?.latestPercentage !== undefined && mentee.academic?.latestPercentage !== null
+                      <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: mentee.academic?.latestPercentage != null ? 'var(--primary)' : 'var(--text-secondary)', fontWeight: 700 }}>Latest Exam</div>
+                      <div
+                        style={{
+                          fontSize: mentee.academic?.latestPercentage != null ? '1.3rem' : '0.92rem',
+                          fontWeight: mentee.academic?.latestPercentage != null ? 800 : 600,
+                          color: mentee.academic?.latestPercentage != null ? 'var(--primary)' : 'var(--text-secondary)',
+                          marginTop: 4,
+                        }}
+                      >
+                        {mentee.academic?.latestPercentage != null
                           ? `${mentee.academic.latestPercentage}%`
                           : 'Not available'}
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--success)', fontWeight: 700 }}>Target</div>
-                      <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--success)', marginTop: 2 }}>
-                        {mentee.academic?.targetPercentage !== undefined && mentee.academic?.targetPercentage !== null
+                      <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: mentee.academic?.targetPercentage != null ? 'var(--success)' : 'var(--text-secondary)', fontWeight: 700 }}>Target</div>
+                      <div
+                        style={{
+                          fontSize: mentee.academic?.targetPercentage != null ? '1.3rem' : '0.92rem',
+                          fontWeight: mentee.academic?.targetPercentage != null ? 800 : 600,
+                          color: mentee.academic?.targetPercentage != null ? 'var(--success)' : 'var(--text-secondary)',
+                          marginTop: 4,
+                        }}
+                      >
+                        {mentee.academic?.targetPercentage != null
                           ? `${mentee.academic.targetPercentage}%`
                           : 'Not set'}
                       </div>
@@ -1025,42 +1046,127 @@ export function MenteeProfilePage() {
             <div className="summary-card" style={{ textAlign: 'center', padding: '18px 14px' }}>
               <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Current Class</div>
               <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--text-primary)' }}>{mentee.standard}</div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>{mentee.academic?.academicLevel || 'Not specified'}</div>
+              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>{mentee.academic?.academicLevel || 'Class Standard'}</div>
             </div>
             <div className="summary-card" style={{ textAlign: 'center', padding: '18px 14px' }}>
               <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Previous Exam</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--text-primary)' }}>
-                {mentee.academic?.previousPercentage !== undefined && mentee.academic?.previousPercentage !== null
+              <div
+                style={{
+                  fontSize: mentee.academic?.previousPercentage != null ? '1.4rem' : '1.05rem',
+                  fontWeight: mentee.academic?.previousPercentage != null ? 800 : 600,
+                  marginTop: mentee.academic?.previousPercentage != null ? 4 : 8,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                {mentee.academic?.previousPercentage != null
                   ? `${mentee.academic.previousPercentage}%`
                   : 'Not available'}
               </div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>Baseline percentage</div>
+              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: mentee.academic?.previousPercentage != null ? 2 : 4 }}>
+                {mentee.academic?.previousPercentage != null ? 'Baseline percentage' : 'No baseline recorded'}
+              </div>
             </div>
-            <div className="summary-card" style={{ textAlign: 'center', padding: '18px 14px', border: '1.5px solid var(--primary)', background: 'rgba(143,63,102,0.02)' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--primary)', fontWeight: 700 }}>Latest Exam</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--primary)' }}>
-                {mentee.academic?.latestPercentage !== undefined && mentee.academic?.latestPercentage !== null
+            <div
+              className="summary-card"
+              style={{
+                textAlign: 'center',
+                padding: '18px 14px',
+                border: mentee.academic?.latestPercentage != null ? '1.5px solid var(--primary)' : '1px solid var(--border)',
+                background: mentee.academic?.latestPercentage != null ? 'rgba(143,63,102,0.02)' : 'var(--surface)',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  textTransform: 'uppercase',
+                  color: mentee.academic?.latestPercentage != null ? 'var(--primary)' : 'var(--text-secondary)',
+                  fontWeight: 700,
+                }}
+              >
+                Latest Exam
+              </div>
+              <div
+                style={{
+                  fontSize: mentee.academic?.latestPercentage != null ? '1.4rem' : '1.05rem',
+                  fontWeight: mentee.academic?.latestPercentage != null ? 800 : 600,
+                  marginTop: mentee.academic?.latestPercentage != null ? 4 : 8,
+                  color: mentee.academic?.latestPercentage != null ? 'var(--primary)' : 'var(--text-secondary)',
+                }}
+              >
+                {mentee.academic?.latestPercentage != null
                   ? `${mentee.academic.latestPercentage}%`
                   : 'Not available'}
               </div>
-              {mentee.academic?.latestPercentage !== undefined && mentee.academic?.previousPercentage !== undefined ? (
+              {mentee.academic?.latestPercentage != null && mentee.academic?.previousPercentage != null ? (
                 <div style={{ fontSize: '0.76rem', color: (mentee.academic.latestPercentage - mentee.academic.previousPercentage) >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 700, marginTop: 2 }}>
                   {(mentee.academic.latestPercentage - mentee.academic.previousPercentage) >= 0 ? '+' : ''}{mentee.academic.latestPercentage - mentee.academic.previousPercentage}% improvement
                 </div>
               ) : (
-                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>No baseline comparison</div>
+                <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: mentee.academic?.latestPercentage != null ? 2 : 4 }}>
+                  {mentee.academic?.latestPercentage != null ? 'Latest examination' : 'No exam recorded'}
+                </div>
               )}
             </div>
             <div className="summary-card" style={{ textAlign: 'center', padding: '18px 14px' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--success)', fontWeight: 700 }}>Target Exam</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: 4, color: 'var(--success)' }}>
-                {mentee.academic?.targetPercentage !== undefined && mentee.academic?.targetPercentage !== null
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  textTransform: 'uppercase',
+                  color: mentee.academic?.targetPercentage != null ? 'var(--success)' : 'var(--text-secondary)',
+                  fontWeight: 700,
+                }}
+              >
+                Target Exam
+              </div>
+              <div
+                style={{
+                  fontSize: mentee.academic?.targetPercentage != null ? '1.4rem' : '1.05rem',
+                  fontWeight: mentee.academic?.targetPercentage != null ? 800 : 600,
+                  marginTop: mentee.academic?.targetPercentage != null ? 4 : 8,
+                  color: mentee.academic?.targetPercentage != null ? 'var(--success)' : 'var(--text-secondary)',
+                }}
+              >
+                {mentee.academic?.targetPercentage != null
                   ? `${mentee.academic.targetPercentage}%`
                   : 'Not set'}
               </div>
-              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>Aim for semester</div>
+              <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: mentee.academic?.targetPercentage != null ? 2 : 4 }}>
+                {mentee.academic?.targetPercentage != null ? 'Aim for semester' : 'No target configured'}
+              </div>
             </div>
           </div>
+
+          {(!mentee.academic || (mentee.academic.previousPercentage == null && mentee.academic.latestPercentage == null && mentee.academic.targetPercentage == null)) && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 12,
+                padding: '14px 18px',
+                borderRadius: 12,
+                background: 'rgba(143,63,102,0.03)',
+                border: '1px dashed rgba(143,63,102,0.25)',
+                fontSize: '0.86rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <BookOpen size={18} color="var(--primary)" />
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  No academic exam records or targets added yet for this mentee.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn-outline btn-sm"
+                style={{ fontSize: '0.82rem', padding: '6px 14px' }}
+                onClick={() => setEditAcademicModalOpen(true)}
+              >
+                + Add Academic Information
+              </button>
+            </div>
+          )}
 
           {/* Subjects Dual Section: Strong vs Focus */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))', gap: 20 }}>
