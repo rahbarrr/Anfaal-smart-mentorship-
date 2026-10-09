@@ -16,6 +16,8 @@ const menteeSchema = new Schema<MenteeDocument>(
     careerInterests: { type: Schema.Types.Mixed },
     challenges: [{ type: Schema.Types.Mixed }],
     notes: [{ type: Schema.Types.Mixed }],
+    profileProvenance: { type: Schema.Types.Mixed, default: {} },
+    lastProfileUpdate: { type: Date },
   },
   { timestamps: true },
 );

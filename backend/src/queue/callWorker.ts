@@ -12,6 +12,7 @@ import { invalidateCache } from '../services/cacheService.js';
 import { transcribeAudioInChunks } from '../services/chunkedTranscriptionService.js';
 import { classifyProcessingError } from '../services/processingErrorService.js';
 import { notifyCallCompletion, notifyCallFailure } from '../services/notificationService.js';
+import { extractProfileFromCall } from '../services/profileExtractionService.js';
 
 export function isJobRunnable(status: string): boolean {
   return status === 'PENDING' || status === 'PROCESSING';
@@ -326,6 +327,20 @@ export async function processCallProcessingJob(
 
       console.info(`[CALL_PROCESSING_COMPLETE] callId=${callId} durationMs=${Date.now() - pipelineStartedAt}`);
       console.info(`[CALL_PERFORMANCE] callId=${callId} totalMs=${Date.now() - pipelineStartedAt} queueWaitMs=${existingJob.createdAt ? Math.max(0, Date.now() - new Date(existingJob.createdAt).getTime()) : 0}`);
+
+      // Stage 3: AI Mentee Profile Extraction (fail-safe; will not crash or fail the call job)
+      try {
+        console.info(`[CALL_PROFILE_EXTRACTION_START] callId=${callId}`);
+        const extractionResult = await extractProfileFromCall(
+          callId,
+          transcriptText || refreshedCall?.transcript,
+          summaryResult,
+          call.menteeId,
+        );
+        console.info(`[CALL_PROFILE_EXTRACTION_COMPLETE] callId=${callId} extracted=${extractionResult.extractedCount}`);
+      } catch (profileErr) {
+        console.warn(`[CALL_PROFILE_EXTRACTION_WARN] callId=${callId} non-fatal extraction error:`, profileErr);
+      }
     } catch (summaryErr) {
       currentStage = 'summary';
       throw summaryErr;

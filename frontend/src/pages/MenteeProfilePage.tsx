@@ -12,6 +12,10 @@ import {
   getMenteeAiInsights,
   deleteDailyPerformance,
   bulkDeleteDailyPerformance,
+  fetchMenteeSuggestions,
+  reviewMenteeSuggestion,
+  bulkReviewMenteeSuggestions,
+  extractProfileFromCall,
 } from '../lib/api';
 import {
   ArrowLeft,
@@ -42,7 +46,7 @@ import {
   FileText,
   Phone,
 } from 'lucide-react';
-import type { Mentee360Profile, ShortTermGoal, MenteeChallenge, AiInsightsResult } from '../types';
+import type { Mentee360Profile, ShortTermGoal, MenteeChallenge, AiInsightsResult, ProfileSuggestion } from '../types';
 import { formatDateTime, formatDateOnly, formatSubmissionTimestamps } from '../lib/dateTime';
 
 type TabType = 'overview' | 'academic' | 'goals' | 'routine' | 'career' | 'challenges' | 'calls' | 'timeline';
@@ -183,6 +187,63 @@ export function MenteeProfilePage() {
     }
   };
 
+  // AI Suggestions state
+  const [suggestions, setSuggestions] = useState<ProfileSuggestion[]>([]);
+  const [pendingSuggestionsCount, setPendingSuggestionsCount] = useState<number>(0);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
+  const [suggestionsModalOpen, setSuggestionsModalOpen] = useState(false);
+  const [isReviewingSuggestion, setIsReviewingSuggestion] = useState(false);
+
+  const loadSuggestions = async () => {
+    if (!token || !menteeId) return;
+    try {
+      setIsSuggestionsLoading(true);
+      const res = await fetchMenteeSuggestions(token, menteeId);
+      setSuggestions(res.suggestions || []);
+      setPendingSuggestionsCount(res.pendingCount || 0);
+    } catch {
+      // Non-blocking
+    } finally {
+      setIsSuggestionsLoading(false);
+    }
+  };
+
+  const handleReviewSuggestion = async (
+    suggestionId: string,
+    action: 'approve' | 'edit' | 'reject',
+    editedValue?: any,
+  ) => {
+    if (!token || !menteeId) return;
+    setIsReviewingSuggestion(true);
+    try {
+      await reviewMenteeSuggestion(token, menteeId, suggestionId, action, editedValue);
+      setFeedback({ msg: `Suggestion ${action}d successfully.`, type: 'success' });
+      await loadProfile();
+      await loadSuggestions();
+    } catch (err: any) {
+      setFeedback({ msg: err.message || 'Unable to review suggestion', type: 'error' });
+    } finally {
+      setIsReviewingSuggestion(false);
+    }
+  };
+
+  const handleBulkReview = async (action: 'approve' | 'reject') => {
+    if (!token || !menteeId) return;
+    const pendingIds = suggestions.filter((s) => s.status === 'pending').map((s) => s._id);
+    if (pendingIds.length === 0) return;
+    setIsReviewingSuggestion(true);
+    try {
+      await bulkReviewMenteeSuggestions(token, menteeId, action, pendingIds);
+      setFeedback({ msg: `Successfully ${action}d ${pendingIds.length} suggestions.`, type: 'success' });
+      await loadProfile();
+      await loadSuggestions();
+    } catch (err: any) {
+      setFeedback({ msg: err.message || 'Unable to bulk review suggestions', type: 'error' });
+    } finally {
+      setIsReviewingSuggestion(false);
+    }
+  };
+
   // Load Mentee 360 Profile
   const loadProfile = async () => {
     if (!token || !menteeId) {
@@ -192,9 +253,13 @@ export function MenteeProfilePage() {
     try {
       const res = await getMenteeProfile(token, menteeId, 100);
       setMentee(res.mentee ?? null);
+      if (res.mentee?.pendingSuggestionsCount !== undefined) {
+        setPendingSuggestionsCount(res.mentee.pendingSuggestionsCount);
+      }
       setCalls(res.calls ?? []);
       setPerfSummary(res.dailyPerformanceSummary ?? null);
       setTimeline(res.timeline ?? []);
+      loadSuggestions();
     } catch (err: any) {
       setLoadError(err.message || 'Unable to load mentee profile.');
     } finally {
@@ -552,6 +617,11 @@ export function MenteeProfilePage() {
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--text-secondary)' }}>
                   <MapPin size={14} color="var(--primary)" />
                   <strong style={{ color: 'var(--text-primary)' }}>Location:</strong> {mentee.location || 'Not provided'}
+                  <ProvenanceBadge
+                    fieldKey="location"
+                    provenance={mentee.profileProvenance}
+                    hasPending={suggestions.some((s) => s.status === 'pending' && s.fieldKey === 'location')}
+                  />
                 </div>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--text-secondary)' }}>
                   <UserCheck size={14} color="var(--primary)" />
@@ -628,6 +698,21 @@ export function MenteeProfilePage() {
               >
                 <Icon size={15} />
                 <span>{tab.label}</span>
+                {tab.id === 'overview' && pendingSuggestionsCount > 0 && (
+                  <span
+                    style={{
+                      background: '#f59e0b',
+                      color: '#ffffff',
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      padding: '1px 6px',
+                      borderRadius: 10,
+                      marginLeft: 4,
+                    }}
+                  >
+                    {pendingSuggestionsCount}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -639,6 +724,153 @@ export function MenteeProfilePage() {
       ────────────────────────────────────────────────────────────────────────── */}
       {activeTab === 'overview' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Profile Information Status Compact Section */}
+          {(() => {
+            const provKeys = Object.keys(mentee.profileProvenance || {});
+            const verifiedCount = provKeys.length;
+            const coreFields = [
+              mentee.location,
+              mentee.academic?.previousPercentage,
+              mentee.academic?.latestPercentage,
+              mentee.academic?.targetPercentage,
+              mentee.goals?.careerGoal,
+              mentee.routine?.selfStudyHours,
+            ];
+            const missingCount = coreFields.filter(
+              (v) => v === undefined || v === null || v === '',
+            ).length;
+            const pendingCount = suggestions.filter((s) => s.status === 'pending').length;
+
+            return (
+              <div
+                className="summary-card"
+                style={{
+                  background: 'linear-gradient(135deg, var(--surface) 0%, rgba(99, 102, 241, 0.04) 100%)',
+                  border: '1px solid rgba(99, 102, 241, 0.22)',
+                  borderRadius: 14,
+                  padding: '16px 20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 14,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 10,
+                        background: 'rgba(99, 102, 241, 0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary)',
+                      }}
+                    >
+                      <Activity size={20} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '1.02rem', fontWeight: 800, margin: 0 }}>Profile Information Status</h3>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                        Canonical 360° mentee profile data verified by mentors and AI transcript extraction
+                      </div>
+                    </div>
+                  </div>
+
+                  {pendingCount > 0 ? (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 16px',
+                        fontSize: '0.86rem',
+                        fontWeight: 700,
+                        borderRadius: 10,
+                        boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+                        background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                      }}
+                      onClick={() => setSuggestionsModalOpen(true)}
+                    >
+                      <Sparkles size={16} />
+                      Review AI Suggestions ({pendingCount})
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '6px 14px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        borderRadius: 8,
+                      }}
+                      onClick={() => setSuggestionsModalOpen(true)}
+                    >
+                      <Sparkles size={14} />
+                      AI Suggestions ({suggestions.length})
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                    gap: 12,
+                    paddingTop: 10,
+                    borderTop: '1px solid var(--border)',
+                  }}
+                >
+                  <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--surface-muted)' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Verified Information
+                    </div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--success)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CheckCircle2 size={16} />
+                      {verifiedCount} fields
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--surface-muted)' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Awaiting Review
+                    </div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: pendingCount > 0 ? '#f59e0b' : 'var(--text-secondary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Clock size={16} />
+                      {pendingCount} suggestions
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--surface-muted)' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Missing Information
+                    </div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: missingCount > 0 ? '#f59e0b' : 'var(--success)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <AlertCircle size={16} />
+                      {missingCount} fields
+                    </div>
+                  </div>
+
+                  <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--surface-muted)' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Last Profile Update
+                    </div>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text)', marginTop: 4 }}>
+                      {mentee.lastProfileUpdate ? formatDateTime(mentee.lastProfileUpdate) : 'Never'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Top Row: Academic Snapshot & Current Goals */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 20 }}>
             {/* Key Academic Snapshot */}
@@ -1049,7 +1281,14 @@ export function MenteeProfilePage() {
               <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>{mentee.academic?.academicLevel || 'Class Standard'}</div>
             </div>
             <div className="summary-card" style={{ textAlign: 'center', padding: '18px 14px' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Previous Exam</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Previous Exam</span>
+                <ProvenanceBadge
+                  fieldKey="academic.previousPercentage"
+                  provenance={mentee.profileProvenance}
+                  hasPending={suggestions.some((s) => s.status === 'pending' && s.fieldKey === 'academic.previousPercentage')}
+                />
+              </div>
               <div
                 style={{
                   fontSize: mentee.academic?.previousPercentage != null ? '1.4rem' : '1.05rem',
@@ -1075,15 +1314,15 @@ export function MenteeProfilePage() {
                 background: mentee.academic?.latestPercentage != null ? 'rgba(143,63,102,0.02)' : 'var(--surface)',
               }}
             >
-              <div
-                style={{
-                  fontSize: '0.75rem',
-                  textTransform: 'uppercase',
-                  color: mentee.academic?.latestPercentage != null ? 'var(--primary)' : 'var(--text-secondary)',
-                  fontWeight: 700,
-                }}
-              >
-                Latest Exam
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: mentee.academic?.latestPercentage != null ? 'var(--primary)' : 'var(--text-secondary)', fontWeight: 700 }}>
+                  Latest Exam
+                </span>
+                <ProvenanceBadge
+                  fieldKey="academic.latestPercentage"
+                  provenance={mentee.profileProvenance}
+                  hasPending={suggestions.some((s) => s.status === 'pending' && s.fieldKey === 'academic.latestPercentage')}
+                />
               </div>
               <div
                 style={{
@@ -1108,15 +1347,15 @@ export function MenteeProfilePage() {
               )}
             </div>
             <div className="summary-card" style={{ textAlign: 'center', padding: '18px 14px' }}>
-              <div
-                style={{
-                  fontSize: '0.75rem',
-                  textTransform: 'uppercase',
-                  color: mentee.academic?.targetPercentage != null ? 'var(--success)' : 'var(--text-secondary)',
-                  fontWeight: 700,
-                }}
-              >
-                Target Exam
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: mentee.academic?.targetPercentage != null ? 'var(--success)' : 'var(--text-secondary)', fontWeight: 700 }}>
+                  Target Exam
+                </span>
+                <ProvenanceBadge
+                  fieldKey="academic.targetPercentage"
+                  provenance={mentee.profileProvenance}
+                  hasPending={suggestions.some((s) => s.status === 'pending' && s.fieldKey === 'academic.targetPercentage')}
+                />
               </div>
               <div
                 style={{
@@ -1330,11 +1569,16 @@ export function MenteeProfilePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 16 }}>
             {/* Final Career Goal */}
             <div className="summary-card" style={{ borderLeft: '4px solid var(--primary)' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--primary)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Award size={14} /> Final Career Goal
+              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--primary)', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Award size={14} /> Final Career Goal</span>
+                <ProvenanceBadge
+                  fieldKey="goals.careerGoal"
+                  provenance={mentee.profileProvenance}
+                  hasPending={suggestions.some((s) => s.status === 'pending' && (s.fieldKey === 'goals.careerGoal' || s.fieldKey === 'careerGoal'))}
+                />
               </div>
               <div style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: 6, color: 'var(--text-primary)' }}>
-                {mentee.goals?.careerGoal || mentee.careerInterests?.primaryGoal || 'AI Engineer & Technologist'}
+                {mentee.goals?.careerGoal || mentee.careerInterests?.primaryGoal || 'Not set'}
               </div>
               <p className="muted" style={{ fontSize: '0.82rem', marginTop: 4 }}>
                 Overarching long-term professional goal guiding academic subject selection.
@@ -1343,11 +1587,16 @@ export function MenteeProfilePage() {
 
             {/* Semester Goal */}
             <div className="summary-card" style={{ borderLeft: '4px solid var(--success)' }}>
-              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--success)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Target size={14} /> Semester Goal
+              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--success)', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Target size={14} /> Semester Goal</span>
+                <ProvenanceBadge
+                  fieldKey="goals.semesterGoal"
+                  provenance={mentee.profileProvenance}
+                  hasPending={suggestions.some((s) => s.status === 'pending' && (s.fieldKey === 'goals.semesterGoal' || s.fieldKey === 'semesterGoal'))}
+                />
               </div>
               <div style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: 6, color: 'var(--text-primary)' }}>
-                {mentee.goals?.semesterGoal || 'Achieve 80% in semester examination.'}
+                {mentee.goals?.semesterGoal || 'Not set'}
               </div>
               <p className="muted" style={{ fontSize: '0.82rem', marginTop: 4 }}>
                 Primary milestone for the current academic session.
@@ -1479,7 +1728,14 @@ export function MenteeProfilePage() {
                 </div>
               </div>
               <div style={{ padding: '14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12 }}>
-                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Average Study Time</div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>Average Study Time</span>
+                  <ProvenanceBadge
+                    fieldKey="routine.selfStudyHours"
+                    provenance={mentee.profileProvenance}
+                    hasPending={suggestions.some((s) => s.status === 'pending' && s.fieldKey === 'routine.selfStudyHours')}
+                  />
+                </div>
                 <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
                   {perfSummary?.avgStudyTimeHours || (mentee.routine?.selfStudyHours ? `${mentee.routine.selfStudyHours} hrs` : 'Not provided')}
                 </div>
@@ -2130,6 +2386,26 @@ export function MenteeProfilePage() {
                         </button>
                         <button
                           type="button"
+                          className="btn-outline btn-sm"
+                          style={{ fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--primary)' }}
+                          title="Extract mentee profile fields from this call"
+                          onClick={async () => {
+                            try {
+                              setFeedback({ msg: 'Extracting mentee profile suggestions...', type: 'success' });
+                              const res = await extractProfileFromCall(token, call.id);
+                              setFeedback({ msg: `Extraction complete: ${res.extractedCount} suggestions found.`, type: 'success' });
+                              await loadProfile();
+                              await loadSuggestions();
+                              setSuggestionsModalOpen(true);
+                            } catch (err: any) {
+                              setFeedback({ msg: err.message || 'Extraction failed', type: 'error' });
+                            }
+                          }}
+                        >
+                          <Sparkles size={13} /> Extract Profile
+                        </button>
+                        <button
+                          type="button"
                           className="btn-primary btn-sm"
                           style={{ fontSize: '0.78rem' }}
                           onClick={() => navigate(isAdmin ? `/admin/calls/${call.id}` : `/mentor/calls/${call.id}`)}
@@ -2238,6 +2514,20 @@ export function MenteeProfilePage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ──────────────────────────────────────────────────────────────────────────
+          AI SUGGESTIONS REVIEW MODAL
+      ────────────────────────────────────────────────────────────────────────── */}
+      {suggestionsModalOpen && (
+        <ReviewSuggestionsModal
+          isOpen={suggestionsModalOpen}
+          onClose={() => setSuggestionsModalOpen(false)}
+          suggestions={suggestions}
+          onReview={handleReviewSuggestion}
+          onBulkReview={handleBulkReview}
+          isReviewing={isReviewingSuggestion || isSuggestionsLoading}
+        />
       )}
 
       {/* ──────────────────────────────────────────────────────────────────────────
@@ -3143,4 +3433,492 @@ function WeeklyAiInsightsCard({
     </div>
   );
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Provenance Badge Component (Source Indicator)
+// ────────────────────────────────────────────────────────────────────────────
+function ProvenanceBadge({
+  fieldKey,
+  provenance,
+  hasPending,
+}: {
+  fieldKey: string;
+  provenance?: Record<string, any>;
+  hasPending?: boolean;
+}) {
+  if (hasPending) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          fontSize: '0.68rem',
+          padding: '2px 7px',
+          borderRadius: 10,
+          background: 'rgba(245, 158, 11, 0.12)',
+          color: '#d97706',
+          fontWeight: 700,
+        }}
+      >
+        <Clock size={11} /> Awaiting review
+      </span>
+    );
+  }
+  const entry = provenance?.[fieldKey];
+  if (!entry) return null;
+  if (entry.method === 'ai_approved') {
+    return (
+      <span
+        title={`Extracted from call & approved by ${entry.updatedByName || 'mentor'}`}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          fontSize: '0.68rem',
+          padding: '2px 7px',
+          borderRadius: 10,
+          background: 'rgba(99, 102, 241, 0.1)',
+          color: 'var(--primary)',
+          fontWeight: 700,
+        }}
+      >
+        <Sparkles size={11} /> Call Extracted
+      </span>
+    );
+  }
+  if (entry.method === 'manual') {
+    return (
+      <span
+        title={`Confirmed by ${entry.updatedByName || 'mentor'}`}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          fontSize: '0.68rem',
+          padding: '2px 7px',
+          borderRadius: 10,
+          background: 'rgba(16, 185, 129, 0.1)',
+          color: 'var(--success)',
+          fontWeight: 700,
+        }}
+      >
+        <CheckCircle2 size={11} /> Confirmed by mentor
+      </span>
+    );
+  }
+  return null;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Review Suggestions Modal Component
+// ────────────────────────────────────────────────────────────────────────────
+function ReviewSuggestionsModal({
+  isOpen,
+  onClose,
+  suggestions,
+  onReview,
+  onBulkReview,
+  isReviewing,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  suggestions: ProfileSuggestion[];
+  onReview: (suggestionId: string, action: 'approve' | 'edit' | 'reject', editedValue?: any) => Promise<void>;
+  onBulkReview: (action: 'approve' | 'reject') => Promise<void>;
+  isReviewing: boolean;
+}) {
+  const [filter, setFilter] = useState<'all' | 'pending' | 'reviewed'>('pending');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editVal, setEditVal] = useState<string>('');
+
+  if (!isOpen) return null;
+
+  const pendingList = suggestions.filter((s) => s.status === 'pending');
+  const reviewedList = suggestions.filter((s) => s.status !== 'pending');
+  const displayedList =
+    filter === 'pending' ? pendingList : filter === 'reviewed' ? reviewedList : suggestions;
+
+  const startEdit = (s: ProfileSuggestion) => {
+    setEditingId(s._id);
+    setEditVal(
+      typeof s.extractedValue === 'object'
+        ? JSON.stringify(s.extractedValue)
+        : String(s.extractedValue),
+    );
+  };
+
+  const saveEdit = async (s: ProfileSuggestion) => {
+    let parsed: any = editVal;
+    if (typeof s.extractedValue === 'number') {
+      parsed = Number(editVal);
+    } else if (Array.isArray(s.extractedValue)) {
+      parsed = editVal.split(',').map((item) => item.trim());
+    }
+    await onReview(s._id, 'edit', parsed);
+    setEditingId(null);
+  };
+
+  return (
+    <div
+      className="modal-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.55)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
+      <div
+        className="modal-container"
+        style={{
+          background: 'var(--surface)',
+          borderRadius: 16,
+          width: '100%',
+          maxWidth: 720,
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
+          border: '1px solid var(--border)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* Modal Header */}
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: 'var(--surface-muted)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                background: 'rgba(99, 102, 241, 0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary)',
+              }}
+            >
+              <Sparkles size={18} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>
+                AI Profile Suggestions
+              </h3>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                Review, edit, or approve mentee profile updates extracted from call conversations
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn-ghost"
+            style={{ fontSize: '1.1rem', padding: '4px 8px', borderRadius: 6 }}
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Filter & Bulk Bar */}
+        <div
+          style={{
+            padding: '12px 20px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 10,
+            background: 'var(--surface)',
+          }}
+        >
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button
+              type="button"
+              className={`btn-sm ${filter === 'pending' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ fontSize: '0.78rem', borderRadius: 8, padding: '4px 10px' }}
+              onClick={() => setFilter('pending')}
+            >
+              Pending ({pendingList.length})
+            </button>
+            <button
+              type="button"
+              className={`btn-sm ${filter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ fontSize: '0.78rem', borderRadius: 8, padding: '4px 10px' }}
+              onClick={() => setFilter('all')}
+            >
+              All ({suggestions.length})
+            </button>
+            <button
+              type="button"
+              className={`btn-sm ${filter === 'reviewed' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ fontSize: '0.78rem', borderRadius: 8, padding: '4px 10px' }}
+              onClick={() => setFilter('reviewed')}
+            >
+              Reviewed ({reviewedList.length})
+            </button>
+          </div>
+
+          {filter === 'pending' && pendingList.length > 0 && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                disabled={isReviewing}
+                style={{
+                  fontSize: '0.78rem',
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: 'var(--success)',
+                  borderColor: 'var(--success)',
+                }}
+                onClick={() => onBulkReview('approve')}
+              >
+                <CheckCircle2 size={13} /> Approve All ({pendingList.length})
+              </button>
+              <button
+                type="button"
+                className="btn-outline btn-sm"
+                disabled={isReviewing}
+                style={{
+                  fontSize: '0.78rem',
+                  padding: '5px 10px',
+                  borderRadius: 8,
+                  color: 'var(--danger)',
+                  borderColor: 'rgba(239, 68, 68, 0.3)',
+                }}
+                onClick={() => onBulkReview('reject')}
+              >
+                Reject All
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Suggestions List Content */}
+        <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {displayedList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 10px', color: 'var(--text-secondary)' }}>
+              <Sparkles size={32} color="var(--primary)" style={{ opacity: 0.3, margin: '0 auto 8px' }} />
+              <p style={{ margin: 0, fontWeight: 600 }}>No suggestions in this view.</p>
+              <p style={{ margin: '4px 0 0', fontSize: '0.82rem' }}>
+                New profile suggestions are automatically proposed after call recordings are transcribed.
+              </p>
+            </div>
+          ) : (
+            displayedList.map((s) => {
+              const isEditing = editingId === s._id;
+              const isPending = s.status === 'pending';
+
+              return (
+                <div
+                  key={s._id}
+                  style={{
+                    border: s.conflictFlag ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border)',
+                    borderRadius: 12,
+                    padding: 14,
+                    background: s.conflictFlag ? 'rgba(245, 158, 11, 0.02)' : 'var(--surface)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}
+                >
+                  {/* Card Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          textTransform: 'uppercase',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          padding: '2px 8px',
+                          borderRadius: 6,
+                          background: 'rgba(99, 102, 241, 0.1)',
+                          color: 'var(--primary)',
+                        }}
+                      >
+                        {s.category}
+                      </span>
+                      <strong style={{ fontSize: '0.94rem' }}>{s.label}</strong>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                      <span>Source: {s.sourceType}</span>
+                      <span>•</span>
+                      <span>{Math.round(s.confidence * 100)}% confidence</span>
+                      {s.callDate && (
+                        <>
+                          <span>•</span>
+                          <span>{formatDateOnly(s.callDate)}</span>
+                        </>
+                      )}
+                      {!isPending && (
+                        <span
+                          style={{
+                            marginLeft: 4,
+                            padding: '2px 8px',
+                            borderRadius: 10,
+                            fontWeight: 700,
+                            fontSize: '0.7rem',
+                            background: s.status === 'approved' || s.status === 'modified' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                            color: s.status === 'approved' || s.status === 'modified' ? 'var(--success)' : 'var(--danger)',
+                          }}
+                        >
+                          {s.status.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Conflict Notice */}
+                  {s.conflictFlag && (
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        fontSize: '0.78rem',
+                        color: '#b45309',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      <AlertCircle size={15} />
+                      <span>{s.conflictDetails || 'Differs from existing profile value.'}</span>
+                    </div>
+                  )}
+
+                  {/* Side-by-side comparison */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    <div style={{ padding: '8px 12px', background: 'var(--surface-muted)', borderRadius: 8 }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                        Current Profile Value
+                      </div>
+                      <div style={{ marginTop: 4, fontSize: '0.88rem', fontWeight: 600, color: s.currentValue != null ? 'var(--text)' : 'var(--text-secondary)' }}>
+                        {s.currentValue != null
+                          ? typeof s.currentValue === 'object'
+                            ? JSON.stringify(s.currentValue)
+                            : String(s.currentValue)
+                          : 'Not set (empty)'}
+                      </div>
+                    </div>
+
+                    <div style={{ padding: '8px 12px', background: 'rgba(99, 102, 241, 0.05)', border: '1px solid rgba(99, 102, 241, 0.2)', borderRadius: 8 }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                        Proposed Extracted Value
+                      </div>
+                      {isEditing ? (
+                        <div style={{ marginTop: 4 }}>
+                          <input
+                            type="text"
+                            className="input-field"
+                            value={editVal}
+                            onChange={(e) => setEditVal(e.target.value)}
+                            style={{ fontSize: '0.86rem', padding: '4px 8px', width: '100%', boxSizing: 'border-box' }}
+                            autoFocus
+                          />
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: 4, fontSize: '0.88rem', fontWeight: 700, color: 'var(--primary)' }}>
+                          {typeof s.extractedValue === 'object'
+                            ? JSON.stringify(s.extractedValue)
+                            : String(s.extractedValue)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Evidence quote */}
+                  {s.evidence && (
+                    <div style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--surface-muted)', fontSize: '0.8rem', fontStyle: 'italic', color: 'var(--text-secondary)' }}>
+                      💬 "{s.evidence}"
+                    </div>
+                  )}
+
+                  {/* Actions Bar */}
+                  {isPending && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+                      {isEditing ? (
+                        <>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-sm"
+                            style={{ fontSize: '0.78rem' }}
+                            onClick={() => setEditingId(null)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-primary btn-sm"
+                            style={{ fontSize: '0.78rem' }}
+                            disabled={isReviewing}
+                            onClick={() => saveEdit(s)}
+                          >
+                            Save & Approve
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="btn-outline btn-sm"
+                            style={{ fontSize: '0.78rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                            disabled={isReviewing}
+                            onClick={() => onReview(s._id, 'reject')}
+                          >
+                            Reject
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            style={{ fontSize: '0.78rem' }}
+                            disabled={isReviewing}
+                            onClick={() => startEdit(s)}
+                          >
+                            <Edit3 size={13} style={{ marginRight: 3 }} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-primary btn-sm"
+                            style={{ fontSize: '0.78rem', background: 'var(--success)', borderColor: 'var(--success)' }}
+                            disabled={isReviewing}
+                            onClick={() => onReview(s._id, 'approve')}
+                          >
+                            <CheckCircle2 size={13} style={{ marginRight: 3 }} /> Approve
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 

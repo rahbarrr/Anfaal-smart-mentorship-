@@ -113,6 +113,17 @@ export interface MenteeDocument {
     category?: string;
     createdAt?: Date;
   }>;
+  profileProvenance?: Record<
+    string,
+    {
+      method: 'manual' | 'ai_approved';
+      updatedBy: string;
+      updatedByName?: string;
+      updatedAt: Date;
+      sourceCallId?: string;
+    }
+  >;
+  lastProfileUpdate?: Date;
   createdAt: Date;
   updatedAt?: Date;
 }

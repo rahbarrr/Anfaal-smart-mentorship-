@@ -662,6 +662,67 @@ export async function deleteMenteeNote(token: string, menteeId: string, noteId: 
   return response.json();
 }
 
+export async function fetchMenteeSuggestions(token: string, menteeId: string, status?: string) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : '';
+  const response = await fetch(`${API_BASE_URL}/mentees/${menteeId}/suggestions${query}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to fetch profile suggestions');
+  }
+  return response.json();
+}
+
+export async function reviewMenteeSuggestion(
+  token: string,
+  menteeId: string,
+  suggestionId: string,
+  action: 'approve' | 'edit' | 'reject',
+  editedValue?: any,
+) {
+  const response = await fetch(`${API_BASE_URL}/mentees/${menteeId}/suggestions/${suggestionId}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action, editedValue }),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to review suggestion');
+  }
+  return response.json();
+}
+
+export async function bulkReviewMenteeSuggestions(
+  token: string,
+  menteeId: string,
+  action: 'approve' | 'reject',
+  suggestionIds: string[],
+) {
+  const response = await fetch(`${API_BASE_URL}/mentees/${menteeId}/suggestions/bulk-review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action, suggestionIds }),
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to bulk review suggestions');
+  }
+  return response.json();
+}
+
+export async function extractProfileFromCall(token: string, callId: string) {
+  const response = await fetch(`${API_BASE_URL}/calls/${callId}/extract-profile`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    throw new Error(errorPayload.message ?? 'Unable to extract profile from call');
+  }
+  return response.json();
+}
+
 // ─── Admin Review ─────────────────────────────────────────────────────────────
 
 export async function getReviewQueue(token: string) {

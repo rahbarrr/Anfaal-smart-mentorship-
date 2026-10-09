@@ -8,6 +8,8 @@ import { Mentor } from '../models/Mentor.js';
 import { Call } from '../models/Call.js';
 import { User } from '../models/User.js';
 import { DailyPerformance } from '../models/DailyPerformance.js';
+import { ProfileSuggestion } from '../models/ProfileSuggestion.js';
+import { normalizeFieldKey } from '../services/profileExtractionService.js';
 import { logAuditEvent } from '../services/auditService.js';
 
 const router = Router();
@@ -430,6 +432,11 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
     const makidDisplay = mentee.makid ?? '';
     const locationDisplay = mentee.location ?? contactInfo?.location ?? '';
 
+    const pendingSuggestionsCount = await ProfileSuggestion.countDocuments({
+      menteeId,
+      status: 'pending',
+    });
+
     return res.json({
       mentee: {
         id: menteeId,
@@ -450,6 +457,9 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
         careerInterests,
         challenges,
         notes,
+        profileProvenance: mentee.profileProvenance || {},
+        lastProfileUpdate: mentee.lastProfileUpdate || mentee.updatedAt || mentee.createdAt,
+        pendingSuggestionsCount,
       },
       calls: enrichedCalls,
       dailyPerformanceSummary,
@@ -554,13 +564,52 @@ router.patch('/:id/360', requireAuth, async (req: AuthRequest, res: Response) =>
     }
 
     const { academic, goals, routine, careerInterests, challenges, location } = req.body;
+    const user = await User.findById(req.user?.id).lean();
+    const updaterName = user?.name || req.user?.email || 'User';
+    const now = new Date();
+    const provenance = { ...(mentee.profileProvenance || {}) };
 
-    if (location !== undefined) mentee.location = String(location).trim();
-    if (academic !== undefined) mentee.academic = { ...(mentee.academic || {}), ...academic };
-    if (goals !== undefined) mentee.goals = { ...(mentee.goals || {}), ...goals };
-    if (routine !== undefined) mentee.routine = { ...(mentee.routine || {}), ...routine };
-    if (careerInterests !== undefined) mentee.careerInterests = { ...(mentee.careerInterests || {}), ...careerInterests };
-    if (challenges !== undefined) mentee.challenges = challenges;
+    if (location !== undefined) {
+      mentee.location = String(location).trim();
+      provenance['location'] = { method: 'manual', updatedBy: req.user!.id, updatedByName: updaterName, updatedAt: now };
+    }
+    if (academic !== undefined) {
+      mentee.academic = { ...(mentee.academic || {}), ...academic };
+      mentee.markModified('academic');
+      Object.keys(academic).forEach((key) => {
+        provenance[`academic.${key}`] = { method: 'manual', updatedBy: req.user!.id, updatedByName: updaterName, updatedAt: now };
+      });
+    }
+    if (goals !== undefined) {
+      mentee.goals = { ...(mentee.goals || {}), ...goals };
+      mentee.markModified('goals');
+      Object.keys(goals).forEach((key) => {
+        provenance[`goals.${key}`] = { method: 'manual', updatedBy: req.user!.id, updatedByName: updaterName, updatedAt: now };
+      });
+    }
+    if (routine !== undefined) {
+      mentee.routine = { ...(mentee.routine || {}), ...routine };
+      mentee.markModified('routine');
+      Object.keys(routine).forEach((key) => {
+        provenance[`routine.${key}`] = { method: 'manual', updatedBy: req.user!.id, updatedByName: updaterName, updatedAt: now };
+      });
+    }
+    if (careerInterests !== undefined) {
+      mentee.careerInterests = { ...(mentee.careerInterests || {}), ...careerInterests };
+      mentee.markModified('careerInterests');
+      Object.keys(careerInterests).forEach((key) => {
+        provenance[`careerInterests.${key}`] = { method: 'manual', updatedBy: req.user!.id, updatedByName: updaterName, updatedAt: now };
+      });
+    }
+    if (challenges !== undefined) {
+      mentee.challenges = challenges;
+      mentee.markModified('challenges');
+      provenance['challenges'] = { method: 'manual', updatedBy: req.user!.id, updatedByName: updaterName, updatedAt: now };
+    }
+
+    mentee.profileProvenance = provenance;
+    mentee.lastProfileUpdate = now;
+    mentee.markModified('profileProvenance');
 
     await mentee.save();
 
@@ -586,6 +635,8 @@ router.patch('/:id/360', requireAuth, async (req: AuthRequest, res: Response) =>
         careerInterests: mentee.careerInterests,
         challenges: mentee.challenges,
         location: mentee.location,
+        profileProvenance: mentee.profileProvenance,
+        lastProfileUpdate: mentee.lastProfileUpdate,
       },
     });
   } catch (error) {
@@ -730,6 +781,405 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest
     return res.json({ message: 'Mentee and all associated data removed successfully.' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to delete mentee';
+    return res.status(500).json({ message });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Profile Suggestion Review & Authorization Helpers
+// ────────────────────────────────────────────────────────────────────────────
+async function checkMenteeAccess(req: AuthRequest, menteeId: string): Promise<boolean> {
+  if (req.user?.role === 'ADMIN') return true;
+  if (req.user?.role === 'MENTOR') {
+    const mentorProfile = await Mentor.findOne({ userId: req.user.id }).lean();
+    const mentorIds = [req.user.id, ...(mentorProfile ? [String(mentorProfile._id)] : [])];
+    const assignment = await Mentorship.findOne({
+      mentorId: { $in: mentorIds },
+      menteeId,
+      status: 'active',
+    }).lean();
+    return Boolean(assignment);
+  }
+  return false;
+}
+
+export function applySuggestionToMentee(mentee: any, fieldKey: string, value: any): void {
+  const normKey = normalizeFieldKey(fieldKey);
+  if (normKey === 'goals.careerGoal') {
+    mentee.goals = { ...(mentee.goals || {}), careerGoal: String(value).trim() };
+    mentee.markModified('goals');
+  } else if (normKey === 'goals.semesterGoal') {
+    mentee.goals = { ...(mentee.goals || {}), semesterGoal: String(value).trim() };
+    mentee.markModified('goals');
+  } else if (normKey === 'academic.previousPercentage') {
+    const num = Number(value);
+    if (!isNaN(num)) {
+      mentee.academic = { ...(mentee.academic || {}), previousPercentage: num };
+      mentee.markModified('academic');
+    }
+  } else if (normKey === 'academic.latestPercentage') {
+    const num = Number(value);
+    if (!isNaN(num)) {
+      mentee.academic = { ...(mentee.academic || {}), latestPercentage: num };
+      mentee.markModified('academic');
+    }
+  } else if (normKey === 'academic.targetPercentage') {
+    const num = Number(value);
+    if (!isNaN(num)) {
+      mentee.academic = { ...(mentee.academic || {}), targetPercentage: num };
+      mentee.markModified('academic');
+    }
+  } else if (normKey === 'academic.currentExam') {
+    mentee.academic = { ...(mentee.academic || {}), currentExam: String(value).trim() };
+    mentee.markModified('academic');
+  } else if (normKey === 'academic.favouriteSubjects') {
+    const list = Array.isArray(value) ? value : String(value).split(',').map((s: string) => s.trim());
+    const existing = Array.isArray(mentee.academic?.favouriteSubjects) ? mentee.academic.favouriteSubjects : [];
+    mentee.academic = {
+      ...(mentee.academic || {}),
+      favouriteSubjects: Array.from(new Set([...existing, ...list])),
+    };
+    mentee.markModified('academic');
+  } else if (normKey === 'academic.weakSubjects') {
+    const list = Array.isArray(value) ? value : String(value).split(',').map((s: string) => s.trim());
+    const existing = Array.isArray(mentee.academic?.weakSubjects) ? mentee.academic.weakSubjects : [];
+    mentee.academic = {
+      ...(mentee.academic || {}),
+      weakSubjects: Array.from(new Set([...existing, ...list])),
+    };
+    mentee.markModified('academic');
+  } else if (normKey === 'routine.selfStudyHours') {
+    const num = Number(value);
+    if (!isNaN(num)) {
+      mentee.routine = { ...(mentee.routine || {}), selfStudyHours: num };
+      mentee.markModified('routine');
+    }
+  } else if (normKey === 'routine.schedule') {
+    mentee.routine = { ...(mentee.routine || {}), schedule: String(value).trim() };
+    mentee.markModified('routine');
+  } else if (normKey === 'routine.habits') {
+    const list = Array.isArray(value) ? value : String(value).split(',').map((s: string) => s.trim());
+    const existing = Array.isArray(mentee.routine?.habits) ? mentee.routine.habits : [];
+    mentee.routine = {
+      ...(mentee.routine || {}),
+      habits: Array.from(new Set([...existing, ...list])),
+    };
+    mentee.markModified('routine');
+  } else if (normKey === 'careerInterests.skills') {
+    const list = Array.isArray(value) ? value : String(value).split(',').map((s: string) => s.trim());
+    const existing = Array.isArray(mentee.careerInterests?.skills) ? mentee.careerInterests.skills : [];
+    mentee.careerInterests = {
+      ...(mentee.careerInterests || {}),
+      skills: Array.from(new Set([...existing, ...list])),
+    };
+    mentee.markModified('careerInterests');
+  } else if (normKey === 'careerInterests.skillsToDevelop') {
+    const list = Array.isArray(value) ? value : String(value).split(',').map((s: string) => s.trim());
+    const existing = Array.isArray(mentee.careerInterests?.skillsToDevelop) ? mentee.careerInterests.skillsToDevelop : [];
+    mentee.careerInterests = {
+      ...(mentee.careerInterests || {}),
+      skillsToDevelop: Array.from(new Set([...existing, ...list])),
+    };
+    mentee.markModified('careerInterests');
+  } else if (normKey === 'careerInterests.secondaryInterests') {
+    const list = Array.isArray(value) ? value : String(value).split(',').map((s: string) => s.trim());
+    const existing = Array.isArray(mentee.careerInterests?.secondaryInterests) ? mentee.careerInterests.secondaryInterests : [];
+    mentee.careerInterests = {
+      ...(mentee.careerInterests || {}),
+      secondaryInterests: Array.from(new Set([...existing, ...list])),
+    };
+    mentee.markModified('careerInterests');
+  } else if (normKey === 'careerInterests.hobbies') {
+    const list = Array.isArray(value) ? value : String(value).split(',').map((s: string) => s.trim());
+    const existing = Array.isArray(mentee.careerInterests?.hobbies) ? mentee.careerInterests.hobbies : [];
+    mentee.careerInterests = {
+      ...(mentee.careerInterests || {}),
+      hobbies: Array.from(new Set([...existing, ...list])),
+    };
+    mentee.markModified('careerInterests');
+  } else if (normKey === 'location') {
+    mentee.location = String(value).trim();
+  } else if (normKey === 'challenges') {
+    const existingChallenges = Array.isArray(mentee.challenges) ? mentee.challenges : [];
+    const newChallenge = typeof value === 'object' && value.title
+      ? {
+          id: `ch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          title: String(value.title).trim(),
+          description: String(value.description || value.title).trim(),
+          priority: value.priority || 'Medium',
+          status: value.status || 'Open',
+          mentorAction: value.mentorAction || '',
+          progress: Number(value.progress) || 0,
+          createdAt: new Date(),
+        }
+      : {
+          id: `ch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          title: String(value).trim(),
+          description: String(value).trim(),
+          priority: 'Medium',
+          status: 'Open',
+          mentorAction: '',
+          progress: 0,
+          createdAt: new Date(),
+        };
+    mentee.challenges = [...existingChallenges, newChallenge];
+    mentee.markModified('challenges');
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// GET /api/mentees/:id/suggestions — fetch AI suggestions for mentee
+// ────────────────────────────────────────────────────────────────────────────
+router.get('/:id/suggestions', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const menteeId = String(req.params.id);
+    const hasAccess = await checkMenteeAccess(req, menteeId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission for this mentee.' });
+    }
+
+    const mentee = await Mentee.findById(menteeId).lean();
+    if (!mentee) {
+      return res.status(404).json({ message: 'Mentee not found.' });
+    }
+
+    const statusFilter = req.query.status as string | undefined;
+    const filter: Record<string, any> = { menteeId };
+    if (statusFilter && ['pending', 'approved', 'rejected', 'modified'].includes(statusFilter)) {
+      filter.status = statusFilter;
+    }
+
+    const [suggestions, pendingCount] = await Promise.all([
+      ProfileSuggestion.find(filter).sort({ status: 1, createdAt: -1 }).lean(),
+      ProfileSuggestion.countDocuments({ menteeId, status: 'pending' }),
+    ]);
+
+    return res.json({
+      total: suggestions.length,
+      pendingCount,
+      suggestions,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to fetch profile suggestions';
+    return res.status(500).json({ message });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /api/mentees/:id/suggestions/:suggestionId/review — review single suggestion
+// ────────────────────────────────────────────────────────────────────────────
+const reviewSuggestionSchema = z.object({
+  action: z.enum(['approve', 'edit', 'reject']),
+  editedValue: z.any().optional(),
+});
+
+router.post('/:id/suggestions/:suggestionId/review', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const menteeId = String(req.params.id);
+    const suggestionId = String(req.params.suggestionId);
+
+    const hasAccess = await checkMenteeAccess(req, menteeId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission for this mentee.' });
+    }
+
+    const parsed = reviewSuggestionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Invalid review action. Must be approve, edit, or reject.' });
+    }
+
+    const [mentee, suggestion] = await Promise.all([
+      Mentee.findById(menteeId),
+      ProfileSuggestion.findOne({ _id: suggestionId, menteeId }),
+    ]);
+
+    if (!mentee) {
+      return res.status(404).json({ message: 'Mentee not found.' });
+    }
+    if (!suggestion) {
+      return res.status(404).json({ message: 'Suggestion not found.' });
+    }
+
+    const { action, editedValue } = parsed.data;
+    const reviewerUser = await User.findById(req.user?.id).lean();
+    const reviewerName = reviewerUser?.name || req.user?.email || 'Reviewer';
+    const now = new Date();
+
+    if (action === 'approve') {
+      applySuggestionToMentee(mentee, suggestion.fieldKey, suggestion.extractedValue);
+      mentee.profileProvenance = mentee.profileProvenance || {};
+      mentee.profileProvenance[suggestion.fieldKey] = {
+        method: 'ai_approved',
+        updatedBy: req.user!.id,
+        updatedByName: reviewerName,
+        updatedAt: now,
+        sourceCallId: suggestion.sourceCallId,
+      };
+      mentee.lastProfileUpdate = now;
+      mentee.markModified('profileProvenance');
+      await mentee.save();
+
+      suggestion.status = 'approved';
+      suggestion.reviewedBy = req.user!.id;
+      suggestion.reviewedByName = reviewerName;
+      suggestion.reviewedAt = now;
+      await suggestion.save();
+    } else if (action === 'edit') {
+      const finalValue = editedValue !== undefined ? editedValue : suggestion.extractedValue;
+      applySuggestionToMentee(mentee, suggestion.fieldKey, finalValue);
+      mentee.profileProvenance = mentee.profileProvenance || {};
+      mentee.profileProvenance[suggestion.fieldKey] = {
+        method: 'manual',
+        updatedBy: req.user!.id,
+        updatedByName: reviewerName,
+        updatedAt: now,
+        sourceCallId: suggestion.sourceCallId,
+      };
+      mentee.lastProfileUpdate = now;
+      mentee.markModified('profileProvenance');
+      await mentee.save();
+
+      suggestion.status = 'modified';
+      suggestion.extractedValue = finalValue;
+      suggestion.reviewedBy = req.user!.id;
+      suggestion.reviewedByName = reviewerName;
+      suggestion.reviewedAt = now;
+      await suggestion.save();
+    } else if (action === 'reject') {
+      suggestion.status = 'rejected';
+      suggestion.reviewedBy = req.user!.id;
+      suggestion.reviewedByName = reviewerName;
+      suggestion.reviewedAt = now;
+      await suggestion.save();
+    }
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Reviewer',
+      userRole: req.user!.role,
+      action: 'UPDATE_RECORD',
+      targetType: 'MENTEE',
+      targetId: menteeId,
+      menteeName: mentee.name,
+      details: `${action.toUpperCase()} suggestion for ${suggestion.label} (${suggestion.fieldKey})`,
+      ipAddress: req.ip,
+    });
+
+    return res.json({
+      message: `Suggestion ${action}d successfully.`,
+      suggestion,
+      mentee: {
+        id: String(mentee._id),
+        academic: mentee.academic,
+        goals: mentee.goals,
+        routine: mentee.routine,
+        careerInterests: mentee.careerInterests,
+        challenges: mentee.challenges,
+        location: mentee.location,
+        profileProvenance: mentee.profileProvenance,
+        lastProfileUpdate: mentee.lastProfileUpdate,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to review suggestion';
+    return res.status(500).json({ message });
+  }
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// POST /api/mentees/:id/suggestions/bulk-review — bulk approve or reject
+// ────────────────────────────────────────────────────────────────────────────
+const bulkReviewSchema = z.object({
+  action: z.enum(['approve', 'reject']),
+  suggestionIds: z.array(z.string().min(1)).min(1),
+});
+
+router.post('/:id/suggestions/bulk-review', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const menteeId = String(req.params.id);
+    const hasAccess = await checkMenteeAccess(req, menteeId);
+    if (!hasAccess) {
+      return res.status(403).json({ message: 'Access denied: You do not have permission for this mentee.' });
+    }
+
+    const parsed = bulkReviewSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: 'Invalid payload. Provide action and non-empty suggestionIds.' });
+    }
+
+    const { action, suggestionIds } = parsed.data;
+    const [mentee, suggestions] = await Promise.all([
+      Mentee.findById(menteeId),
+      ProfileSuggestion.find({ _id: { $in: suggestionIds }, menteeId, status: 'pending' }),
+    ]);
+
+    if (!mentee) {
+      return res.status(404).json({ message: 'Mentee not found.' });
+    }
+
+    const reviewerUser = await User.findById(req.user?.id).lean();
+    const reviewerName = reviewerUser?.name || req.user?.email || 'Reviewer';
+    const now = new Date();
+
+    if (action === 'approve') {
+      mentee.profileProvenance = mentee.profileProvenance || {};
+      for (const sug of suggestions) {
+        applySuggestionToMentee(mentee, sug.fieldKey, sug.extractedValue);
+        mentee.profileProvenance[sug.fieldKey] = {
+          method: 'ai_approved',
+          updatedBy: req.user!.id,
+          updatedByName: reviewerName,
+          updatedAt: now,
+          sourceCallId: sug.sourceCallId,
+        };
+        sug.status = 'approved';
+        sug.reviewedBy = req.user!.id;
+        sug.reviewedByName = reviewerName;
+        sug.reviewedAt = now;
+        await sug.save();
+      }
+      mentee.lastProfileUpdate = now;
+      mentee.markModified('profileProvenance');
+      await mentee.save();
+    } else {
+      for (const sug of suggestions) {
+        sug.status = 'rejected';
+        sug.reviewedBy = req.user!.id;
+        sug.reviewedByName = reviewerName;
+        sug.reviewedAt = now;
+        await sug.save();
+      }
+    }
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Reviewer',
+      userRole: req.user!.role,
+      action: 'UPDATE_RECORD',
+      targetType: 'MENTEE',
+      targetId: menteeId,
+      menteeName: mentee.name,
+      details: `Bulk ${action}d ${suggestions.length} suggestions`,
+      ipAddress: req.ip,
+    });
+
+    return res.json({
+      message: `Bulk ${action} completed successfully for ${suggestions.length} suggestions.`,
+      reviewedCount: suggestions.length,
+      mentee: {
+        id: String(mentee._id),
+        academic: mentee.academic,
+        goals: mentee.goals,
+        routine: mentee.routine,
+        careerInterests: mentee.careerInterests,
+        challenges: mentee.challenges,
+        location: mentee.location,
+        profileProvenance: mentee.profileProvenance,
+        lastProfileUpdate: mentee.lastProfileUpdate,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to perform bulk review';
     return res.status(500).json({ message });
   }
 });

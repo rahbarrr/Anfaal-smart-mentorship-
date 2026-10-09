@@ -281,5 +281,41 @@ export interface Mentee360Profile {
   };
   challenges: MenteeChallenge[];
   notes: MentorNote[];
+  profileProvenance?: Record<string, ProfileFieldProvenance>;
+  lastProfileUpdate?: string;
+  pendingSuggestionsCount?: number;
+}
+
+export type ProfileSuggestionStatus = 'pending' | 'approved' | 'rejected' | 'modified';
+export type ProfileSuggestionCategory = 'basic' | 'academic' | 'goals' | 'routine' | 'career' | 'challenges';
+
+export interface ProfileFieldProvenance {
+  method: 'manual' | 'ai_approved';
+  updatedBy: string;
+  updatedByName?: string;
+  updatedAt: string;
+  sourceCallId?: string;
+}
+
+export interface ProfileSuggestion {
+  _id: string;
+  menteeId: string;
+  sourceCallId: string;
+  callDate?: string;
+  fieldKey: string;
+  category: ProfileSuggestionCategory;
+  label: string;
+  currentValue?: any;
+  extractedValue: any;
+  evidence: string;
+  sourceType: 'transcript' | 'summary';
+  confidence: number;
+  status: ProfileSuggestionStatus;
+  conflictFlag: boolean;
+  conflictDetails?: string;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  createdAt: string;
 }
 

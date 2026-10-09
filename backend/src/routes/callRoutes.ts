@@ -23,6 +23,7 @@ import {
   sanitizeUploadFileName,
 } from '../services/uploadValidationService.js';
 import { removeCallProcessingJob } from '../queue/callQueue.js';
+import { extractProfileFromCall } from '../services/profileExtractionService.js';
 import mongoose from 'mongoose';
 
 const router = Router();
@@ -1379,6 +1380,44 @@ function expressRawMiddleware() {
       next();
     });
   };
-}
+// ────────────────────────────────────────────────────────────────────────────
+// POST /api/calls/:id/extract-profile — on-demand profile extraction from call
+// ────────────────────────────────────────────────────────────────────────────
+router.post('/:id/extract-profile', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const callId = String(req.params.id);
+    const call = await Call.findById(callId).lean();
+    if (!call) {
+      return res.status(404).json({ message: 'Call not found.' });
+    }
+
+    if (req.user?.role !== 'ADMIN') {
+      const isAssigned = await verifyMentorMenteeAccess(req.user!.id, call.menteeId);
+      if (!isAssigned) {
+        return res.status(403).json({ message: 'Access denied: You are not assigned to this mentee.' });
+      }
+    }
+
+    const transcript = call.transcript || call.transcription?.text || '';
+    const summary = call.summary || call.aiSummary?.shortSummary || '';
+    if (!transcript && !summary && !call.mentorNotes) {
+      return res.status(400).json({ message: 'Call does not have transcript or summary available for extraction.' });
+    }
+
+    const result = await extractProfileFromCall(callId, transcript, summary, call.menteeId);
+    if (!result.success) {
+      return res.status(500).json({ message: result.error || 'Profile extraction failed' });
+    }
+
+    return res.json({
+      message: `Profile extraction completed. Found ${result.extractedCount} suggestions.`,
+      extractedCount: result.extractedCount,
+      suggestions: result.suggestions,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to extract profile from call';
+    return res.status(500).json({ message });
+  }
+});
 
 export default router;
