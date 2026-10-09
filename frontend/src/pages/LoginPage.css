@@ -1,0 +1,816 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANFAAL SMART MENTORSHIP — PREMIUM LOGIN REDESIGN
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.anfaal-login-viewport {
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 15% 20%, rgba(143, 63, 102, 0.08) 0%, transparent 45%),
+              radial-gradient(circle at 85% 80%, rgba(111, 42, 77, 0.06) 0%, transparent 50%),
+              linear-gradient(145deg, #f7f4f5 0%, #efe7ea 50%, #eae1e5 100%);
+  padding: 32px 20px;
+  box-sizing: border-box;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Background atmospheric ambient elements */
+.anfaal-login-ambient-1 {
+  position: absolute;
+  top: -120px;
+  right: -100px;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(143, 63, 102, 0.12) 0%, rgba(143, 63, 102, 0) 70%);
+  pointer-events: none;
+  filter: blur(40px);
+}
+
+.anfaal-login-ambient-2 {
+  position: absolute;
+  bottom: -140px;
+  left: -120px;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(116, 48, 78, 0.1) 0%, rgba(116, 48, 78, 0) 70%);
+  pointer-events: none;
+  filter: blur(50px);
+}
+
+/* Central Card Shell */
+.anfaal-login-card {
+  width: 100%;
+  max-width: 1060px;
+  min-height: 620px;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  background: #ffffff;
+  border: 1px solid rgba(143, 63, 102, 0.14);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px -12px rgba(85, 45, 65, 0.12),
+              0 8px 24px -4px rgba(85, 45, 65, 0.06);
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+/* ── Branded Left Column ─────────────────────────────────────────────────── */
+.anfaal-login-showcase {
+  background: linear-gradient(165deg, #2b1722 0%, #3a1c2d 40%, #1f1019 100%);
+  padding: 48px 44px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Geometric pattern inside showcase */
+.anfaal-showcase-pattern {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.anfaal-showcase-glow {
+  position: absolute;
+  top: 20%;
+  right: -80px;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(220, 105, 160, 0.22) 0%, transparent 70%);
+  pointer-events: none;
+  filter: blur(30px);
+}
+
+.anfaal-showcase-content {
+  position: relative;
+  z-index: 2;
+}
+
+.anfaal-brand-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 36px;
+}
+
+.anfaal-logo-emblem {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #a84d7a 0%, #8f3f66 60%, #682647 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.35rem;
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(168, 77, 122, 0.35),
+              inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.anfaal-brand-name {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #ffffff;
+  line-height: 1.1;
+}
+
+.anfaal-brand-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 3px;
+}
+
+.anfaal-showcase-headline {
+  font-size: clamp(1.8rem, 2.5vw, 2.35rem);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.04em;
+  color: #ffffff;
+  margin: 0 0 16px 0;
+}
+
+.anfaal-headline-highlight {
+  background: linear-gradient(135deg, #ffc0db 0%, #ff98c3 50%, #ffffff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
+.anfaal-showcase-subtext {
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.78);
+  margin: 0 0 32px 0;
+  max-width: 440px;
+}
+
+/* Feature Pillar Cards */
+.anfaal-showcase-pillars {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  z-index: 2;
+}
+
+.anfaal-pillar-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+}
+
+.anfaal-pillar-item:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateX(3px);
+}
+
+.anfaal-pillar-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffb8d7;
+  flex-shrink: 0;
+}
+
+.anfaal-pillar-text h4 {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 2px 0;
+  letter-spacing: -0.01em;
+}
+
+.anfaal-pillar-text p {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.65);
+  margin: 0;
+  line-height: 1.35;
+}
+
+/* Showcase bottom trust badge */
+.anfaal-showcase-footer {
+  margin-top: 36px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 2;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.anfaal-live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.anfaal-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+  animation: anfaalPulse 2s infinite;
+}
+
+@keyframes anfaalPulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(52, 211, 153, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+  }
+}
+
+/* ── Login Form Right Column ─────────────────────────────────────────────── */
+.anfaal-login-form-pane {
+  padding: 48px 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.anfaal-form-header {
+  margin-bottom: 28px;
+}
+
+.anfaal-form-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8f3f66;
+  background: rgba(143, 63, 102, 0.08);
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 12px;
+}
+
+.anfaal-form-title {
+  font-size: 1.95rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #231e21;
+  margin: 0 0 6px 0;
+  line-height: 1.2;
+}
+
+.anfaal-form-subtitle {
+  font-size: 0.94rem;
+  color: #6e6469;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Session Expired Banner */
+.anfaal-session-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fdf4f8;
+  border: 1px solid rgba(143, 63, 102, 0.2);
+  color: #8f3f66;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+/* Error Banner */
+.anfaal-error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+
+/* Fields & Inputs */
+.anfaal-form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.anfaal-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.anfaal-field-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.anfaal-field-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #2e262b;
+  letter-spacing: -0.01em;
+}
+
+.anfaal-forgot-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #8f3f66;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease;
+  text-decoration: none;
+}
+
+.anfaal-forgot-btn:hover {
+  color: #702e4d;
+  text-decoration: underline;
+}
+
+.anfaal-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.anfaal-input-icon {
+  position: absolute;
+  left: 16px;
+  color: #92878d;
+  pointer-events: none;
+  transition: color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.anfaal-input-control {
+  width: 100%;
+  height: 52px;
+  background: #fbf9fa;
+  border: 1px solid #ddd5d8;
+  border-radius: 14px;
+  padding: 0 16px 0 46px;
+  font-size: 0.95rem;
+  color: #231e21;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.anfaal-input-control::placeholder {
+  color: #a89fa4;
+}
+
+.anfaal-input-control:hover:not(:disabled) {
+  border-color: #c9bec2;
+  background: #ffffff;
+}
+
+.anfaal-input-control:focus {
+  outline: none;
+  border-color: #8f3f66;
+  background: #ffffff;
+  box-shadow: 0 0 0 3.5px rgba(143, 63, 102, 0.14);
+}
+
+.anfaal-input-wrapper:focus-within .anfaal-input-icon {
+  color: #8f3f66;
+}
+
+.anfaal-input-control:disabled {
+  opacity: 0.65;
+  background: #f1edef;
+  cursor: not-allowed;
+}
+
+/* Password Toggle Icon */
+.anfaal-password-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8f858b;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.anfaal-password-toggle:hover {
+  color: #8f3f66;
+  background: rgba(143, 63, 102, 0.08);
+}
+
+.anfaal-password-input {
+  padding-right: 48px !important;
+}
+
+/* Submit & Secondary Buttons */
+.anfaal-submit-btn {
+  width: 100%;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #8f3f66 0%, #762f51 100%);
+  border: none;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 10px 22px -6px rgba(143, 63, 102, 0.4);
+  margin-top: 6px;
+}
+
+.anfaal-submit-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7c3357 0%, #662744 100%);
+  box-shadow: 0 14px 26px -6px rgba(143, 63, 102, 0.5);
+  transform: translateY(-1px);
+}
+
+.anfaal-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 6px 14px -4px rgba(143, 63, 102, 0.4);
+}
+
+.anfaal-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Spinner */
+.anfaal-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: anfaalSpin 0.75s linear infinite;
+}
+
+@keyframes anfaalSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Role Guidance Info Callout */
+.anfaal-role-guidance {
+  background: #fbf7f9;
+  border: 1px solid rgba(143, 63, 102, 0.14);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: #5d5459;
+  line-height: 1.45;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.anfaal-role-guidance strong {
+  color: #2e262b;
+}
+
+.anfaal-role-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.anfaal-role-tag {
+  display: inline-block;
+  background: rgba(143, 63, 102, 0.08);
+  color: #793254;
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.76rem;
+}
+
+/* Secondary Action / Register */
+.anfaal-secondary-action {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 18px;
+  border-top: 1px solid #f0eaec;
+}
+
+.anfaal-register-prompt {
+  font-size: 0.86rem;
+  color: #6e6469;
+  text-align: center;
+}
+
+.anfaal-register-link-btn {
+  width: 100%;
+  height: 46px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1.5px solid rgba(143, 63, 102, 0.25);
+  color: #8f3f66;
+  font-size: 0.92rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.anfaal-register-link-btn:hover {
+  background: rgba(143, 63, 102, 0.04);
+  border-color: #8f3f66;
+}
+
+/* Footer in Form Column */
+.anfaal-form-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: #93898f;
+  line-height: 1.5;
+}
+
+/* ── Forgot Password Modal ───────────────────────────────────────────────── */
+.anfaal-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(25, 15, 20, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 9999;
+}
+
+.anfaal-modal-box {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 440px;
+  padding: 28px 24px;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(143, 63, 102, 0.15);
+  animation: anfaalModalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes anfaalModalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.anfaal-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.anfaal-modal-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(143, 63, 102, 0.1);
+  color: #8f3f66;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.anfaal-modal-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #231e21;
+  margin: 0;
+}
+
+.anfaal-modal-body {
+  font-size: 0.92rem;
+  color: #5f575c;
+  line-height: 1.6;
+  margin-bottom: 22px;
+}
+
+.anfaal-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.anfaal-modal-btn {
+  background: #8f3f66;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.anfaal-modal-btn:hover {
+  background: #762f51;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE DESIGN (TABLETS & PHONES)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 920px) {
+  .anfaal-login-card {
+    grid-template-columns: 1fr;
+    max-width: 520px;
+    min-height: auto;
+    border-radius: 24px;
+  }
+
+  .anfaal-login-showcase {
+    padding: 32px 28px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .anfaal-brand-header {
+    margin-bottom: 20px;
+  }
+
+  .anfaal-showcase-headline {
+    font-size: 1.65rem;
+    margin-bottom: 10px;
+  }
+
+  .anfaal-showcase-subtext {
+    font-size: 0.92rem;
+    margin-bottom: 20px;
+  }
+
+  /* Compact pillars on tablet/mobile */
+  .anfaal-showcase-pillars {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .anfaal-pillar-item {
+    padding: 10px 14px;
+  }
+
+  .anfaal-showcase-footer {
+    display: none;
+  }
+
+  .anfaal-login-form-pane {
+    padding: 36px 28px 30px;
+  }
+}
+
+@media (max-width: 520px) {
+  .anfaal-login-viewport {
+    padding: 14px 10px;
+  }
+
+  .anfaal-login-card {
+    border-radius: 20px;
+    box-shadow: 0 12px 36px rgba(85, 45, 65, 0.1);
+  }
+
+  .anfaal-login-showcase {
+    padding: 24px 20px;
+  }
+
+  .anfaal-logo-emblem {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    font-size: 1.15rem;
+  }
+
+  .anfaal-brand-name {
+    font-size: 1.18rem;
+  }
+
+  .anfaal-showcase-headline {
+    font-size: 1.4rem;
+  }
+
+  .anfaal-showcase-subtext {
+    font-size: 0.88rem;
+    margin-bottom: 14px;
+  }
+
+  /* Hide individual feature cards on small phones to preserve vertical space */
+  .anfaal-showcase-pillars {
+    display: none;
+  }
+
+  .anfaal-login-form-pane {
+    padding: 28px 20px 24px;
+  }
+
+  .anfaal-form-title {
+    font-size: 1.65rem;
+  }
+
+  .anfaal-form-subtitle {
+    font-size: 0.88rem;
+  }
+
+  .anfaal-input-control {
+    height: 48px;
+    font-size: 0.92rem;
+  }
+
+  .anfaal-submit-btn {
+    height: 48px;
+    font-size: 0.95rem;
+  }
+}

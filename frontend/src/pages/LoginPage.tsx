@@ -1,7 +1,20 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  User,
+  ArrowRight,
+  Sparkles,
+  TrendingUp,
+  Brain,
+  AlertCircle,
+  Clock,
+  HelpCircle,
+} from 'lucide-react';
 import { loginWithEmail } from '../lib/api';
+import './LoginPage.css';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -11,12 +24,16 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const sessionExpired = Boolean((location.state as { sessionExpired?: boolean } | null)?.sessionExpired);
+  const [showForgotModal, setShowForgotModal] = useState(false);
+
+  const sessionExpired = Boolean(
+    (location.state as { sessionExpired?: boolean } | null)?.sessionExpired,
+  );
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    // Prevent duplicate in-flight requests
+    // Prevent duplicate in-flight submissions
     if (isSubmitting) {
       return;
     }
@@ -36,10 +53,10 @@ export function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      // ONLY HERE call the login API
       const response = await loginWithEmail(trimmedIdentifier, password);
       localStorage.setItem('anfaal-token', response.token);
       localStorage.setItem('anfaal-user', JSON.stringify(response.user));
+
       if (response.user.role === 'ADMIN') {
         navigate('/admin');
       } else if (response.user.role === 'MENTEE') {
@@ -52,190 +69,299 @@ export function LoginPage() {
         navigate('/mentor');
       }
     } catch (submissionError) {
-      setError(submissionError instanceof Error ? submissionError.message : 'Unable to sign in.');
+      setError(
+        submissionError instanceof Error
+          ? submissionError.message
+          : 'Unable to sign in. Please verify your credentials.',
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div
-      className="login-page"
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        background: 'linear-gradient(135deg, #f4f1f2 0%, #efe7ea 100%)',
-        padding: '32px 20px',
-      }}
-    >
-      <div
-        className="login-shell"
-        style={{
-          width: '100%',
-          maxWidth: 980,
-          display: 'grid',
-          gridTemplateColumns: '1.1fr 0.9fr',
-          background: '#f8f6f6',
-          border: '1px solid #e2d9dc',
-          borderRadius: 28,
-          overflow: 'hidden',
-          boxShadow: '0 28px 60px rgba(95, 70, 81, 0.08)',
-        }}
-      >
-        <div
-          className="login-intro"
-          style={{
-            background: 'linear-gradient(180deg, rgba(143,63,102,0.12), rgba(111,42,77,0.02))',
-            padding: '42px 36px',
-            borderRight: '1px solid #e2d9dc',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-            <div className="brand-mark" style={{ width: 42, height: 42, fontSize: '1.1rem' }}>A</div>
-            <div>
-              <div style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.05em' }}>Anfaal</div>
-              <div className="muted" style={{ fontSize: '0.72rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700 }}>Mentorship Platform</div>
+    <div className="anfaal-login-viewport">
+      {/* Ambient background glows */}
+      <div className="anfaal-login-ambient-1" aria-hidden="true" />
+      <div className="anfaal-login-ambient-2" aria-hidden="true" />
+
+      {/* Main 2-column Card */}
+      <div className="anfaal-login-card">
+        {/* Left Column: Branded Showcase */}
+        <aside className="anfaal-login-showcase">
+          <div className="anfaal-showcase-pattern" aria-hidden="true" />
+          <div className="anfaal-showcase-glow" aria-hidden="true" />
+
+          <div className="anfaal-showcase-content">
+            <div className="anfaal-brand-header">
+              <div className="anfaal-logo-emblem" aria-hidden="true">
+                A
+              </div>
+              <div>
+                <div className="anfaal-brand-name">Anfaal</div>
+                <span className="anfaal-brand-tag">Smart Mentorship</span>
+              </div>
+            </div>
+
+            <h1 className="anfaal-showcase-headline">
+              Your Journey.{' '}
+              <span className="anfaal-headline-highlight">Your Growth.</span>
+              <br />
+              Your Future.
+            </h1>
+
+            <p className="anfaal-showcase-subtext">
+              Personalized mentorship, daily progress tracking, and AI-powered
+              insights — empowering learners and mentors in one unified ecosystem.
+            </p>
+
+            <div className="anfaal-showcase-pillars">
+              <div className="anfaal-pillar-item">
+                <div className="anfaal-pillar-icon" aria-hidden="true">
+                  <Sparkles size={18} />
+                </div>
+                <div className="anfaal-pillar-text">
+                  <h4>Personalized Mentorship</h4>
+                  <p>1-on-1 guidance, goal alignment & tailored growth plans</p>
+                </div>
+              </div>
+
+              <div className="anfaal-pillar-item">
+                <div className="anfaal-pillar-icon" aria-hidden="true">
+                  <TrendingUp size={18} />
+                </div>
+                <div className="anfaal-pillar-text">
+                  <h4>Daily Progress Tracking</h4>
+                  <p>Consistency habits, study time & performance streaks</p>
+                </div>
+              </div>
+
+              <div className="anfaal-pillar-item">
+                <div className="anfaal-pillar-icon" aria-hidden="true">
+                  <Brain size={18} />
+                </div>
+                <div className="anfaal-pillar-text">
+                  <h4>AI Call Intelligence</h4>
+                  <p>Automated transcription, action items & profile updates</p>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div style={{ fontWeight: 800, letterSpacing: '-0.08em', fontSize: '2.6rem', lineHeight: 1.1, color: '#2f2b2f', maxWidth: 420 }}>
-            Mentor care, aligned to each learner’s journey.
+          <div className="anfaal-showcase-footer">
+            <div className="anfaal-live-indicator">
+              <span className="anfaal-pulse-dot" aria-hidden="true" />
+              <span>Mentorship ecosystem active</span>
+            </div>
+            <span>v2.0</span>
           </div>
+        </aside>
 
-          <p className="muted" style={{ marginTop: 18, maxWidth: 420, fontSize: '1.03rem', lineHeight: 1.6 }}>
-            Coordinate mentorship operations, review call records, and support learner progress in a single foundation-ready workspace.
-          </p>
-
-          <div style={{ display: 'grid', gap: 10, marginTop: 28, maxWidth: 420 }}>
-            {['Mentor workflows', 'Call review & AI summaries', 'Learner support tracking'].map((item) => (
-              <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#413d40', fontWeight: 600 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#8f3f66', display: 'inline-block' }} />
-                {item}
+        {/* Right Column: Clean Login Form */}
+        <main className="anfaal-login-form-pane">
+          <div>
+            <div className="anfaal-form-header">
+              <div className="anfaal-form-eyebrow">
+                <Sparkles size={12} />
+                <span>Account Access</span>
               </div>
-            ))}
-          </div>
-        </div>
+              <h2 className="anfaal-form-title">Welcome Back</h2>
+              <p className="anfaal-form-subtitle">
+                Sign in to continue your mentorship journey.
+              </p>
+            </div>
 
-        <form
-          className="form-card login-form"
-          onSubmit={handleSubmit}
-          noValidate
-          style={{ border: 'none', background: 'transparent', boxShadow: 'none', borderRadius: 0, padding: '42px 34px' }}
-        >
-          <div style={{ marginBottom: 18 }}>
-            <div className="eyebrow" style={{ marginBottom: 8 }}>Sign in</div>
-            <div style={{ fontWeight: 800, letterSpacing: '-0.06em', fontSize: '2.2rem', color: '#2f2b2f' }}>Welcome back</div>
-          </div>
+            {sessionExpired && !error && (
+              <div className="anfaal-session-banner" role="status">
+                <Clock size={18} style={{ flexShrink: 0 }} />
+                <span>Your session expired. Please sign in again.</span>
+              </div>
+            )}
 
-          <p className="muted" style={{ marginBottom: 28, fontSize: '1rem', lineHeight: 1.5 }}>
-            Access your mentorship dashboard and operational tools.
-          </p>
+            {error && (
+              <div className="anfaal-error-banner" role="alert">
+                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>{error}</span>
+              </div>
+            )}
 
-          <div style={{ display: 'grid', gap: 18 }}>
-            <div className="field">
-              <label htmlFor="login-identifier" style={{ fontSize: '0.95rem', fontWeight: 700 }}>Email, Phone Number, or MAKID</label>
-              <input
-                id="login-identifier"
-                name="identifier"
-                className="input"
-                type="text"
-                autoComplete="username"
-                required
-                placeholder="e.g. MAK101, 9876543210, or email@domain.com"
-                value={email}
+            <form
+              className="anfaal-form-body"
+              onSubmit={handleSubmit}
+              noValidate
+            >
+              <div className="anfaal-field-group">
+                <label
+                  htmlFor="login-identifier"
+                  className="anfaal-field-label"
+                >
+                  Email, Phone Number, or MAKID
+                </label>
+                <div className="anfaal-input-wrapper">
+                  <User
+                    size={18}
+                    className="anfaal-input-icon"
+                    aria-hidden="true"
+                  />
+                  <input
+                    id="login-identifier"
+                    name="identifier"
+                    className="anfaal-input-control"
+                    type="text"
+                    autoComplete="username"
+                    required
+                    placeholder="e.g. MAK101, 9876543210, or email"
+                    value={email}
+                    disabled={isSubmitting}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (error) setError('');
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="anfaal-field-group">
+                <div className="anfaal-field-label-row">
+                  <label
+                    htmlFor="login-password"
+                    className="anfaal-field-label"
+                  >
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    className="anfaal-forgot-btn"
+                    onClick={() => setShowForgotModal(true)}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <div className="anfaal-input-wrapper">
+                  <Lock
+                    size={18}
+                    className="anfaal-input-icon"
+                    aria-hidden="true"
+                  />
+                  <input
+                    id="login-password"
+                    name="password"
+                    className="anfaal-input-control anfaal-password-input"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    required
+                    placeholder="Enter your password"
+                    value={password}
+                    disabled={isSubmitting}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (error) setError('');
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="anfaal-password-toggle"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword((prev) => !prev)}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="anfaal-submit-btn"
                 disabled={isSubmitting}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                  if (error) setError('');
-                }}
-                style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
-              />
-            </div>
-
-            <div className="field">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label htmlFor="login-password" style={{ fontSize: '0.95rem', fontWeight: 700 }}>Password</label>
-                <button
-                  type="button"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
-                    color: '#8f3f66',
-                    fontWeight: 700,
-                    textDecoration: 'none',
-                    cursor: 'pointer',
-                    fontSize: '0.88rem',
-                  }}
-                  onClick={() => alert('Please contact your Anfaal administrator to reset your password.')}
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <div className="password-input-wrap">
-                <input
-                  id="login-password"
-                  name="password"
-                  className="input"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  placeholder="Enter your password"
-                  value={password}
-                  disabled={isSubmitting}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    if (error) setError('');
-                  }}
-                  style={{ height: 58, fontSize: '1rem', background: '#f5f3f3', borderColor: '#d8d0d3' }}
-                />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  className="password-toggle"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  aria-pressed={showPassword}
-                  onClick={() => setShowPassword((visible) => !visible)}
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-
-            {error ? (
-              <div style={{ color: '#b64343', fontWeight: 600, fontSize: '0.92rem' }}>{error}</div>
-            ) : null}
-            {sessionExpired && !error ? (
-              <div style={{ color: '#8f3f66', fontWeight: 600, fontSize: '0.92rem' }} role="status">
-                Your session expired. Please sign in again.
-              </div>
-            ) : null}
-
-            <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
-              <button type="submit" className="button btn-primary" disabled={isSubmitting} style={{ textAlign: 'center', height: 58, fontSize: '1rem', borderRadius: 16 }}>
-                {isSubmitting ? 'Signing in...' : 'Login'}
+              >
+                {isSubmitting ? (
+                  <>
+                    <span className="anfaal-spinner" aria-hidden="true" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign In</span>
+                    <ArrowRight size={18} />
+                  </>
+                )}
               </button>
+
+              <div className="anfaal-role-guidance">
+                <div className="anfaal-role-pills">
+                  <span>💡</span>
+                  <span><strong>Mentors:</strong> Phone Number</span>
+                  <span>·</span>
+                  <span><strong>Mentees:</strong> MAKID</span>
+                  <span>·</span>
+                  <span><strong>Admins:</strong> Email</span>
+                </div>
+              </div>
+
+              <div className="anfaal-secondary-action">
+                <div className="anfaal-register-prompt">
+                  Interested in joining as a mentor?
+                </div>
+                <button
+                  type="button"
+                  className="anfaal-register-link-btn"
+                  onClick={() => navigate('/mentor/register')}
+                >
+                  Apply to become a mentor
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <footer className="anfaal-form-footer">
+            <div>© 2026 Anfaal Smart Mentorship Platform. All rights reserved.</div>
+          </footer>
+        </main>
+      </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div
+          className="anfaal-modal-backdrop"
+          onClick={() => setShowForgotModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="forgot-modal-title"
+        >
+          <div
+            className="anfaal-modal-box"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="anfaal-modal-header">
+              <div className="anfaal-modal-icon">
+                <HelpCircle size={22} />
+              </div>
+              <h3 id="forgot-modal-title" className="anfaal-modal-title">
+                Password Reset Assistance
+              </h3>
+            </div>
+            <p className="anfaal-modal-body">
+              For security, user passwords in Anfaal are centrally managed.
+              <br /><br />
+              If you have forgotten your password or are locked out:
+              <br />
+              • <strong>Mentors & Mentees:</strong> Contact your program coordinator or administrator.
+              <br />
+              • <strong>Admins:</strong> Contact the platform technical support team.
+            </p>
+            <div className="anfaal-modal-footer">
               <button
                 type="button"
-                className="btn-secondary"
-                onClick={() => navigate('/mentor/register')}
-                style={{ height: 48, fontSize: '0.9rem', borderRadius: 14 }}
+                className="anfaal-modal-btn"
+                onClick={() => setShowForgotModal(false)}
               >
-                Apply to become a mentor
+                Understood
               </button>
             </div>
-
-
-            <div style={{ textAlign: 'center', marginTop: 16, fontSize: '0.84rem', color: '#6a6568', background: 'rgba(143,63,102,0.06)', padding: '10px 14px', borderRadius: 12, border: '1px solid rgba(143,63,102,0.12)' }}>
-              🔒 <strong>Mentors:</strong> Sign in with Phone Number. <strong>Mentees:</strong> Sign in with MAKID.
-            </div>
           </div>
-        </form>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
