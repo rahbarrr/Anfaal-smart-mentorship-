@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getMentorCalls } from '../lib/api';
 import { User, Mail, Phone, BarChart2 } from 'lucide-react';
 import { InstallAppButton } from '../pwa/InstallAppButton';
+import { MentorDailyReminderSettings } from '../components/MentorDailyReminderSettings';
 
 function getStoredUser() {
   try {
@@ -100,6 +101,9 @@ export function MentorProfilePage() {
               ))}
             </div>
           </div>
+
+          {/* Daily Progress Reminders Settings */}
+          <MentorDailyReminderSettings />
 
           <div className="summary-card">
             <h4 style={{ marginBottom: 14 }}>About Anfaal Mentorship</h4>

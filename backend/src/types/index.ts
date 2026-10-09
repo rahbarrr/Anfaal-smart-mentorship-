@@ -299,4 +299,20 @@ export interface NotificationPreferenceDocument {
   updatedAt: Date;
 }
 
+export interface ReminderSlot {
+  slotIndex: number; // 1, 2, or 3
+  time: string; // 'HH:mm' in 24h format
+  enabled: boolean;
+}
+
+export interface DailyReminderSettingDocument {
+  _id: string;
+  mentorId: string;
+  enabled: boolean;
+  timezone: string;
+  slots: ReminderSlot[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 

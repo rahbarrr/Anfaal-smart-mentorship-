@@ -887,5 +887,46 @@ router.post('/daily-performance/bulk-delete', requireAuth, requireRole('ADMIN'),
   }
 });
 
+// GET /api/admin/mentors/:id/reminder-settings — Admin view mentor's reminder schedule
+router.get('/mentors/:id/reminder-settings', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { getMentorReminderSettings } = await import('../services/reminderSchedulerService.js');
+    const mentorId = String(req.params.id);
+    const settings = await getMentorReminderSettings(mentorId);
+    return res.json({ settings });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Unable to retrieve mentor reminder settings.' });
+  }
+});
+
+// PUT /api/admin/mentors/:id/reminder-settings — Admin update mentor's reminder schedule
+router.put('/mentors/:id/reminder-settings', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const { saveMentorReminderSettings } = await import('../services/reminderSchedulerService.js');
+    const mentorId = String(req.params.id);
+    const updated = await saveMentorReminderSettings(mentorId, req.body);
+    return res.json({
+      message: 'Daily progress reminder settings updated.',
+      settings: updated,
+    });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message || 'Unable to update mentor reminder settings.' });
+  }
+});
+
+// POST /api/admin/reminders/evaluate — Admin trigger reminder evaluation cycle
+router.post('/reminders/evaluate', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res: Response) => {
+  try {
+    const { evaluateDailyProgressReminders } = await import('../services/reminderSchedulerService.js');
+    const result = await evaluateDailyProgressReminders();
+    return res.json({
+      message: 'Daily progress reminder evaluation completed.',
+      result,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Failed to evaluate reminders.' });
+  }
+});
+
 export default router;
 

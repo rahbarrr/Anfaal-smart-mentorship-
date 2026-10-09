@@ -291,6 +291,38 @@ router.patch('/:id/status', requireAuth, requireRole('ADMIN'), async (req: AuthR
   }
 });
 
+// GET /api/mentors/reminder-settings — Get authenticated mentor's reminder schedule
+router.get('/reminder-settings', requireAuth, requireRole('MENTOR'), async (req: AuthRequest, res: Response) => {
+  try {
+    const mentor = await Mentor.findOne({ userId: req.user!.id });
+    if (!mentor) {
+      return res.status(404).json({ message: 'Mentor profile not found.' });
+    }
+    const { getMentorReminderSettings } = await import('../services/reminderSchedulerService.js');
+    const settings = await getMentorReminderSettings(String(mentor._id));
+    return res.json({ settings });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Unable to retrieve reminder settings.' });
+  }
+});
+
+// PUT /api/mentors/reminder-settings — Update authenticated mentor's reminder schedule
+router.put('/reminder-settings', requireAuth, requireRole('MENTOR'), async (req: AuthRequest, res: Response) => {
+  try {
+    const mentor = await Mentor.findOne({ userId: req.user!.id });
+    if (!mentor) {
+      return res.status(404).json({ message: 'Mentor profile not found.' });
+    }
+    const { saveMentorReminderSettings } = await import('../services/reminderSchedulerService.js');
+    const updated = await saveMentorReminderSettings(String(mentor._id), req.body);
+    return res.json({
+      message: 'Daily progress reminder settings saved.',
+      settings: updated,
+    });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message || 'Unable to save reminder settings.' });
+  }
+});
 
 // DELETE /api/mentors/:id — permanently remove a mentor and all linked data (admin only)
 router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {

@@ -1318,5 +1318,35 @@ export async function unregisterPushSubscription(
   return res.json();
 }
 
+export interface ReminderSlot {
+  slotIndex: number;
+  time: string; // 'HH:mm' in 24h
+  enabled: boolean;
+}
+
+export interface DailyReminderSetting {
+  mentorId: string;
+  enabled: boolean;
+  timezone: string;
+  slots: ReminderSlot[];
+}
+
+export async function getMentorReminderSettings(): Promise<{ settings: DailyReminderSetting }> {
+  const res = await apiFetch('/mentors/reminder-settings');
+  return res.json();
+}
+
+export async function updateMentorReminderSettings(data: {
+  enabled: boolean;
+  timezone: string;
+  slots: ReminderSlot[];
+}): Promise<{ message: string; settings: DailyReminderSetting }> {
+  const res = await apiFetch('/mentors/reminder-settings', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
 
 

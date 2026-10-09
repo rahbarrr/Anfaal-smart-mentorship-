@@ -126,6 +126,7 @@ app.get('/api/health/ready', readinessHandler);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/mentors', mentorRoutes);
+app.use('/api/mentor', mentorRoutes);
 app.use('/api/mentees', menteeRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/admin', adminRoutes);
