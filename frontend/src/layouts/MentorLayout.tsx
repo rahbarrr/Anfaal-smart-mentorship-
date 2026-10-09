@@ -5,6 +5,7 @@ import { MobileHeader } from '../components/MobileHeader';
 import { MobileMoreDrawer, type MoreDrawerLink } from '../components/MobileMoreDrawer';
 import { NotificationCenter } from '../components/NotificationCenter';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { InstallAppButton } from '../pwa/InstallAppButton';
 
 const links = [
   { to: '/mentor', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -106,6 +107,7 @@ export function MentorLayout() {
               <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email ?? ''}</div>
             </div>
           </div>
+          <InstallAppButton variant="sidebar" />
           <button className="btn-secondary" style={{ width: '100%', minHeight: 42, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, whiteSpace: 'nowrap' }} onClick={handleSignOut}>
             <LogOut size={16} />
             <span style={{ whiteSpace: 'nowrap' }}>Sign out</span>

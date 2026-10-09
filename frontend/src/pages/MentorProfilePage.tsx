@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getMentorCalls } from '../lib/api';
 import { User, Mail, Phone, BarChart2 } from 'lucide-react';
+import { InstallAppButton } from '../pwa/InstallAppButton';
 
 function getStoredUser() {
   try {
@@ -72,6 +73,10 @@ export function MentorProfilePage() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <InstallAppButton variant="card" />
           </div>
         </div>
 

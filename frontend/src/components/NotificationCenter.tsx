@@ -27,6 +27,7 @@ import {
   type InAppNotification,
   type NotificationPreferences,
 } from '../lib/api';
+import { InstallAppButton } from '../pwa/InstallAppButton';
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -635,6 +636,18 @@ export function NotificationCenter() {
                       />
                     </label>
                   </div>
+                </div>
+
+                {/* Application Section */}
+                <div className="notification-settings-section" style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                  <h4 className="font-semibold text-sm text-gray-900 mb-2">
+                    Application & Offline
+                  </h4>
+                  <InstallAppButton
+                    variant="card"
+                    onAfterClick={() => setIsOpen(false)}
+                    style={{ margin: 0 }}
+                  />
                 </div>
               </div>
             )}

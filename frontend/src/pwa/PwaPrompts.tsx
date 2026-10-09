@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Download, RefreshCw, Share, X } from 'lucide-react';
+import { usePwaInstall } from './PwaContext';
 
 /**
  * PWA UX layer: registers the service worker, shows a non-intrusive
@@ -11,12 +12,6 @@ import { Download, RefreshCw, Share, X } from 'lucide-react';
 const INSTALL_DISMISSED_KEY = 'anfaal-pwa-install-dismissed-at';
 const DISMISS_COOLDOWN_MS = 1000 * 60 * 60 * 24 * 30; // don't re-ask for 30 days
 const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 30; // look for a new deployment every 30 min
-
-// Chrome/Edge/Android "install" event (not in lib.dom.d.ts)
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
 
 function wasRecentlyDismissed(): boolean {
   try {
@@ -35,21 +30,6 @@ function rememberDismissal() {
   }
 }
 
-function isStandalone(): boolean {
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    // iOS Safari
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
-
-function isIosSafari(): boolean {
-  const ua = navigator.userAgent;
-  const isIos = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const isSafari = /safari/i.test(ua) && !/crios|fxios|edgios|chrome|android/i.test(ua);
-  return isIos && isSafari;
-}
-
 export function PwaPrompts() {
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -57,7 +37,7 @@ export function PwaPrompts() {
   } = useRegisterSW({
     onRegisteredSW(_swUrl, registration) {
       if (!registration) return;
-      // Detect new Vercel deployments for long-lived sessions (installed PWA stays open for days).
+      // Detect new Vercel/Render deployments for long-lived sessions
       const check = () => {
         if (registration.installing || !navigator.onLine) return;
         registration.update().catch(() => undefined);
@@ -69,52 +49,23 @@ export function PwaPrompts() {
     },
   });
 
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [showIosHint, setShowIosHint] = useState(
-    () => typeof window !== 'undefined' && isIosSafari() && !isStandalone() && !wasRecentlyDismissed(),
-  );
-  const [installHidden, setInstallHidden] = useState(false);
+  const { isInstalled, canInstallNatively, platform, triggerInstall } = usePwaInstall();
+  const [toastDismissed, setToastDismissed] = useState<boolean>(() => wasRecentlyDismissed());
 
-  useEffect(() => {
-    if (isStandalone() || wasRecentlyDismissed()) return;
-
-    const onBeforeInstall = (e: Event) => {
-      e.preventDefault(); // suppress the browser mini-infobar; we show our own subtle prompt
-      setInstallEvent(e as BeforeInstallPromptEvent);
-    };
-    const onInstalled = () => {
-      setInstallEvent(null);
-      setShowIosHint(false);
-    };
-
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
-    window.addEventListener('appinstalled', onInstalled);
-
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
-      window.removeEventListener('appinstalled', onInstalled);
-    };
-  }, []);
-
-  const dismissInstall = useCallback(() => {
+  const dismissToast = useCallback(() => {
     rememberDismissal();
-    setInstallHidden(true);
-    setInstallEvent(null);
-    setShowIosHint(false);
+    setToastDismissed(true);
   }, []);
 
-  const install = useCallback(async () => {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    const choice = await installEvent.userChoice;
-    if (choice.outcome === 'dismissed') rememberDismissal();
-    setInstallEvent(null);
-  }, [installEvent]);
+  const handleInstallClick = useCallback(async () => {
+    setToastDismissed(true);
+    await triggerInstall();
+  }, [triggerInstall]);
 
-  const showInstall = !installHidden && !needRefresh && (installEvent !== null || showIosHint);
+  // Show install toast only if not installed, not recently dismissed, and update banner isn't active
+  const showInstallToast = !isInstalled && !toastDismissed && !needRefresh && (canInstallNatively || platform === 'ios');
 
-  if (!needRefresh && !showInstall) return null;
+  if (!needRefresh && !showInstallToast) return null;
 
   return (
     <div className="pwa-toast-region" role="region" aria-label="App notifications">
@@ -141,9 +92,9 @@ export function PwaPrompts() {
         </div>
       )}
 
-      {showInstall && (
+      {showInstallToast && (
         <div className="pwa-toast" role="status" aria-live="polite">
-          {installEvent ? (
+          {canInstallNatively ? (
             <Download size={18} className="pwa-toast-icon" aria-hidden="true" />
           ) : (
             <Share size={18} className="pwa-toast-icon" aria-hidden="true" />
@@ -151,22 +102,20 @@ export function PwaPrompts() {
           <div className="pwa-toast-body">
             <strong>Install Anfaal</strong>
             <span>
-              {installEvent
+              {canInstallNatively
                 ? 'Add Anfaal to your home screen for a faster app-like experience.'
                 : 'Tap the Share button, then “Add to Home Screen” for a faster app-like experience.'}
             </span>
           </div>
           <div className="pwa-toast-actions">
-            {installEvent && (
-              <button type="button" className="pwa-btn pwa-btn-primary" onClick={install}>
-                Install
-              </button>
-            )}
+            <button type="button" className="pwa-btn pwa-btn-primary" onClick={handleInstallClick}>
+              Install
+            </button>
             <button
               type="button"
               className="pwa-btn pwa-btn-ghost"
               aria-label="Dismiss install prompt"
-              onClick={dismissInstall}
+              onClick={dismissToast}
             >
               <X size={16} aria-hidden="true" />
             </button>

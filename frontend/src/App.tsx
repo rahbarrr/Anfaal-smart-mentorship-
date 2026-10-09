@@ -6,6 +6,7 @@ import './App.css';
 import { AdminLayout } from './layouts/AdminLayout';
 import { MentorLayout } from './layouts/MentorLayout';
 import { MenteeLayout } from './layouts/MenteeLayout';
+import { PwaProvider } from './pwa/PwaContext';
 import { PwaPrompts } from './pwa/PwaPrompts';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -88,7 +89,8 @@ function AuthSessionBoundary() {
 function App() {
   return (
     <BrowserRouter>
-      <AuthSessionBoundary />
+      <PwaProvider>
+        <AuthSessionBoundary />
       <ErrorBoundary>
         <Suspense fallback={<div className="page-loading">Loading…</div>}>
           <Routes>
@@ -161,7 +163,8 @@ function App() {
       </ErrorBoundary>
       <OfflineBanner />
       <PwaPrompts />
-    </BrowserRouter>
+    </PwaProvider>
+  </BrowserRouter>
   );
 }
 
