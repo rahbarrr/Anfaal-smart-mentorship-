@@ -1348,5 +1348,113 @@ export async function updateMentorReminderSettings(data: {
   return res.json();
 }
 
+export interface CalendarDayItem {
+  date: string;
+  dayName: string;
+  dayNumber: number;
+  isToday: boolean;
+  isFuture: boolean;
+  isPast: boolean;
+  submitted: boolean;
+  studyMinutes: number;
+  dayRating?: number;
+}
+
+export interface MenteeGrowthSummary {
+  mentee: {
+    id: string;
+    name: string;
+    makid: string;
+    standard: string;
+    location: string;
+  };
+  todayStatus: {
+    submitted: boolean;
+    date: string;
+    record: any | null;
+  };
+  streak: {
+    currentStreak: number;
+    bestStreak: number;
+    daysSubmittedThisWeek: number;
+    motivationalMessage: string;
+  };
+  weeklyCalendar: {
+    weekLabel: string;
+    startDate: string;
+    endDate: string;
+    days: CalendarDayItem[];
+    completedCount: number;
+  };
+  xp: {
+    level: number;
+    levelName: string;
+    totalXp: number;
+    currentLevelFloor: number;
+    nextLevelThreshold: number;
+    progressPercent: number;
+  };
+  badges: Array<{
+    id: string;
+    name: string;
+    icon: string;
+    description: string;
+    unlocked: boolean;
+    progress?: number;
+    maxProgress?: number;
+    category: string;
+  }>;
+  weeklyChallenges: Array<{
+    id: string;
+    title: string;
+    description: string;
+    current: number;
+    target: number;
+    unit: string;
+    completed: boolean;
+    xpReward: number;
+    expiresAt: string;
+  }>;
+  goals: {
+    careerGoal: string;
+    semesterGoal: string;
+    shortTermGoals: any[];
+    academic: any;
+  };
+  cohortLeaderboard: {
+    hasCohort: boolean;
+    mentorName: string;
+    myRank: number;
+    totalMentees: number;
+    entries: Array<{
+      rank: number;
+      menteeId: string;
+      name: string;
+      isMe: boolean;
+      currentStreak: number;
+      totalSubmissions: number;
+      totalXp: number;
+    }>;
+  };
+  recentActivities: Array<{
+    id: string;
+    type: 'checkin' | 'call' | 'badge';
+    title: string;
+    description: string;
+    timestamp: string;
+    xpEarned?: number;
+  }>;
+}
+
+export async function getMenteeGrowthSummary(params?: { weekOffset?: number; menteeId?: string }): Promise<MenteeGrowthSummary> {
+  const query = new URLSearchParams();
+  if (params?.weekOffset !== undefined) query.set('weekOffset', String(params.weekOffset));
+  if (params?.menteeId) query.set('menteeId', params.menteeId);
+  const qs = query.toString() ? `?${query.toString()}` : '';
+  const res = await apiFetch(`/daily-performance/growth-summary${qs}`);
+  return res.json();
+}
+
+
 
 

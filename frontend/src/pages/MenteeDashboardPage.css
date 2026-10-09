@@ -1,0 +1,990 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANFAAL MENTEE DASHBOARD — GAMIFIED STUDENT GROWTH EXPERIENCE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mentee-growth-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+  box-sizing: border-box;
+}
+
+/* ── 1. Personalized Welcome Header ───────────────────────────────────────── */
+.growth-welcome-card {
+  background: linear-gradient(135deg, #2b1722 0%, #3e1b2f 60%, #1f1019 100%);
+  border-radius: 20px;
+  padding: 26px 30px;
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  box-shadow: 0 16px 36px -10px rgba(78, 32, 57, 0.25);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.growth-welcome-glow {
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(220, 105, 160, 0.25) 0%, transparent 70%);
+  pointer-events: none;
+  filter: blur(25px);
+}
+
+.growth-welcome-content {
+  position: relative;
+  z-index: 2;
+  max-width: 650px;
+}
+
+.growth-welcome-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #ffb5d4;
+  margin-bottom: 6px;
+}
+
+.growth-welcome-title {
+  font-size: clamp(1.4rem, 2.8vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+  margin: 0 0 8px 0;
+  color: #ffffff;
+}
+
+.growth-welcome-msg {
+  font-size: 0.94rem;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.growth-level-badge-box {
+  position: relative;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  padding: 14px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+  backdrop-filter: blur(10px);
+}
+
+.growth-level-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.growth-level-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #ffd0e3;
+  letter-spacing: -0.01em;
+}
+
+.growth-level-xp {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #facc15;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.growth-level-progress-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.growth-level-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+  border-radius: 6px;
+  transition: width 0.4s ease;
+}
+
+.growth-level-sub {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.65);
+  display: flex;
+  justify-content: space-between;
+}
+
+/* ── 2. Primary Action Hero: Daily Performance Check-In ────────────────────── */
+.primary-checkin-hero {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1.5px solid rgba(143, 63, 102, 0.16);
+  padding: 24px 28px;
+  box-shadow: 0 10px 28px -6px rgba(85, 45, 65, 0.07);
+  position: relative;
+  overflow: hidden;
+}
+
+.primary-checkin-hero.pending {
+  border-color: #f59e0b;
+  background: linear-gradient(180deg, #fffdf8 0%, #ffffff 100%);
+}
+
+.primary-checkin-hero.submitted {
+  border-color: #22c55e;
+  background: linear-gradient(180deg, #f8fdf9 0%, #ffffff 100%);
+}
+
+.checkin-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.checkin-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.checkin-status-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.checkin-status-icon-wrap.pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.checkin-status-icon-wrap.submitted {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.checkin-title-text h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #231e21;
+  letter-spacing: -0.02em;
+  margin: 0 0 3px 0;
+}
+
+.checkin-title-text p {
+  font-size: 0.88rem;
+  color: #6a6167;
+  margin: 0;
+}
+
+.checkin-action-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #8f3f66 0%, #762f51 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 22px;
+  font-size: 0.94rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 18px -4px rgba(143, 63, 102, 0.4);
+  transition: all 0.2s ease;
+}
+
+.checkin-action-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px -4px rgba(143, 63, 102, 0.5);
+}
+
+.checkin-action-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  color: #8f3f66;
+  border: 1.5px solid rgba(143, 63, 102, 0.25);
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.checkin-action-btn-secondary:hover {
+  background: rgba(143, 63, 102, 0.05);
+  border-color: #8f3f66;
+}
+
+/* Submitted Metrics Grid */
+.today-preview-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  padding-top: 6px;
+}
+
+.today-metric-tile {
+  background: #fdfbfc;
+  border: 1px solid #ebdfe4;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.today-metric-tile-lbl {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #7b7177;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.today-metric-tile-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #8f3f66;
+  letter-spacing: -0.02em;
+}
+
+.today-metric-tile-sub {
+  font-size: 0.78rem;
+  color: #6a6167;
+  margin-top: 2px;
+}
+
+.today-reflection-pill {
+  margin-top: 14px;
+  background: #fbf8f9;
+  border: 1px solid #ebdfe4;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.88rem;
+  color: #3b3337;
+  line-height: 1.5;
+}
+
+/* ── 3. Gamified Metric Cards Strip ───────────────────────────────────────── */
+.growth-metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.growth-stat-card {
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid #ebdfe4;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 16px -4px rgba(78, 32, 57, 0.04);
+  transition: all 0.2s ease;
+}
+
+.growth-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -4px rgba(78, 32, 57, 0.08);
+  border-color: #dfced5;
+}
+
+.growth-stat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.growth-stat-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.growth-stat-icon-wrap.amber {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.growth-stat-icon-wrap.green {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.growth-stat-icon-wrap.gold {
+  background: #fef9c3;
+  color: #ca8a04;
+}
+
+.growth-stat-icon-wrap.plum {
+  background: rgba(143, 63, 102, 0.1);
+  color: #8f3f66;
+}
+
+.growth-stat-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #70676d;
+}
+
+.growth-stat-val {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #231e21;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.growth-stat-sub {
+  font-size: 0.8rem;
+  color: #6a6167;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.consistency-dots-row {
+  display: flex;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.consistency-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e2d9dc;
+}
+
+.consistency-dot.filled {
+  background: #16a34a;
+}
+
+/* ── 4. Weekly Activity Calendar ──────────────────────────────────────────── */
+.weekly-calendar-card {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #ebdfe4;
+  padding: 22px 24px;
+  box-shadow: 0 4px 16px -4px rgba(78, 32, 57, 0.04);
+}
+
+.calendar-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.calendar-title-box h3 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #231e21;
+  margin: 0 0 2px 0;
+}
+
+.calendar-title-box p {
+  font-size: 0.84rem;
+  color: #70676d;
+  margin: 0;
+}
+
+.calendar-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.calendar-nav-btn {
+  background: #fbf7f9;
+  border: 1px solid #e2d9dc;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #554a50;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.calendar-nav-btn:hover {
+  background: rgba(143, 63, 102, 0.08);
+  color: #8f3f66;
+  border-color: #8f3f66;
+}
+
+.calendar-nav-btn.active-current {
+  background: #8f3f66;
+  color: #ffffff;
+  border-color: #8f3f66;
+}
+
+/* 7-Days Row */
+.calendar-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+}
+
+.calendar-day-cell {
+  background: #faf7f8;
+  border: 1px solid #ebdfe4;
+  border-radius: 14px;
+  padding: 12px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.calendar-day-cell.is-today {
+  border-color: #8f3f66;
+  background: #fdf5f8;
+  box-shadow: 0 0 0 2px rgba(143, 63, 102, 0.15);
+}
+
+.calendar-day-cell.submitted {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.calendar-day-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #70676d;
+  letter-spacing: 0.04em;
+}
+
+.calendar-day-num {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #231e21;
+}
+
+.calendar-day-status {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.calendar-day-status.completed {
+  background: #22c55e;
+  color: #ffffff;
+}
+
+.calendar-day-status.pending-today {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.calendar-day-status.missed {
+  color: #b91c1c;
+  font-size: 0.95rem;
+  opacity: 0.5;
+}
+
+.calendar-day-status.future {
+  color: #c7bebf;
+  border: 1px dashed #d6ccce;
+}
+
+.calendar-day-minutes {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #15803d;
+}
+
+.calendar-legend-row {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 14px;
+  font-size: 0.78rem;
+  color: #70676d;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── 5. Main 2-Column Dashboard Grid ───────────────────────────────────────── */
+.growth-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.growth-column {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Standard Growth Card Container */
+.growth-card {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #ebdfe4;
+  padding: 22px 24px;
+  box-shadow: 0 4px 16px -4px rgba(78, 32, 57, 0.04);
+}
+
+.growth-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.growth-card-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.growth-card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(143, 63, 102, 0.08);
+  color: #8f3f66;
+}
+
+.growth-card-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #231e21;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+/* Goals Card Styling */
+.goals-display-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.goal-item-box {
+  background: #fdfafb;
+  border: 1px solid #ebdfe4;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.goal-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.goal-type-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #8f3f66;
+  background: rgba(143, 63, 102, 0.08);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.goal-item-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #231e21;
+  margin: 0 0 6px 0;
+}
+
+.goal-progress-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.goal-progress-track {
+  flex: 1;
+  height: 6px;
+  background: #ebdfe4;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.goal-progress-fill {
+  height: 100%;
+  background: #8f3f66;
+  border-radius: 6px;
+}
+
+.goal-progress-pct {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #70676d;
+  min-width: 35px;
+  text-align: right;
+}
+
+/* Weekly Challenges Styling */
+.challenge-item-card {
+  background: #faf7f8;
+  border: 1px solid #ebdfe4;
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.challenge-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.challenge-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #231e21;
+  margin: 0;
+}
+
+.challenge-reward-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: #fef9c3;
+  color: #a16207;
+  padding: 3px 8px;
+  border-radius: 8px;
+  border: 1px solid #fef08a;
+}
+
+.challenge-reward-badge.completed {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.challenge-desc {
+  font-size: 0.8rem;
+  color: #6a6167;
+  margin: 0;
+}
+
+/* Cohort Leaderboard Styling */
+.leaderboard-entries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fdfafb;
+  border: 1px solid #ebdfe4;
+  transition: all 0.15s ease;
+}
+
+.leaderboard-row.is-current-user {
+  background: #fdf2f7;
+  border-color: #8f3f66;
+  box-shadow: 0 0 0 1.5px rgba(143, 63, 102, 0.2);
+}
+
+.leaderboard-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.leaderboard-rank-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #70676d;
+  background: #ede3e7;
+}
+
+.leaderboard-rank-badge.top-1 {
+  background: #fef08a;
+  color: #854d0e;
+}
+
+.leaderboard-rank-badge.top-2 {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.leaderboard-rank-badge.top-3 {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.leaderboard-name-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.leaderboard-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #231e21;
+}
+
+.leaderboard-you-tag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  background: #8f3f66;
+  color: #ffffff;
+  padding: 1px 6px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.leaderboard-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.leaderboard-streak {
+  font-size: 0.78rem;
+  color: #b45309;
+  font-weight: 700;
+}
+
+.leaderboard-xp {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #8f3f66;
+}
+
+/* Badges Showcase Grid */
+.badges-showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.badge-item-card {
+  background: #faf7f8;
+  border: 1px solid #ebdfe4;
+  border-radius: 14px;
+  padding: 12px 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.badge-item-card.unlocked {
+  background: linear-gradient(180deg, #fffcf5 0%, #ffffff 100%);
+  border-color: #fde047;
+  box-shadow: 0 4px 12px -2px rgba(234, 179, 8, 0.15);
+}
+
+.badge-item-card.locked {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+
+.badge-emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.badge-name {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #231e21;
+}
+
+.badge-desc {
+  font-size: 0.7rem;
+  color: #70676d;
+  line-height: 1.3;
+}
+
+/* Recent Activity Timeline */
+.recent-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.activity-timeline-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0eaec;
+}
+
+.activity-timeline-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.activity-icon-bullet {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  background: rgba(143, 63, 102, 0.08);
+  color: #8f3f66;
+}
+
+.activity-info-box {
+  flex: 1;
+}
+
+.activity-info-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #231e21;
+  margin: 0;
+}
+
+.activity-info-sub {
+  font-size: 0.76rem;
+  color: #70676d;
+  margin: 2px 0 0 0;
+}
+
+.activity-time {
+  font-size: 0.72rem;
+  color: #9c9298;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE LAYOUTS (TABLETS & PHONES)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 980px) {
+  .growth-metrics-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .growth-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .growth-welcome-card {
+    padding: 20px 18px;
+  }
+
+  .growth-level-badge-box {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .growth-metrics-strip {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .calendar-days-grid {
+    gap: 5px;
+  }
+
+  .calendar-day-cell {
+    padding: 8px 4px;
+    border-radius: 10px;
+  }
+
+  .calendar-day-name {
+    font-size: 0.65rem;
+  }
+
+  .calendar-day-num {
+    font-size: 0.95rem;
+  }
+
+  .calendar-day-status {
+    width: 20px;
+    height: 20px;
+    font-size: 0.7rem;
+  }
+
+  .today-preview-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+}

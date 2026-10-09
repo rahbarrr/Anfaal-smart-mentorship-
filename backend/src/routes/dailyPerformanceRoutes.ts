@@ -203,6 +203,26 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// ── 1.5 GET /api/daily-performance/growth-summary ─────────────────────────────
+router.get('/growth-summary', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const auth = await authorizeMenteeAccess(req, req.query.menteeId as string | undefined);
+    if (!auth.authorized || !auth.menteeId) {
+      return res.status(auth.errorStatus).json({ message: auth.errorMessage });
+    }
+    const menteeId = auth.menteeId;
+    const weekOffset = Number(req.query.weekOffset || 0);
+    const timezone = (req.query.timezone as string) || 'Asia/Kolkata';
+
+    const { getMenteeGrowthSummary } = await import('../services/menteeGrowthService.js');
+    const summary = await getMenteeGrowthSummary(menteeId, { weekOffset, timezone });
+    return res.json(summary);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to load growth summary';
+    return res.status(500).json({ message });
+  }
+});
+
 // ── 2. GET /api/daily-performance/today ────────────────────────────────────────
 router.get('/today', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
