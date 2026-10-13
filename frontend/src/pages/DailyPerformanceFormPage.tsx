@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle2, Clock, BookOpen, AlertCircle, HelpCircle, ArrowLeft, Calendar, Edit3 } from 'lucide-react';
+import { CheckCircle2, Clock, BookOpen, AlertCircle, HelpCircle, ArrowLeft, Calendar, Edit3, Check, Loader2 } from 'lucide-react';
 import { submitDailyPerformance, getTodayPerformance, updateDailyPerformance } from '../lib/api';
 import { formatDateTime, formatDateOnly, formatTimeOnly } from '../lib/dateTime';
+import './DailyPerformanceFormPage.css';
 
 const STUDY_PRESETS = [
   { label: '0 hrs', minutes: 0 },
@@ -192,36 +193,33 @@ export function DailyPerformanceFormPage() {
     }
   };
 
+  const selectedMood = MOOD_OPTIONS.find((m) => m.rating === dayRating) || MOOD_OPTIONS[3];
+
   return (
-    <div className="daily-form-container" style={{ maxWidth: 740, margin: '0 auto', paddingBottom: 80 }}>
-      {/* Header Back button */}
+    <div className="daily-form-container">
+      {/* Header Back button (Desktop only, MobileHeader handles back on phones) */}
       <button
         type="button"
-        className="btn-secondary"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 16, fontSize: '0.88rem' }}
+        className="daily-form-back-btn"
         onClick={() => navigate('/mentee')}
       >
-        <ArrowLeft size={15} /> Back to Dashboard
+        <ArrowLeft size={16} /> Back to Dashboard
       </button>
 
       {/* Page Title & Subtitle */}
-      <div className="form-hero-block" style={{ marginBottom: 24, textAlign: 'center' }}>
-        <h1 style={{ fontSize: 'clamp(1.5rem, 5vw, 2.2rem)', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.04em', margin: 0 }}>
-          How was your day?
-        </h1>
-        <p className="muted" style={{ fontSize: 'clamp(0.88rem, 2.5vw, 1.05rem)', marginTop: 8, maxWidth: 520, margin: '8px auto 0' }}>
-          Take a minute to record your learning and personal progress today.
-        </p>
+      <div className="daily-form-hero">
+        <h1>How was your day?</h1>
+        <p>Take a minute to record your learning and personal progress today.</p>
       </div>
 
       {/* Success Notification */}
       {successMessage && (
         <div
-          className="summary-card"
+          className="daily-form-card"
           style={{
             background: 'linear-gradient(135deg, rgba(46, 125, 50, 0.08), rgba(46, 125, 50, 0.02))',
             borderColor: '#a5d6a7',
-            marginBottom: 24,
+            marginBottom: 20,
             padding: 24,
             textAlign: 'center',
           }}
@@ -272,11 +270,11 @@ export function DailyPerformanceFormPage() {
       {/* Already Submitted Warning / Edit Banner */}
       {alreadySubmittedToday && !isEditing && !successMessage && (
         <div
-          className="summary-card"
+          className="daily-form-card"
           style={{
             background: 'linear-gradient(135deg, rgba(143, 63, 102, 0.08), rgba(143, 63, 102, 0.02))',
             borderColor: 'var(--border)',
-            marginBottom: 24,
+            marginBottom: 20,
             padding: 24,
             textAlign: 'center',
           }}
@@ -315,19 +313,19 @@ export function DailyPerformanceFormPage() {
 
       {/* Error Message */}
       {errorMessage && (
-        <div style={{ background: '#ffebee', color: '#c62828', padding: '12px 16px', borderRadius: 12, marginBottom: 20, fontSize: '0.92rem', fontWeight: 600 }}>
+        <div style={{ background: '#ffebee', color: '#c62828', padding: '12px 16px', borderRadius: 12, marginBottom: 18, fontSize: '0.92rem', fontWeight: 600 }}>
           {errorMessage}
         </div>
       )}
 
       {/* The Form */}
       {(!alreadySubmittedToday || isEditing) && (
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 20 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
           {/* Section A: Date */}
-          <div className="summary-card">
-            <div className="summary-header" style={{ marginBottom: 12 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Calendar size={18} color="var(--primary)" /> Date
+          <div className="daily-form-card">
+            <div className="daily-card-header">
+              <h3 className="daily-card-title">
+                <Calendar size={18} /> Date
               </h3>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -346,56 +344,38 @@ export function DailyPerformanceFormPage() {
           </div>
 
           {/* Section B: Study Hours */}
-          <div className="summary-card">
-            <div className="summary-header" style={{ marginBottom: 6 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={18} color="var(--primary)" /> Study Hours
+          <div className="daily-form-card">
+            <div className="daily-card-header">
+              <h3 className="daily-card-title">
+                <Clock size={18} /> Study Hours
               </h3>
             </div>
-            <p className="muted" style={{ fontSize: '0.9rem', marginBottom: 14 }}>
+            <p className="daily-card-desc">
               How many hours did you study today?
             </p>
 
             {/* Quick chips */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
-              {STUDY_PRESETS.map((preset) => (
-                <button
-                  type="button"
-                  key={preset.label}
-                  onClick={() => {
-                    setStudyMinutes(preset.minutes);
-                    setCustomStudy(false);
-                  }}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: 24,
-                    border: '1px solid',
-                    borderColor: (!customStudy && studyMinutes === preset.minutes) ? 'var(--primary)' : 'var(--border)',
-                    background: (!customStudy && studyMinutes === preset.minutes) ? 'rgba(143, 63, 102, 0.12)' : '#fff',
-                    color: (!customStudy && studyMinutes === preset.minutes) ? 'var(--primary)' : 'var(--text-primary)',
-                    fontWeight: 700,
-                    fontSize: '0.92rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {preset.label}
-                </button>
-              ))}
+            <div className="daily-chips-row">
+              {STUDY_PRESETS.map((preset) => {
+                const isActive = !customStudy && studyMinutes === preset.minutes;
+                return (
+                  <button
+                    type="button"
+                    key={preset.label}
+                    onClick={() => {
+                      setStudyMinutes(preset.minutes);
+                      setCustomStudy(false);
+                    }}
+                    className={`daily-preset-chip ${isActive ? 'active' : ''}`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
               <button
                 type="button"
                 onClick={() => setCustomStudy(true)}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: 24,
-                  border: '1px solid',
-                  borderColor: customStudy ? 'var(--primary)' : 'var(--border)',
-                  background: customStudy ? 'rgba(143, 63, 102, 0.12)' : '#fff',
-                  color: customStudy ? 'var(--primary)' : 'var(--text-primary)',
-                  fontWeight: 700,
-                  fontSize: '0.92rem',
-                  cursor: 'pointer',
-                }}
+                className={`daily-preset-chip ${customStudy ? 'active' : ''}`}
               >
                 Custom…
               </button>
@@ -403,7 +383,7 @@ export function DailyPerformanceFormPage() {
 
             {/* Custom Input */}
             {customStudy && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+              <div className="daily-custom-input-row">
                 <input
                   type="number"
                   min="0"
@@ -423,26 +403,26 @@ export function DailyPerformanceFormPage() {
             )}
 
             {/* Display formatted */}
-            <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(143, 63, 102, 0.05)', borderRadius: 8, display: 'inline-block' }}>
-              <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Recorded: </span>
-              <strong style={{ color: 'var(--primary)', fontSize: '0.92rem' }}>{formatMinutes(studyMinutes)}</strong>
+            <div className="daily-recorded-badge">
+              <span>Recorded:</span>
+              <strong>{formatMinutes(studyMinutes)}</strong>
             </div>
           </div>
 
-          {/* Section 2: Quran / Islamic Reading */}
-          <div className="summary-card">
-            <div className="summary-header" style={{ marginBottom: 6 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <BookOpen size={18} color="var(--primary)" /> Quran / Islamic Reading
+          {/* Section C: Quran / Islamic Reading */}
+          <div className="daily-form-card">
+            <div className="daily-card-header">
+              <h3 className="daily-card-title">
+                <BookOpen size={18} /> Quran / Islamic Reading
               </h3>
             </div>
-            <p className="muted" style={{ fontSize: '0.9rem', marginBottom: 16 }}>
+            <p className="daily-card-desc">
               Record what you completed today. Enter whichever measurement you normally use (none are forced).
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
-              <div className="field">
-                <label style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: 4 }}>Ruku</label>
+            <div className="daily-quran-grid">
+              <div className="daily-quran-field">
+                <label>Ruku</label>
                 <input
                   type="number"
                   min="0"
@@ -450,13 +430,12 @@ export function DailyPerformanceFormPage() {
                   placeholder="e.g. 2"
                   value={ruku}
                   onChange={(e) => setRuku(e.target.value)}
-                  style={{ height: 48, fontSize: '1rem', fontWeight: 600 }}
                 />
-                <small className="muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>How many Ruku?</small>
+                <small>How many Ruku?</small>
               </div>
 
-              <div className="field">
-                <label style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: 4 }}>Ayat</label>
+              <div className="daily-quran-field">
+                <label>Ayat</label>
                 <input
                   type="number"
                   min="0"
@@ -464,13 +443,12 @@ export function DailyPerformanceFormPage() {
                   placeholder="e.g. 25"
                   value={ayat}
                   onChange={(e) => setAyat(e.target.value)}
-                  style={{ height: 48, fontSize: '1rem', fontWeight: 600 }}
                 />
-                <small className="muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>How many Ayat?</small>
+                <small>How many Ayat?</small>
               </div>
 
-              <div className="field">
-                <label style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: 4 }}>Pages</label>
+              <div className="daily-quran-field">
+                <label>Pages</label>
                 <input
                   type="number"
                   min="0"
@@ -478,70 +456,51 @@ export function DailyPerformanceFormPage() {
                   placeholder="e.g. 5"
                   value={pages}
                   onChange={(e) => setPages(e.target.value)}
-                  style={{ height: 48, fontSize: '1rem', fontWeight: 600 }}
                 />
-                <small className="muted" style={{ fontSize: '0.75rem', marginTop: 4 }}>How many Pages?</small>
+                <small>How many Pages?</small>
               </div>
             </div>
           </div>
 
-          {/* Section 3: General Reading */}
-          <div className="summary-card">
-            <div className="summary-header" style={{ marginBottom: 6 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Clock size={18} color="var(--primary)" /> Reading Time
+          {/* Section D: Reading Time */}
+          <div className="daily-form-card">
+            <div className="daily-card-header">
+              <h3 className="daily-card-title">
+                <Clock size={18} /> Reading Time
               </h3>
             </div>
-            <p className="muted" style={{ fontSize: '0.9rem', marginBottom: 14 }}>
+            <p className="daily-card-desc">
               How much time did you spend reading today?
             </p>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
-              {READING_PRESETS.map((preset) => (
-                <button
-                  type="button"
-                  key={preset.label}
-                  onClick={() => {
-                    setReadingMinutes(preset.minutes);
-                    setCustomReading(false);
-                  }}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: 24,
-                    border: '1px solid',
-                    borderColor: (!customReading && readingMinutes === preset.minutes) ? 'var(--primary)' : 'var(--border)',
-                    background: (!customReading && readingMinutes === preset.minutes) ? 'rgba(143, 63, 102, 0.12)' : '#fff',
-                    color: (!customReading && readingMinutes === preset.minutes) ? 'var(--primary)' : 'var(--text-primary)',
-                    fontWeight: 700,
-                    fontSize: '0.92rem',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {preset.label}
-                </button>
-              ))}
+            <div className="daily-chips-row">
+              {READING_PRESETS.map((preset) => {
+                const isActive = !customReading && readingMinutes === preset.minutes;
+                return (
+                  <button
+                    type="button"
+                    key={preset.label}
+                    onClick={() => {
+                      setReadingMinutes(preset.minutes);
+                      setCustomReading(false);
+                    }}
+                    className={`daily-preset-chip ${isActive ? 'active' : ''}`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
               <button
                 type="button"
                 onClick={() => setCustomReading(true)}
-                style={{
-                  padding: '10px 18px',
-                  borderRadius: 24,
-                  border: '1px solid',
-                  borderColor: customReading ? 'var(--primary)' : 'var(--border)',
-                  background: customReading ? 'rgba(143, 63, 102, 0.12)' : '#fff',
-                  color: customReading ? 'var(--primary)' : 'var(--text-primary)',
-                  fontWeight: 700,
-                  fontSize: '0.92rem',
-                  cursor: 'pointer',
-                }}
+                className={`daily-preset-chip ${customReading ? 'active' : ''}`}
               >
                 Custom…
               </button>
             </div>
 
             {customReading && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+              <div className="daily-custom-input-row">
                 <input
                   type="number"
                   min="0"
@@ -560,60 +519,63 @@ export function DailyPerformanceFormPage() {
               </div>
             )}
 
-            <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(143, 63, 102, 0.05)', borderRadius: 8, display: 'inline-block' }}>
-              <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 600 }}>Recorded: </span>
-              <strong style={{ color: 'var(--primary)', fontSize: '0.92rem' }}>{formatMinutes(readingMinutes)}</strong>
+            <div className="daily-recorded-badge">
+              <span>Recorded:</span>
+              <strong>{formatMinutes(readingMinutes)}</strong>
             </div>
           </div>
 
-          {/* Section 4: Day Overall */}
-          <div className="summary-card">
-            <div className="summary-header" style={{ marginBottom: 6 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Section E: Day Overall / Mood Selector (Responsive Grid) */}
+          <div className="daily-form-card">
+            <div className="daily-card-header">
+              <h3 className="daily-card-title">
                 How was your day overall?
               </h3>
             </div>
-            <p className="muted" style={{ fontSize: '0.9rem', marginBottom: 16 }}>
+            <p className="daily-card-desc">
               Select the mood that best represents your experience today.
             </p>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
-              {MOOD_OPTIONS.map((mood) => (
-                <button
-                  type="button"
-                  key={mood.rating}
-                  onClick={() => setDayRating(mood.rating)}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '14px 8px',
-                    borderRadius: 16,
-                    border: '1px solid',
-                    borderColor: dayRating === mood.rating ? 'var(--primary)' : 'var(--border)',
-                    background: dayRating === mood.rating ? 'rgba(143, 63, 102, 0.08)' : '#fff',
-                    cursor: 'pointer',
-                    transition: 'transform 0.1s ease',
-                  }}
-                >
-                  <span style={{ fontSize: '2rem' }}>{mood.emoji}</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: dayRating === mood.rating ? 800 : 600, color: dayRating === mood.rating ? 'var(--primary)' : 'var(--text-primary)', textAlign: 'center' }}>
-                    {mood.label}
-                  </span>
-                </button>
-              ))}
+            <div
+              className="daily-mood-grid"
+              role="radiogroup"
+              aria-label="How was your day overall?"
+            >
+              {MOOD_OPTIONS.map((mood) => {
+                const isSelected = dayRating === mood.rating;
+                return (
+                  <button
+                    type="button"
+                    key={mood.rating}
+                    role="radio"
+                    aria-checked={isSelected}
+                    aria-label={`${mood.label} (${mood.rating} of 5)`}
+                    onClick={() => setDayRating(mood.rating)}
+                    className={`daily-mood-card ${isSelected ? 'selected' : ''}`}
+                  >
+                    {isSelected && (
+                      <span className="daily-mood-badge" aria-hidden="true">
+                        <Check size={11} strokeWidth={3} />
+                      </span>
+                    )}
+                    <span className="daily-mood-emoji" aria-hidden="true">{mood.emoji}</span>
+                    <span className="daily-mood-label">
+                      {mood.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Section 5: Optional Daily Reflection */}
-          <div className="summary-card">
-            <div className="summary-header" style={{ marginBottom: 6 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>
+          {/* Section F: Optional Daily Reflection */}
+          <div className="daily-form-card">
+            <div className="daily-card-header">
+              <h3 className="daily-card-title">
                 What did you learn or accomplish today? <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 500 }}>(Optional)</span>
               </h3>
             </div>
-            <p className="muted" style={{ fontSize: '0.9rem', marginBottom: 10 }}>
+            <p className="daily-card-desc">
               Share something you learned, completed, or felt proud of today…
             </p>
             <textarea
@@ -630,56 +592,38 @@ export function DailyPerformanceFormPage() {
             </div>
           </div>
 
-          {/* Section 6: Challenges / Support */}
-          <div className="summary-card">
-            <div className="summary-header" style={{ marginBottom: 14 }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <AlertCircle size={18} color="var(--primary)" /> Challenges & Mentor Support
+          {/* Section G: Challenges / Mentor Support */}
+          <div className="daily-form-card">
+            <div className="daily-card-header" style={{ marginBottom: 12 }}>
+              <h3 className="daily-card-title">
+                <AlertCircle size={18} /> Challenges & Mentor Support
               </h3>
             </div>
 
             {/* Question 1: Faced difficulty */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: '0.95rem', fontWeight: 700, display: 'block', marginBottom: 10 }}>
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ fontSize: '0.95rem', fontWeight: 700, display: 'block', marginBottom: 8, color: 'var(--text-primary)' }}>
                 Did you face any difficulty today?
               </label>
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div className="daily-toggle-group">
                 <button
                   type="button"
                   onClick={() => setFacedDifficulty(false)}
-                  style={{
-                    padding: '8px 20px',
-                    borderRadius: 20,
-                    border: '1px solid',
-                    borderColor: !facedDifficulty ? 'var(--primary)' : 'var(--border)',
-                    background: !facedDifficulty ? 'rgba(143, 63, 102, 0.12)' : '#fff',
-                    color: !facedDifficulty ? 'var(--primary)' : 'var(--text-primary)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
+                  className={`daily-toggle-btn ${!facedDifficulty ? 'active' : ''}`}
                 >
                   No
                 </button>
                 <button
                   type="button"
                   onClick={() => setFacedDifficulty(true)}
-                  style={{
-                    padding: '8px 20px',
-                    borderRadius: 20,
-                    border: '1px solid',
-                    borderColor: facedDifficulty ? 'var(--primary)' : 'var(--border)',
-                    background: facedDifficulty ? 'rgba(143, 63, 102, 0.12)' : '#fff',
-                    color: facedDifficulty ? 'var(--primary)' : 'var(--text-primary)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
+                  className={`daily-toggle-btn ${facedDifficulty ? 'active' : ''}`}
                 >
                   Yes
                 </button>
               </div>
 
               {facedDifficulty && (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 10 }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: 6 }}>
                     What difficulty did you face?
                   </label>
@@ -698,46 +642,28 @@ export function DailyPerformanceFormPage() {
 
             {/* Question 2: Need mentor help */}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-              <label style={{ fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+              <label style={{ fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, color: 'var(--text-primary)' }}>
                 <HelpCircle size={16} color="var(--primary)" /> Do you need help from your mentor?
               </label>
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div className="daily-toggle-group">
                 <button
                   type="button"
                   onClick={() => setNeedsMentorHelp(false)}
-                  style={{
-                    padding: '8px 20px',
-                    borderRadius: 20,
-                    border: '1px solid',
-                    borderColor: !needsMentorHelp ? 'var(--primary)' : 'var(--border)',
-                    background: !needsMentorHelp ? 'rgba(143, 63, 102, 0.12)' : '#fff',
-                    color: !needsMentorHelp ? 'var(--primary)' : 'var(--text-primary)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
+                  className={`daily-toggle-btn ${!needsMentorHelp ? 'active' : ''}`}
                 >
                   No
                 </button>
                 <button
                   type="button"
                   onClick={() => setNeedsMentorHelp(true)}
-                  style={{
-                    padding: '8px 20px',
-                    borderRadius: 20,
-                    border: '1px solid',
-                    borderColor: needsMentorHelp ? 'var(--primary)' : 'var(--border)',
-                    background: needsMentorHelp ? 'rgba(143, 63, 102, 0.12)' : '#fff',
-                    color: needsMentorHelp ? 'var(--primary)' : 'var(--text-primary)',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
+                  className={`daily-toggle-btn ${needsMentorHelp ? 'active' : ''}`}
                 >
                   Yes
                 </button>
               </div>
 
               {needsMentorHelp && (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 10 }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block', marginBottom: 6 }}>
                     What would you like help with?
                   </label>
@@ -755,49 +681,55 @@ export function DailyPerformanceFormPage() {
             </div>
           </div>
 
-          {/* Sticky Submit Bar on Mobile & Bottom Button */}
-          <div
-            className="submit-bar"
-            style={{
-              position: 'sticky',
-              bottom: 16,
-              background: '#fff',
-              padding: '14px 18px',
-              borderRadius: 20,
-              boxShadow: '0 8px 30px rgba(95, 70, 81, 0.15)',
-              border: '1px solid var(--border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 12,
-              zIndex: 10,
-              width: '100%',
-              boxSizing: 'border-box',
-            }}
-          >
-            <div style={{ minWidth: 0, flex: '1 1 180px' }}>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Ready to record?</div>
-              <div style={{ fontWeight: 700, fontSize: '0.95rem', overflowWrap: 'break-word' }}>
-                {formatMinutes(studyMinutes)} study • {dayRating}/5 mood
+          {/* Section H: Compact Natural-Flow Submission Card */}
+          <div className="daily-submission-card">
+            <div className="daily-submission-summary">
+              <div className="daily-submission-summary-header">
+                <span className="daily-submission-summary-tag">Ready to record?</span>
+                <span className="daily-submission-summary-date">{formatDateOnly(selectedDate)}</span>
+              </div>
+              <div className="daily-submission-pills">
+                <span className="daily-summary-pill">
+                  <Clock size={13} /> {formatMinutes(studyMinutes)} study
+                </span>
+                {readingMinutes > 0 && (
+                  <span className="daily-summary-pill">
+                    <BookOpen size={13} /> {formatMinutes(readingMinutes)} reading
+                  </span>
+                )}
+                <span className="daily-summary-pill">
+                  <span>{selectedMood.emoji}</span> {selectedMood.label} ({dayRating}/5)
+                </span>
               </div>
             </div>
+
             <button
               type="submit"
-              className="btn-primary"
+              className="daily-submit-btn"
               disabled={isSubmitting}
-              style={{
-                height: 48,
-                padding: '0 24px',
-                fontSize: '0.98rem',
-                borderRadius: 14,
-                flex: '1 1 200px',
-                justifyContent: 'center',
-                textAlign: 'center',
-              }}
+              aria-busy={isSubmitting}
             >
-              {isSubmitting ? 'Submitting...' : isEditing ? "Update Today's Progress" : "Submit Today's Progress"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={18} className="daily-spinner" />
+                  <span>Submitting Today's Progress...</span>
+                </>
+              ) : isEditing ? (
+                <>
+                  <CheckCircle2 size={18} />
+                  <span>Update Today's Progress</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={18} />
+                  <span>Submit Today's Progress</span>
+                </>
+              )}
             </button>
+
+            <p className="daily-submit-hint">
+              Your entry will be saved and visible to your mentor.
+            </p>
           </div>
         </form>
       )}
