@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { requireAuth, requireRole, AuthRequest } from '../middleware/auth.js';
@@ -15,6 +16,7 @@ import { summarizeAssignments } from '../services/mentorshipService.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { removeCallProcessingJob } from '../queue/callQueue.js';
 import { createNotification } from '../services/notificationService.js';
+import { maskDeletedCallParts } from '../services/callVisibility.js';
 
 const createAssignmentSchema = z.object({
   mentorId: z.string().min(1),
@@ -23,6 +25,139 @@ const createAssignmentSchema = z.object({
 });
 
 const router = Router();
+
+const binModels = {
+  users: User,
+  mentors: Mentor,
+  mentees: Mentee,
+  mentorships: Mentorship,
+  calls: Call,
+  dailyPerformance: DailyPerformance,
+} as const;
+const binCollections = {
+  announcements: 'announcements',
+  proxyAssignments: 'proxyAssignments',
+  conversations: 'conversations',
+} as const;
+
+// Soft-deleted records remain in MongoDB and can be restored by an administrator.
+router.get('/bin', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res: Response) => {
+  try {
+    const modelEntries = await Promise.all(Object.entries(binModels).map(async ([type, Model]) => {
+      const records = await (Model as any).find({ deletedAt: { $ne: null } })
+        .setOptions({ includeDeleted: true })
+        .sort({ deletedAt: -1 })
+        .limit(500)
+        .lean();
+      return (records as any[]).map((record: any) => ({
+        type,
+        id: String(record._id),
+        deletedAt: record.deletedAt,
+        deletedBy: record.deletedBy,
+        deletionReason: record.deletionReason,
+        label: record.name || record.email || record.title || record.date || `${type} record`,
+      }));
+    }));
+    const collectionEntries = await Promise.all(Object.entries(binCollections).map(async ([type, name]) => {
+      const records = await mongoose.connection.collection(name).find({ deletedAt: { $ne: null } }).sort({ deletedAt: -1 }).limit(500).toArray();
+      return records.map((record) => ({
+        type,
+        id: String(record._id),
+        deletedAt: record.deletedAt,
+        deletedBy: record.deletedBy,
+        deletionReason: record.deletionReason,
+        label: record.title || record.lastMessage || `${type} record`,
+      }));
+    }));
+    const partEntries = await Call.find({ $or: [{ recordingDeletedAt: { $ne: null } }, { summaryDeletedAt: { $ne: null } }, { intelligenceDeletedAt: { $ne: null } }] }).setOptions({ includeDeleted: true }).select('_id recordingDeletedAt summaryDeletedAt intelligenceDeletedAt').lean();
+    const callPartEntries = partEntries.flatMap((call) => [
+      call.recordingDeletedAt ? { type: 'callRecording', id: String(call._id), deletedAt: call.recordingDeletedAt, label: 'Call recording', deletionReason: 'Recording hidden by administrator' } : null,
+      call.summaryDeletedAt ? { type: 'callSummary', id: String(call._id), deletedAt: call.summaryDeletedAt, label: 'Call summary', deletionReason: 'Summary hidden by administrator' } : null,
+      call.intelligenceDeletedAt ? { type: 'callIntelligence', id: String(call._id), deletedAt: call.intelligenceDeletedAt, label: 'AI intelligence', deletionReason: 'AI intelligence hidden by administrator' } : null,
+    ].filter((entry): entry is { type: string; id: string; deletedAt: Date; label: string; deletionReason: string } => Boolean(entry)));
+    const menteeNotes = await Mentee.find({ 'notes.deletedAt': { $ne: null } }).setOptions({ includeDeleted: true }).select('_id notes').lean();
+    const noteEntries = menteeNotes.flatMap((mentee) => (Array.isArray(mentee.notes) ? mentee.notes : []).filter((note: any) => note.deletedAt).map((note: any) => ({ type: 'menteeNote', id: String(note.id), deletedAt: note.deletedAt, deletedBy: note.deletedBy, deletionReason: note.deletionReason, label: String(note.title || note.content || 'Mentee note').slice(0, 120) })));
+    const entries = [...modelEntries.flat(), ...collectionEntries.flat(), ...callPartEntries, ...noteEntries];
+    return res.json({ items: entries.sort((a, b) => new Date(b.deletedAt || 0).getTime() - new Date(a.deletedAt || 0).getTime()) });
+  } catch (error) {
+    return res.status(500).json({ message: error instanceof Error ? error.message : 'Unable to load Bin.' });
+  }
+});
+
+router.post('/bin/:type/:id/restore', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const binType = String(req.params.type);
+    const recordId = String(req.params.id);
+    const Model = binModels[binType as keyof typeof binModels] as any;
+    if (['callRecording', 'callSummary', 'callIntelligence'].includes(binType)) {
+      const flag = binType === 'callRecording' ? 'recordingDeletedAt' : binType === 'callSummary' ? 'summaryDeletedAt' : 'intelligenceDeletedAt';
+      const restoredPart = await Call.findByIdAndUpdate(recordId, { $unset: { [flag]: 1, ...(flag === 'recordingDeletedAt' ? { recordingDeletionReason: 1 } : {}) } }, { new: true }).setOptions({ includeDeleted: true }).lean();
+      if (!restoredPart) return res.status(404).json({ message: 'Deleted call item not found.' });
+      await logAuditEvent({ userId: req.user!.id, userName: req.user!.email || 'Admin', userRole: 'ADMIN', action: 'RESTORE_RECORD', targetType: 'CALL', targetId: recordId, details: 'Administrator restored a call item from Bin.', ipAddress: req.ip });
+      return res.json({ record: restoredPart });
+    }
+    if (binType === 'menteeNote') {
+      const restoredNote = await Mentee.findOneAndUpdate(
+        { 'notes.id': recordId },
+        { $set: { 'notes.$[note].deletedAt': null }, $unset: { 'notes.$[note].deletedBy': 1, 'notes.$[note].deletionReason': 1 } },
+        { new: true, arrayFilters: [{ 'note.id': recordId }] },
+      ).setOptions({ includeDeleted: true }).lean();
+      if (!restoredNote) return res.status(404).json({ message: 'Deleted mentee note not found.' });
+      await logAuditEvent({ userId: req.user!.id, userName: req.user!.email || 'Admin', userRole: 'ADMIN', action: 'RESTORE_RECORD', targetType: 'MENTEE_NOTE', targetId: recordId, details: 'Administrator restored a mentee note from Bin.', ipAddress: req.ip });
+      return res.json({ record: restoredNote });
+    }
+    const rawCollection = binCollections[binType as keyof typeof binCollections];
+    if (rawCollection) {
+      if (!mongoose.isValidObjectId(recordId)) {
+        return res.status(400).json({ message: 'Invalid Bin record ID.' });
+      }
+      const restoredRaw = await mongoose.connection.collection(rawCollection).findOneAndUpdate(
+        { _id: new mongoose.Types.ObjectId(recordId), deletedAt: { $ne: null } },
+        { $set: { deletedAt: null }, $unset: { deletedBy: 1, deletionReason: 1 } },
+        { returnDocument: 'after' },
+      );
+      if (!restoredRaw) return res.status(404).json({ message: 'Deleted record not found.' });
+      const targetType = binType === 'announcements' ? 'ANNOUNCEMENT' : binType === 'proxyAssignments' ? 'PROXY_ASSIGNMENT' : 'CONVERSATION';
+      await logAuditEvent({ userId: req.user!.id, userName: req.user!.email || 'Admin', userRole: 'ADMIN', action: 'RESTORE_RECORD', targetType, targetId: recordId, details: 'Administrator restored a raw record from Bin.', ipAddress: req.ip });
+      return res.json({ record: restoredRaw });
+    }
+    if (!Model) return res.status(400).json({ message: 'Invalid Bin record type.' });
+    const restored = await Model.findByIdAndUpdate(
+      recordId,
+      { $set: { deletedAt: null }, $unset: { deletedBy: 1, deletionReason: 1 } },
+      { new: true },
+    ).setOptions({ includeDeleted: true }).lean();
+    if (!restored) return res.status(404).json({ message: 'Deleted record not found.' });
+    await logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'RESTORE_RECORD',
+      targetType: binType === 'mentors' ? 'MENTOR' : binType === 'mentees' ? 'MENTEE' : binType === 'mentorships' ? 'MENTORSHIP' : binType === 'dailyPerformance' ? 'DAILY_PERFORMANCE' : 'USER',
+      targetId: recordId,
+      details: 'Administrator restored a record from Bin.',
+      ipAddress: req.ip,
+    });
+    return res.json({ record: restored });
+  } catch (error) {
+    return res.status(500).json({ message: error instanceof Error ? error.message : 'Unable to restore record.' });
+  }
+});
+
+async function softDeleteRaw(collectionName: string, id: string, user: AuthRequest['user'], res: Response) {
+  if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Invalid record ID.' });
+  const result = await mongoose.connection.collection(collectionName).findOneAndUpdate(
+    { _id: new mongoose.Types.ObjectId(id), deletedAt: null },
+    { $set: { deletedAt: new Date(), deletedBy: user!.id, deletionReason: 'Deleted by administrator' } },
+    { returnDocument: 'after' },
+  );
+  if (!result) return res.status(404).json({ message: 'Record not found.' });
+  return res.json({ message: 'Record moved to Bin.', record: result });
+}
+
+router.delete('/announcements/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => softDeleteRaw('announcements', String(req.params.id), req.user, res));
+router.delete('/proxy-assignments/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => softDeleteRaw('proxyAssignments', String(req.params.id), req.user, res));
+router.delete('/conversations/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => softDeleteRaw('conversations', String(req.params.id), req.user, res));
 
 const reviewUpdateSchema = z.object({
   reviewStatus: z.enum(['Pending Review', 'Approved', 'Rejected']),
@@ -310,7 +445,9 @@ router.patch('/assignments/:assignmentId', requireAuth, requireRole('ADMIN'), as
 
 router.delete('/assignments/:assignmentId', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
-    const deleted = await Mentorship.findByIdAndDelete(req.params.assignmentId);
+    const deleted = await Mentorship.findByIdAndUpdate(req.params.assignmentId, {
+      $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Removed by administrator' },
+    });
     if (!deleted) {
       return res.status(404).json({ message: 'Assignment not found.' });
     }
@@ -338,7 +475,9 @@ router.get('/calls/pending', requireAuth, requireRole('ADMIN'), async (_req: Aut
     const calls = await Call.find({ reviewStatus: 'Pending Review' }).sort({ createdAt: -1 }).lean();
 
     return res.json({
-      calls: calls.map((call) => ({
+      calls: calls.map((rawCall) => {
+        const call = maskDeletedCallParts(rawCall);
+        return {
         id: String(call._id),
         mentorId: call.mentorId,
         menteeId: call.menteeId,
@@ -348,7 +487,8 @@ router.get('/calls/pending', requireAuth, requireRole('ADMIN'), async (_req: Aut
         summary: call.summary,
         recordingUrl: call.recordingUrl,
         reviewStatus: call.reviewStatus,
-      })),
+        };
+      }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch review queue';
@@ -389,7 +529,7 @@ router.patch('/calls/:callId/review', requireAuth, requireRole('ADMIN'), async (
 router.get('/calls/:callId/recording-url', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
     const call = await Call.findById(req.params.callId).lean();
-    if (!call || !call.recordingUrl) {
+    if (!call || call.recordingDeletedAt || !call.recordingUrl) {
       return res.status(404).json({ message: 'Recording not found.' });
     }
 
@@ -438,7 +578,8 @@ router.get('/reports/calls', requireAuth, requireRole('ADMIN'), async (req: Auth
       ? calls.filter((c) => menteeMap.get(c.menteeId)?.standard === String(standard))
       : calls;
 
-    const rows = filteredCalls.map((call) => {
+    const rows = filteredCalls.map((rawCall) => {
+      const call = maskDeletedCallParts(rawCall);
       const menteeInfo = menteeMap.get(call.menteeId);
       return {
         mentorName: mentorUserMap.get(call.mentorId) ?? 'Unknown',
@@ -503,20 +644,9 @@ router.get('/audit-logs', requireAuth, requireRole('ADMIN'), async (req: AuthReq
 // Helper: Clean up storage & queue resources for a call
 // ──────────────────────────────────────────────────────────────────────────
 async function cleanupCallResources(call: any): Promise<{ storageDeleted: boolean; storageError?: string }> {
-  let storageDeleted = true;
-  let storageError: string | undefined;
-
-  const storageKey = call.recording?.storageKey || call.recording?.fileName || (call.recordingUrl ? call.recordingUrl.split('/').pop() : undefined);
-  if (storageKey) {
-    try {
-      const storageProvider = createStorageProvider();
-      await storageProvider.deleteFile(storageKey);
-    } catch (err) {
-      storageDeleted = false;
-      storageError = err instanceof Error ? err.message : String(err);
-      console.warn(`[AdminRoutes] Failed to delete storage for key "${storageKey}":`, storageError);
-    }
-  }
+  // Records are soft-deleted now, so recordings must remain available for Bin restore.
+  const storageDeleted = false;
+  const storageError = 'Recording preserved for Bin restore.';
 
   // Cancel/remove any queued or processing BullMQ jobs
   try {
@@ -548,7 +678,9 @@ router.delete('/calls/:id', requireAuth, requireRole('ADMIN'), async (req: AuthR
     if (!call) return res.status(404).json({ message: 'Call record not found.' });
 
     const { storageDeleted, storageError } = await cleanupCallResources(call);
-    await Call.findByIdAndDelete(req.params.id);
+    await Call.findByIdAndUpdate(req.params.id, {
+      $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Deleted by administrator' },
+    });
 
     logAuditEvent({
       userId: req.user!.id,
@@ -562,9 +694,7 @@ router.delete('/calls/:id', requireAuth, requireRole('ADMIN'), async (req: AuthR
     });
 
     return res.json({
-      message: storageDeleted
-        ? 'Call record and all associated resources deleted successfully.'
-        : `Call deleted from database, but audio cleanup failed: ${storageError}`,
+      message: 'Call moved to Bin. The database record and recording were preserved.',
       storageDeleted,
     });
   } catch (error) {
@@ -584,23 +714,10 @@ router.delete('/calls/:id/recording', requireAuth, requireRole('ADMIN'), async (
       return res.status(400).json({ message: 'No recording file is attached to this call.' });
     }
 
-    const storageKey = call.recording?.storageKey || call.recording?.fileName || (call.recordingUrl ? call.recordingUrl.split('/').pop() : undefined);
-    let storageDeleted = true;
-    let storageError: string | undefined;
-
-    if (storageKey) {
-      try {
-        const storageProvider = createStorageProvider();
-        await storageProvider.deleteFile(storageKey);
-      } catch (err) {
-        storageDeleted = false;
-        storageError = err instanceof Error ? err.message : String(err);
-      }
-    }
+    const storageDeleted = false;
 
     await Call.findByIdAndUpdate(req.params.id, {
-      $unset: { recording: 1, recordingUrl: 1 },
-      $set: { recordingStatus: 'failed' },
+      $set: { recordingDeletedAt: new Date(), recordingDeletionReason: 'Recording hidden by administrator' },
     });
 
     logAuditEvent({
@@ -615,9 +732,7 @@ router.delete('/calls/:id/recording', requireAuth, requireRole('ADMIN'), async (
     });
 
     return res.json({
-      message: storageDeleted
-        ? 'Call recording file deleted successfully.'
-        : `Recording removed from call, but storage file cleanup reported: ${storageError}`,
+      message: 'Call recording moved to Bin and preserved.',
       storageDeleted,
     });
   } catch (error) {
@@ -634,10 +749,7 @@ router.delete('/calls/:id/summary', requireAuth, requireRole('ADMIN'), async (re
     const call = await Call.findById(req.params.id);
     if (!call) return res.status(404).json({ message: 'Call not found.' });
 
-    await Call.findByIdAndUpdate(req.params.id, {
-      $unset: { summary: 1, summaryVersions: 1 },
-      $set: { 'aiSummary.shortSummary': '' },
-    });
+    await Call.findByIdAndUpdate(req.params.id, { $set: { summaryDeletedAt: new Date() } });
 
     logAuditEvent({
       userId: req.user!.id,
@@ -650,7 +762,7 @@ router.delete('/calls/:id/summary', requireAuth, requireRole('ADMIN'), async (re
       ipAddress: req.ip,
     });
 
-    return res.json({ message: 'Call summary deleted successfully.' });
+    return res.json({ message: 'Call summary moved to Bin and preserved.' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to delete summary';
     return res.status(500).json({ message });
@@ -665,17 +777,7 @@ router.delete('/calls/:id/intelligence', requireAuth, requireRole('ADMIN'), asyn
     const call = await Call.findById(req.params.id);
     if (!call) return res.status(404).json({ message: 'Call not found.' });
 
-    await Call.findByIdAndUpdate(req.params.id, {
-      $unset: { aiSummary: 1 },
-      $set: {
-        keyDiscussionPoints: [],
-        studentConcerns: [],
-        actionItems: [],
-        followUpRecommendations: [],
-        topicsDiscussed: [],
-        aiStatus: 'pending',
-      },
-    });
+    await Call.findByIdAndUpdate(req.params.id, { $set: { intelligenceDeletedAt: new Date() } });
 
     logAuditEvent({
       userId: req.user!.id,
@@ -688,7 +790,7 @@ router.delete('/calls/:id/intelligence', requireAuth, requireRole('ADMIN'), asyn
       ipAddress: req.ip,
     });
 
-    return res.json({ message: 'Call intelligence deleted successfully.' });
+    return res.json({ message: 'Call intelligence moved to Bin and preserved.' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to delete intelligence';
     return res.status(500).json({ message });
@@ -715,7 +817,9 @@ router.post('/calls/bulk-delete', requireAuth, requireRole('ADMIN'), async (req:
     for (const call of calls) {
       try {
         await cleanupCallResources(call);
-        await Call.findByIdAndDelete(call._id);
+        await Call.findByIdAndUpdate(call._id, {
+          $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Bulk deleted by administrator' },
+        });
         deletedIds.push(String(call._id));
       } catch (err) {
         failedIds.push(String(call._id));
@@ -743,7 +847,7 @@ router.post('/calls/bulk-delete', requireAuth, requireRole('ADMIN'), async (req:
     });
 
     return res.json({
-      message: `${deletedIds.length} ${deletedIds.length === 1 ? 'call' : 'calls'} deleted successfully.${failedIds.length > 0 ? ` (${failedIds.length} could not be deleted)` : ''}`,
+      message: `${deletedIds.length} ${deletedIds.length === 1 ? 'call' : 'calls'} moved to Bin successfully.${failedIds.length > 0 ? ` (${failedIds.length} could not be moved)` : ''}`,
       deletedCount: deletedIds.length,
       deletedIds,
       failedIds,
@@ -832,7 +936,9 @@ router.delete('/daily-performance/:id', requireAuth, requireRole('ADMIN'), async
       return res.status(404).json({ message: 'Daily performance record not found.' });
     }
 
-    await DailyPerformance.findByIdAndDelete(req.params.id);
+    await DailyPerformance.findByIdAndUpdate(req.params.id, {
+      $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Deleted by administrator' },
+    });
 
     logAuditEvent({
       userId: req.user!.id,
@@ -845,7 +951,7 @@ router.delete('/daily-performance/:id', requireAuth, requireRole('ADMIN'), async
       ipAddress: req.ip,
     });
 
-    return res.json({ message: 'Daily performance response deleted successfully.' });
+    return res.json({ message: 'Daily performance response moved to Bin successfully.' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to delete daily performance entry';
     return res.status(500).json({ message });
@@ -863,7 +969,10 @@ router.post('/daily-performance/bulk-delete', requireAuth, requireRole('ADMIN'),
     }
 
     const ids = parsed.data.ids;
-    const result = await DailyPerformance.deleteMany({ _id: { $in: ids } });
+    const result = await DailyPerformance.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Bulk deleted by administrator' } },
+    );
 
     logAuditEvent({
       userId: req.user!.id,
@@ -872,13 +981,13 @@ router.post('/daily-performance/bulk-delete', requireAuth, requireRole('ADMIN'),
       action: 'DELETE_RECORD',
       targetType: 'DAILY_PERFORMANCE',
       targetId: 'BULK',
-      details: `Administrator bulk deleted ${result.deletedCount} daily performance entries.`,
+      details: `Administrator moved ${result.modifiedCount} daily performance entries to Bin.`,
       ipAddress: req.ip,
     });
 
     return res.json({
-      message: `${result.deletedCount} ${result.deletedCount === 1 ? 'daily performance entry' : 'daily performance entries'} deleted successfully.`,
-      deletedCount: result.deletedCount,
+      message: `${result.modifiedCount} ${result.modifiedCount === 1 ? 'daily performance entry' : 'daily performance entries'} moved to Bin successfully.`,
+      deletedCount: result.modifiedCount,
       deletedIds: ids,
     });
   } catch (error) {

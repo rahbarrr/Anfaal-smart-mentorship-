@@ -13,6 +13,7 @@ export interface AiSummaryInput {
 
 export interface AiSummaryResult {
   shortSummary: string;
+  summaryPoints: string[];
   keyDiscussionPoints: string[];
   academicProgress: string;
   personalDevelopment: string;
@@ -41,6 +42,13 @@ export class MockAiSummaryService implements AiSummaryService {
       shortSummary: hasMentorNotes
         ? `The mentorship session with ${menteeName} covered academic progress in mathematics, Quran reading consistency, and study habit improvement. The mentee reported difficulty with quadratic equations and agreed to a daily practice plan. Career exploration topics were flagged for the next session.`
         : `The mentorship session focused on academic progress, Quran reading routine, and study consistency. Key challenges in mathematics were discussed and an action plan was agreed upon.`,
+      summaryPoints: [
+        'The mentee reported progress against the current academic goals.',
+        'Mathematics difficulties and specific practice needs were discussed.',
+        'Study routine and time-management improvements were identified.',
+        'Quran reading consistency was reviewed as part of the weekly routine.',
+        'The next session should review the agreed practice work and open questions.',
+      ],
       keyDiscussionPoints: [
         'Mathematics preparation — specifically quadratic equations and word problems',
         'Weekly study routine and time management strategies',
@@ -128,10 +136,13 @@ CRITICAL RULES — you MUST follow these strictly:
 4. Clearly distinguish factual statements from interpretations.
 5. Use "The mentee said..." or "According to the transcript..." when summarizing, not "The mentee feels..." or "The mentee appears to...".
 6. All text should be factual, professional, and grounded strictly in what was said.
+7. Do not produce a generic or minimal summary. Capture every material fact, concern, commitment, decision, deadline, study topic, personal-development topic, and follow-up mentioned in the call.
+8. summaryPoints must contain 12-18 distinct, specific bullet points. Include separate points for the mentee's exact situation, academic status, concerns, decisions, commitments, deadlines, and follow-up plan whenever present. If a category was not discussed, leave that category empty rather than inventing content.
 
 You MUST return a single valid JSON object with EXACTLY these keys:
 {
-  "shortSummary": "2-3 sentence factual summary of what was discussed",
+  "shortSummary": "One-sentence overview; the detailed record belongs in summaryPoints",
+  "summaryPoints": ["12-18 detailed factual bullet points covering all material parts of the session"],
   "keyDiscussionPoints": ["array of main topics actually discussed"],
   "academicProgress": "what the mentee reported about their academic work (quote or paraphrase from transcript)",
   "personalDevelopment": "any personal growth, habits, or character topics discussed (leave empty string if none)",
@@ -197,6 +208,9 @@ Please produce the structured JSON summary strictly from the transcript above.`;
 
       return {
         shortSummary: parsed.shortSummary ?? '',
+        summaryPoints: Array.isArray(parsed.summaryPoints) && parsed.summaryPoints.length > 0
+          ? parsed.summaryPoints
+          : (Array.isArray(parsed.keyDiscussionPoints) ? parsed.keyDiscussionPoints : []),
         keyDiscussionPoints: Array.isArray(parsed.keyDiscussionPoints) ? parsed.keyDiscussionPoints : [],
         academicProgress: parsed.academicProgress ?? '',
         personalDevelopment: parsed.personalDevelopment ?? '',

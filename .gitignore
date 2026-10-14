@@ -10,8 +10,7 @@ backend/dist/
 # Environment
 .env
 .env.*
-!backend/.env.example
-!backend/.env.production.example
+backend/uploads/
 
 # Logs
 npm-debug.log*

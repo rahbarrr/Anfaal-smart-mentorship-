@@ -142,7 +142,7 @@ export function AdminPerformanceAnalyticsPage() {
         setRecordsTotal((prev) => Math.max(0, prev - ids.length));
         setSelectedRecordIds(new Set());
         setFeedback({
-          msg: res.message || `${ids.length} daily performance responses deleted successfully.`,
+          msg: res.message || `${ids.length} daily performance responses moved to Bin successfully.`,
           type: 'success',
         });
       } else {
@@ -156,7 +156,7 @@ export function AdminPerformanceAnalyticsPage() {
           return next;
         });
         setFeedback({
-          msg: res.message || 'Daily performance entry deleted successfully.',
+          msg: res.message || 'Daily performance entry moved to Bin successfully.',
           type: 'success',
         });
       }
@@ -806,8 +806,7 @@ export function AdminPerformanceAnalyticsPage() {
               <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 20 }}>
                 {deleteTarget === 'BULK' ? (
                   <>
-                    This will permanently remove <strong>{selectedRecordIds.size}</strong> selected daily performance responses.
-                    This action cannot be undone.
+                    <strong>{selectedRecordIds.size}</strong> selected daily performance responses will move to the Bin and can be restored by an administrator.
                   </>
                 ) : (
                   <>
@@ -817,7 +816,7 @@ export function AdminPerformanceAnalyticsPage() {
                     <br />
                     Study: {formatDuration(deleteTarget.studyMinutes)} • Rating: {deleteTarget.dayRating}/5
                     <br />
-                    This will permanently remove this response. This action cannot be undone.
+                    This response will move to the Bin and can be restored by an administrator.
                   </>
                 )}
               </p>
@@ -849,7 +848,7 @@ export function AdminPerformanceAnalyticsPage() {
                   disabled={isDeleting}
                   onClick={executeDeleteRecords}
                 >
-                  {isDeleting ? 'Deleting…' : deleteTarget === 'BULK' ? `Delete ${selectedRecordIds.size} Records` : 'Delete Entry'}
+                  {isDeleting ? 'Moving…' : deleteTarget === 'BULK' ? `Move ${selectedRecordIds.size} to Bin` : 'Move to Bin'}
                 </button>
               </div>
             </div>

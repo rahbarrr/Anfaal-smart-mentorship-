@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CalendarCheck, History, LogOut, Menu, X, Sparkles, MoreHorizontal } from 'lucide-react';
+import { LayoutDashboard, CalendarCheck, History, LogOut, Menu, X, Sparkles, MoreHorizontal, Bot } from 'lucide-react';
 import { MobileHeader } from '../components/MobileHeader';
 import { MobileMoreDrawer, type MoreDrawerLink } from '../components/MobileMoreDrawer';
 import { NotificationCenter } from '../components/NotificationCenter';
@@ -11,12 +11,16 @@ const links = [
   { to: '/mentee', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/mentee/daily', label: 'Daily Progress', icon: CalendarCheck, end: false },
   { to: '/mentee/history', label: 'History', icon: History, end: false },
+  { to: '/mentee/announcements', label: 'Announcements', icon: Sparkles, end: false },
+  { to: '/mentee/chat', label: 'Chat', icon: Sparkles, end: false },
+  { to: '/mentee/ai-mentor', label: 'AI Mentor', icon: Bot, end: false },
 ];
 
 const menteeDrawerLinks: MoreDrawerLink[] = [
   { to: '/mentee', label: 'Learner Dashboard', icon: LayoutDashboard, description: 'Daily schedule, goals & mentor info', end: true },
   { to: '/mentee/daily', label: "Record Today's Progress", icon: CalendarCheck, description: 'Log study hours, Quran & habits' },
   { to: '/mentee/history', label: 'Submission History', icon: History, description: 'Browse and reflect on past entries' },
+  { to: '/mentee/ai-mentor', label: 'AI Mentor', icon: Bot, description: 'Get study-planning guidance' },
 ];
 
 function getStoredUser() {

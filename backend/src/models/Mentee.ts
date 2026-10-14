@@ -1,4 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
+import { softDeletePlugin } from './plugins/softDelete.js';
 import type { MenteeDocument } from '../types/index.js';
 
 const menteeSchema = new Schema<MenteeDocument>(
@@ -21,6 +22,7 @@ const menteeSchema = new Schema<MenteeDocument>(
   },
   { timestamps: true },
 );
+menteeSchema.plugin(softDeletePlugin);
 
 menteeSchema.index({ status: 1 });
 menteeSchema.index({ standard: 1 });

@@ -110,6 +110,8 @@ const performanceSchema = z.object({
     .default({ ruku: 0, ayat: 0, pages: 0 }),
   readingMinutes: z.number().min(0).default(0),
   dayRating: z.number().min(1).max(5),
+  mentorCallRating: z.number().min(1).max(5).nullable().optional(),
+  mentorCallFeedback: z.string().max(1000).nullable().optional(),
   dailyReflection: z.string().max(1000).optional(),
   facedDifficulty: z.boolean().default(false),
   difficultyNote: z.string().max(1000).optional(),
@@ -164,6 +166,8 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
       quran: parsed.data.quran,
       readingMinutes: parsed.data.readingMinutes,
       dayRating: parsed.data.dayRating,
+      mentorCallRating: parsed.data.mentorCallRating ?? undefined,
+      mentorCallFeedback: typeof parsed.data.mentorCallRating === 'number' ? parsed.data.mentorCallFeedback?.trim() || undefined : undefined,
       dailyReflection: parsed.data.dailyReflection?.trim(),
       facedDifficulty: parsed.data.facedDifficulty,
       difficultyNote: parsed.data.facedDifficulty ? parsed.data.difficultyNote?.trim() : undefined,
@@ -441,6 +445,11 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
     }
     if (parsed.data.readingMinutes !== undefined) record.readingMinutes = parsed.data.readingMinutes;
     if (parsed.data.dayRating !== undefined) record.dayRating = parsed.data.dayRating;
+    if (parsed.data.mentorCallRating !== undefined) {
+      record.mentorCallRating = parsed.data.mentorCallRating ?? undefined;
+      if (parsed.data.mentorCallRating === null) record.mentorCallFeedback = undefined;
+    }
+    if (parsed.data.mentorCallFeedback !== undefined) record.mentorCallFeedback = parsed.data.mentorCallFeedback?.trim() || undefined;
     if (parsed.data.dailyReflection !== undefined) record.dailyReflection = parsed.data.dailyReflection.trim();
     if (parsed.data.facedDifficulty !== undefined) {
       record.facedDifficulty = parsed.data.facedDifficulty;
@@ -892,7 +901,9 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest
       return res.status(404).json({ message: 'Daily performance record not found.' });
     }
 
-    await DailyPerformance.findByIdAndDelete(req.params.id);
+    await DailyPerformance.findByIdAndUpdate(req.params.id, {
+      $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Deleted by administrator' },
+    });
 
     logAuditEvent({
       userId: req.user!.id,
@@ -905,7 +916,7 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest
       ipAddress: req.ip,
     });
 
-    return res.json({ message: 'Daily performance response deleted successfully.' });
+    return res.json({ message: 'Daily performance response moved to Bin successfully.' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to delete daily performance entry';
     return res.status(500).json({ message });
@@ -925,7 +936,10 @@ router.post('/bulk-delete', requireAuth, requireRole('ADMIN'), async (req: AuthR
     }
 
     const ids = parsed.data.ids;
-    const result = await DailyPerformance.deleteMany({ _id: { $in: ids } });
+    const result = await DailyPerformance.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Bulk deleted by administrator' } },
+    );
 
     logAuditEvent({
       userId: req.user!.id,
@@ -934,13 +948,13 @@ router.post('/bulk-delete', requireAuth, requireRole('ADMIN'), async (req: AuthR
       action: 'DELETE_RECORD',
       targetType: 'DAILY_PERFORMANCE',
       targetId: 'BULK',
-      details: `Administrator bulk deleted ${result.deletedCount} daily performance entries.`,
+      details: `Bulk moved ${result.modifiedCount} daily performance entries to Bin.`,
       ipAddress: req.ip,
     });
 
     return res.json({
-      message: `${result.deletedCount} ${result.deletedCount === 1 ? 'daily performance entry' : 'daily performance entries'} deleted successfully.`,
-      deletedCount: result.deletedCount,
+      message: `${result.modifiedCount} ${result.modifiedCount === 1 ? 'daily performance entry' : 'daily performance entries'} moved to Bin successfully.`,
+      deletedCount: result.modifiedCount,
       deletedIds: ids,
     });
   } catch (error) {

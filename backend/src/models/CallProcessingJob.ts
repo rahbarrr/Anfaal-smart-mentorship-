@@ -26,6 +26,7 @@ export interface CallProcessingJobDocument {
     failed: number;
     lastChunkAt?: Date;
   };
+  partialTranscript?: string;
   timings?: {
     audioLoadMs?: number;
     audioPreparationMs?: number;
@@ -77,6 +78,7 @@ const callProcessingJobSchema = new Schema<CallProcessingJobDocument>(
       failed: { type: Number, min: 0 },
       lastChunkAt: { type: Date },
     },
+    partialTranscript: { type: String, default: '' },
     timings: {
       audioLoadMs: { type: Number, min: 0 },
       audioPreparationMs: { type: Number, min: 0 },

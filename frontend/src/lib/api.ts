@@ -1,4 +1,6 @@
 // Production API Base URL: loaded from VITE_API_URL or defaults to '/api'
+import type { ImportPreview, ShortTermGoal } from '../types';
+
 const rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || '/api';
 const API_BASE_URL = rawApiUrl.replace(/\/+$/, '');
 
@@ -17,6 +19,27 @@ export type AuthUser = {
 export type LoginResponse = {
   token: string;
   user: AuthUser;
+};
+
+type AttendanceRecord = { id: string; menteeId: string; date: string; status: 'PRESENT' | 'ABSENT'; source: string; notes?: string };
+type AnnouncementRecord = { id: string; title: string; body: string; audience: string; priority?: string; pinned?: boolean; read?: boolean; publishedAt?: { _seconds?: number } | string };
+type CallSummaryRecord = { id: string; date: string; summary: { overview: string } };
+type ConversationRecord = { id: string; participantIds: string[]; lastMessage?: string; updatedAt?: string };
+type ChatContact = { id: string; name: string; email?: string; role: string };
+type ChatMessage = { id: string; conversationId?: string; senderId: string; text: string; createdAt?: string };
+type ProxyAssignmentRecord = { id: string; menteeId: string; primaryMentorId: string; proxyMentorId: string; startDate: string; endDate: string; reason?: string };
+type BinRecord = { type: string; id: string; label: string; deletedAt?: string; deletedBy?: string; deletionReason?: string };
+type AiMentorMessage = { role: 'user' | 'assistant'; content: string; createdAt?: string };
+type GrowthDailyRecord = {
+  studyMinutes: number;
+  readingMinutes: number;
+  dayRating: number;
+  mentorCallRating?: number | null;
+  mentorCallFeedback?: string | null;
+  dailyReflection?: string;
+  submittedAt?: string | Date;
+  updatedAt?: string | Date;
+  quran?: { ruku?: number; ayat?: number; pages?: number };
 };
 
 function getToken(): string {
@@ -63,6 +86,25 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   }
   return response;
 }
+
+// Product features: kept on the regular Render API boundary.
+export async function getAttendance(token: string, params: { month?: string } = {}): Promise<{ records: AttendanceRecord[] }> { const q = params.month ? `?month=${encodeURIComponent(params.month)}` : ''; return (await apiFetch(`/attendance${q}`, { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function saveAttendance(token: string, body: unknown): Promise<{ record: AttendanceRecord }> { return (await apiFetch('/attendance', { method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getAnnouncements(token: string): Promise<{ announcements: AnnouncementRecord[] }> { return (await apiFetch('/announcements', { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function createAnnouncement(token: string, body: unknown): Promise<{ announcement: AnnouncementRecord }> { return (await apiFetch('/announcements', { method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function markAnnouncementRead(token: string, id: string): Promise<{ success: boolean }> { return (await apiFetch(`/announcements/${id}/read`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getCallSummaryReport(token: string, period: string): Promise<{ totalCalls: number; completedSummaries: number; calls: CallSummaryRecord[] }> { return (await apiFetch(`/calls/summary-report?period=${period}`, { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getConversations(token: string): Promise<{ conversations: ConversationRecord[] }> { return (await apiFetch('/conversations', { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getChatContacts(token: string): Promise<{ contacts: ChatContact[] }> { return (await apiFetch('/chat/contacts', { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function createConversation(token: string, participantIds: string[]): Promise<{ conversation: ConversationRecord }> { return (await apiFetch('/conversations', { method: 'POST', body: JSON.stringify({ participantIds }), headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getConversationMessages(token: string, id: string): Promise<{ messages: ChatMessage[] }> { return (await apiFetch(`/conversations/${id}/messages`, { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function sendConversationMessage(token: string, id: string, text: string): Promise<{ message: ChatMessage }> { return (await apiFetch(`/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ text }), headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getProxyAssignments(token: string): Promise<{ assignments: ProxyAssignmentRecord[] }> { return (await apiFetch('/admin/proxy-assignments', { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function createProxyAssignment(token: string, body: unknown): Promise<{ assignment: ProxyAssignmentRecord }> { return (await apiFetch('/admin/proxy-assignments', { method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getBin(token: string): Promise<{ items: BinRecord[] }> { return (await apiFetch('/admin/bin', { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function restoreBinItem(token: string, type: string, id: string): Promise<{ record: Record<string, unknown> }> { return (await apiFetch(`/admin/bin/${encodeURIComponent(type)}/${encodeURIComponent(id)}/restore`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function sendAiMentorMessage(token: string, message: string, sessionId?: string): Promise<{ sessionId: string; message: AiMentorMessage }> { return (await apiFetch('/ai-mentor/chat', { method: 'POST', body: JSON.stringify({ message, sessionId }), headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getAiMentorSession(token: string, sessionId: string): Promise<{ messages: AiMentorMessage[] }> { return (await apiFetch(`/ai-mentor/sessions/${encodeURIComponent(sessionId)}`, { headers: { Authorization: `Bearer ${token}` } })).json(); }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -405,6 +447,7 @@ export async function updateCallSummary(token: string, callId: string, payload: 
   actionItems: string[];
   followUpRecommendations: string[];
   topicsDiscussed: string[];
+  aiSummary?: { summaryPoints?: string[] };
 }>) {
   const response = await fetch(`${API_BASE_URL}/calls/${callId}`, {
     method: 'PATCH',
@@ -679,7 +722,7 @@ export async function reviewMenteeSuggestion(
   menteeId: string,
   suggestionId: string,
   action: 'approve' | 'edit' | 'reject',
-  editedValue?: any,
+  editedValue?: unknown,
 ) {
   const response = await fetch(`${API_BASE_URL}/mentees/${menteeId}/suggestions/${suggestionId}/review`, {
     method: 'POST',
@@ -819,9 +862,7 @@ export async function submitDailyPerformance(payload: {
   const resData = await response.json().catch(() => ({}));
   if (!response.ok) {
     const err = new Error(resData.message ?? 'Unable to record daily performance');
-    (err as any).status = response.status;
-    (err as any).existingId = resData.existingId;
-    (err as any).existing = resData.existing;
+    Object.assign(err, { status: response.status, existingId: resData.existingId, existing: resData.existing });
     throw err;
   }
   return resData;
@@ -874,7 +915,7 @@ export async function getMonthlyPerformance(menteeId?: string) {
   return response.json();
 }
 
-export async function updateDailyPerformance(id: string, payload: any) {
+export async function updateDailyPerformance(id: string, payload: unknown) {
   const token = getToken();
   const response = await fetch(`${API_BASE_URL}/daily-performance/${id}`, {
     method: 'PUT',
@@ -1019,7 +1060,7 @@ export async function downloadImportTemplate(type: 'mentors' | 'mentees' | 'assi
 export async function uploadImportFile(
   type: 'mentors' | 'mentees' | 'assignments',
   file: File,
-): Promise<{ importJobId: string; preview: any }> {
+): Promise<{ importJobId: string; preview: ImportPreview }> {
   const token = getToken();
   const formData = new FormData();
   formData.append('file', file);
@@ -1171,7 +1212,7 @@ export interface InAppNotification {
   link?: string;
   read: boolean;
   createdAt: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface NotificationPreferences {
@@ -1371,7 +1412,7 @@ export interface MenteeGrowthSummary {
   todayStatus: {
     submitted: boolean;
     date: string;
-    record: any | null;
+    record: GrowthDailyRecord | null;
   };
   streak: {
     currentStreak: number;
@@ -1418,8 +1459,8 @@ export interface MenteeGrowthSummary {
   goals: {
     careerGoal: string;
     semesterGoal: string;
-    shortTermGoals: any[];
-    academic: any;
+    shortTermGoals: ShortTermGoal[];
+    academic: Record<string, unknown> | null;
   };
   cohortLeaderboard: {
     hasCohort: boolean;

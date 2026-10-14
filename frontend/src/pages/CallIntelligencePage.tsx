@@ -48,6 +48,7 @@ type TranscriptSegment = {
 type AiSummary = {
   status?: string;
   shortSummary: string;
+  summaryPoints: string[];
   keyDiscussionPoints: string[];
   academicProgress?: string;
   personalDevelopment?: string;
@@ -58,6 +59,8 @@ type AiSummary = {
   menteeCommitments: string[];
   followUpTopics: string[];
   topicsDiscussed: string[];
+  studentConcerns?: string[];
+  followUpRecommendations?: string[];
 };
 
 type JobStatus = {
@@ -181,6 +184,24 @@ function SummaryList({ title, items, color }: { title: string; items?: string[];
   );
 }
 
+function buildComprehensiveSummary(summary: AiSummary): string[] {
+  return [
+    ...(summary.summaryPoints ?? []),
+    summary.shortSummary,
+    summary.academicProgress && `Academic progress: ${summary.academicProgress}`,
+    summary.personalDevelopment && `Personal development: ${summary.personalDevelopment}`,
+    ...summary.keyDiscussionPoints,
+    ...(summary.studentConcerns ?? []).map((item) => `Mentee concern: ${item}`),
+    ...summary.challenges.map((item) => `Challenge: ${item}`),
+    ...summary.achievements.map((item) => `Achievement: ${item}`),
+    ...summary.actionItems.map((item) => `Action item: ${item}`),
+    ...summary.mentorCommitments.map((item) => `Mentor commitment: ${item}`),
+    ...summary.menteeCommitments.map((item) => `Mentee commitment: ${item}`),
+    ...summary.followUpTopics.map((item) => `Follow-up: ${item}`),
+    ...(summary.followUpRecommendations ?? []).map((item) => `Recommendation: ${item}`),
+  ].filter((item): item is string => Boolean(item?.trim()));
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export function CallIntelligencePage() {
   const { callId } = useParams<{ callId: string }>();
@@ -252,6 +273,7 @@ export function CallIntelligencePage() {
       const summary: Partial<AiSummary> = loadedCall?.aiSummary ?? {};
       setEditedSummary({
         shortSummary: summary.shortSummary ?? loadedCall?.summary ?? '',
+        summaryPoints: summary.summaryPoints ?? [],
         keyDiscussionPoints: summary.keyDiscussionPoints ?? (loadedCall as any)?.keyDiscussionPoints ?? [],
         academicProgress: summary.academicProgress ?? '',
         personalDevelopment: summary.personalDevelopment ?? '',
@@ -262,6 +284,8 @@ export function CallIntelligencePage() {
         menteeCommitments: summary.menteeCommitments ?? [],
         followUpTopics: summary.followUpTopics ?? (loadedCall as any)?.followUpRecommendations ?? [],
         topicsDiscussed: summary.topicsDiscussed ?? (loadedCall as any)?.topicsDiscussed ?? [],
+        studentConcerns: summary.studentConcerns ?? (loadedCall as any)?.studentConcerns ?? [],
+        followUpRecommendations: summary.followUpRecommendations ?? [],
       });
       return { call: loadedCall, job: loadedJob };
     } catch (err) {
@@ -416,6 +440,7 @@ export function CallIntelligencePage() {
     try {
       await updateCallSummary(token, callId, {
         summary: editedSummary.shortSummary,
+        aiSummary: { summaryPoints: editedSummary.summaryPoints },
         keyDiscussionPoints: editedSummary.keyDiscussionPoints,
         actionItems: editedSummary.actionItems,
         followUpRecommendations: editedSummary.followUpTopics,
@@ -440,13 +465,13 @@ export function CallIntelligencePage() {
         return;
       } else if (adminDeleteTarget === 'RECORDING') {
         await deleteCallRecording(token, callId);
-        setFeedback({ msg: 'Recording deleted successfully.', type: 'success' });
+        setFeedback({ msg: 'Recording moved to Bin successfully.', type: 'success' });
       } else if (adminDeleteTarget === 'SUMMARY') {
         await deleteCallSummary(token, callId);
-        setFeedback({ msg: 'Summary deleted successfully.', type: 'success' });
+        setFeedback({ msg: 'Summary moved to Bin successfully.', type: 'success' });
       } else if (adminDeleteTarget === 'INTELLIGENCE') {
         await deleteCallIntelligence(token, callId);
-        setFeedback({ msg: 'AI intelligence analysis deleted successfully.', type: 'success' });
+        setFeedback({ msg: 'AI intelligence analysis moved to Bin successfully.', type: 'success' });
       }
       setAdminDeleteTarget(null);
       await loadData();
@@ -642,7 +667,7 @@ export function CallIntelligencePage() {
 
           {/* Secure Audio Player */}
           <div className="call-audio-player-wrap">
-            {Boolean(signedAudioUrl || call.recording?.storageKey || call.recordingUrl || call.recording?.url) ? (
+            {signedAudioUrl || call.recording?.storageKey || call.recordingUrl || call.recording?.url ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', maxWidth: 420 }}>
                 <Volume2 size={20} color="var(--primary)" style={{ flexShrink: 0 }} />
                 {signedAudioUrl ? (
@@ -732,10 +757,15 @@ export function CallIntelligencePage() {
                   )}
                 </div>
                 {isEditing ? (
-                  <textarea className="field-textarea" rows={5} value={editedSummary.shortSummary}
-                    onChange={(e) => setEditedSummary((p) => p && { ...p, shortSummary: e.target.value })} />
+                  <>
+                    <textarea className="field-textarea" rows={3} value={editedSummary.shortSummary}
+                      onChange={(e) => setEditedSummary((p) => p && { ...p, shortSummary: e.target.value })} />
+                    <EditableList label="Detailed Summary Points" items={editedSummary.summaryPoints} onChange={(items) => setEditedSummary((p) => p && { ...p, summaryPoints: items })} />
+                  </>
                 ) : (
-                  <p className="review-text">{editedSummary.shortSummary || '—'}</p>
+                  <ul className="summary-bullets">
+                    {buildComprehensiveSummary(editedSummary).map((item, i) => <li key={i}>{item}</li>)}
+                  </ul>
                 )}
               </div>
 
@@ -979,22 +1009,22 @@ export function CallIntelligencePage() {
 
             <h3 style={{ fontWeight: 800, fontSize: 'clamp(1.15rem, 3.5vw, 1.35rem)', marginBottom: 10, letterSpacing: '-0.03em' }}>
               {adminDeleteTarget === 'ENTIRE_CALL'
-                ? 'Delete Entire Call?'
+                ? 'Move Entire Call to Bin?'
                 : adminDeleteTarget === 'RECORDING'
-                ? 'Delete Audio Recording?'
+                ? 'Move Audio Recording to Bin?'
                 : adminDeleteTarget === 'SUMMARY'
-                ? 'Delete Call Summary?'
-                : 'Delete Call Intelligence?'}
+                ? 'Move Call Summary to Bin?'
+                : 'Move Call Intelligence to Bin?'}
             </h3>
 
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: 20 }}>
               {adminDeleteTarget === 'ENTIRE_CALL'
-                ? 'This will permanently delete this call record, its audio recording in cloud storage, transcripts, and AI intelligence analysis. This cannot be undone.'
+                ? 'This will move the call record and its preserved data to the Bin. An administrator can restore it later.'
                 : adminDeleteTarget === 'RECORDING'
-                ? 'The audio file will be deleted from cloud storage. Transcripts, summaries, and notes will remain intact.'
+                ? 'The audio file will be hidden from normal views and preserved for Bin restore. Transcripts, summaries, and notes will remain intact.'
                 : adminDeleteTarget === 'SUMMARY'
-                ? 'The summary and its revision versions will be cleared from this call.'
-                : 'The AI intelligence analysis, topics discussed, and action items will be cleared.'}
+                ? 'The summary and its revision versions will be hidden and preserved for Bin restore.'
+                : 'The AI intelligence analysis, topics discussed, and action items will be hidden and preserved for Bin restore.'}
             </p>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -1024,7 +1054,7 @@ export function CallIntelligencePage() {
                 onClick={handleAdminDelete}
                 disabled={isAdminDeleting}
               >
-                {isAdminDeleting ? 'Deleting…' : 'Confirm Delete'}
+                {isAdminDeleting ? 'Moving…' : 'Confirm Move to Bin'}
               </button>
             </div>
           </div>

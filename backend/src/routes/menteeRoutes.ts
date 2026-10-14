@@ -11,6 +11,7 @@ import { DailyPerformance } from '../models/DailyPerformance.js';
 import { ProfileSuggestion } from '../models/ProfileSuggestion.js';
 import { normalizeFieldKey } from '../services/profileExtractionService.js';
 import { logAuditEvent } from '../services/auditService.js';
+import { maskDeletedCallParts } from '../services/callVisibility.js';
 
 const router = Router();
 
@@ -148,7 +149,7 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
       Call.aggregate<{ _id: string; totalCalls: number; lastCallDate: Date; lastCallSummary?: string }>([
         { $match: { menteeId: { $in: menteeIds }, mentorId } },
         { $sort: { date: -1 } },
-        { $group: { _id: '$menteeId', totalCalls: { $sum: 1 }, lastCallDate: { $first: '$date' }, lastCallSummary: { $first: { $ifNull: ['$aiSummary.shortSummary', '$summary'] } } } },
+        { $group: { _id: '$menteeId', totalCalls: { $sum: 1 }, lastCallDate: { $first: '$date' }, lastCallSummary: { $first: { $cond: [{ $and: [{ $eq: ['$summaryDeletedAt', null] }, { $eq: ['$intelligenceDeletedAt', null] }] }, { $ifNull: ['$aiSummary.shortSummary', '$summary'] }, null] } } } },
       ]),
       DailyPerformance.find(
         { menteeId: { $in: menteeIds }, date: todayStr },
@@ -158,6 +159,8 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
           quran: 1,
           readingMinutes: 1,
           dayRating: 1,
+          mentorCallRating: 1,
+          mentorCallFeedback: 1,
           submittedAt: 1,
           createdAt: 1,
           updatedAt: 1,
@@ -200,6 +203,8 @@ router.get('/my', requireAuth, async (req: AuthRequest, res: Response) => {
                 quranPages: todayPerf.quran?.pages || 0,
                 readingMinutes: todayPerf.readingMinutes || 0,
                 dayRating: todayPerf.dayRating,
+                mentorCallRating: todayPerf.mentorCallRating,
+                mentorCallFeedback: todayPerf.mentorCallFeedback || '',
                 submitted: true,
                 submittedAt: todayPerf.submittedAt || todayPerf.createdAt,
                 updatedAt: todayPerf.updatedAt,
@@ -281,7 +286,9 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
     const mentorNames = new Map(mentors.map((m) => [String(m._id), userNames.get(String(m.userId)) || 'Mentor']));
 
     // Enriched calls list
-    const enrichedCalls = calls.map((call) => ({
+    const enrichedCalls = calls.map((rawCall) => {
+      const call = maskDeletedCallParts(rawCall);
+      return {
       id: String(call._id),
       mentorId: call.mentorId,
       mentorName: mentorNames.get(String(call.mentorId)) || assignedMentorName || 'Mentor',
@@ -300,14 +307,15 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       actionItems: call.actionItems || [],
       followUpRecommendations: call.followUpRecommendations || [],
       topicsDiscussed: call.topicsDiscussed || [],
-    }));
+      };
+    });
 
     const academic = mentee.academic || null;
     const goals = mentee.goals || null;
     const routine = mentee.routine || null;
     const careerInterests = mentee.careerInterests || null;
     const challenges = Array.isArray(mentee.challenges) ? mentee.challenges : [];
-    const notes = Array.isArray(mentee.notes) ? mentee.notes : [];
+    const notes = (Array.isArray(mentee.notes) ? mentee.notes : []).filter((note: any) => !note.deletedAt);
 
     // Daily Performance Summary Metrics
     const now = new Date();
@@ -531,10 +539,15 @@ router.delete('/:id/notes/:noteId', requireAuth, async (req: AuthRequest, res: R
     }
 
     const currentNotes = Array.isArray(mentee.notes) ? mentee.notes : [];
-    mentee.notes = currentNotes.filter((n: any) => String(n.id) !== String(noteId));
+    const targetNote = currentNotes.find((n: any) => String(n.id) === String(noteId));
+    if (!targetNote) return res.status(404).json({ message: 'Note not found.' });
+    targetNote.deletedAt = new Date();
+    targetNote.deletedBy = req.user!.id;
+    targetNote.deletionReason = 'Deleted by user';
+    mentee.notes = currentNotes;
     await mentee.save();
 
-    return res.json({ message: 'Note deleted successfully.', notes: mentee.notes });
+    return res.json({ message: 'Note moved out of the active record and preserved in the database.', notes: currentNotes.filter((note: any) => !note.deletedAt) });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to delete note';
     return res.status(500).json({ message });
@@ -747,7 +760,7 @@ router.patch('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest,
 });
 
 
-// DELETE /api/mentees/:id — permanently remove a mentee and all linked data (admin only)
+// DELETE /api/mentees/:id — move a mentee and linked data to Bin (admin only)
 router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
     const mentee = await Mentee.findById(req.params.id);
@@ -758,13 +771,13 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest
     const menteeId = String(mentee._id);
 
     // Cascade: remove all mentorship assignments for this mentee
-    await Mentorship.deleteMany({ menteeId });
+    await Mentorship.updateMany({ menteeId }, { $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Mentee profile deleted' } });
 
     // Cascade: remove all call records for this mentee
-    await Call.deleteMany({ menteeId });
+    await Call.updateMany({ menteeId }, { $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Mentee profile deleted' } });
 
     // Remove the mentee profile
-    await Mentee.findByIdAndDelete(req.params.id);
+    await Mentee.findByIdAndUpdate(req.params.id, { $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Deleted by administrator' } });
 
     logAuditEvent({
       userId: req.user!.id,
@@ -774,11 +787,11 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest
       targetType: 'MENTEE',
       targetId: menteeId,
       menteeName: mentee.name,
-      details: `Permanently deleted mentee profile ${mentee.name} and linked records`,
+      details: `Moved mentee profile ${mentee.name} and linked records to Bin`,
       ipAddress: req.ip,
     });
 
-    return res.json({ message: 'Mentee and all associated data removed successfully.' });
+    return res.json({ message: 'Mentee and all associated data moved to Bin successfully.' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to delete mentee';
     return res.status(500).json({ message });

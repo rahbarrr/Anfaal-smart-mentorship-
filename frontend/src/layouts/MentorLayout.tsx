@@ -13,6 +13,10 @@ const links = [
   { to: '/mentor/upload', label: 'Upload', icon: Upload, end: false },
   { to: '/mentor/calls', label: 'Calls', icon: FileText, end: false },
   { to: '/mentor/profile', label: 'Profile', icon: UserCircle2, end: false },
+  { to: '/mentor/attendance', label: 'Attendance', icon: FileText, end: false },
+  { to: '/mentor/whatsapp', label: 'WhatsApp Update', icon: FileText, end: false },
+  { to: '/mentor/chat', label: 'Chat', icon: FileText, end: false },
+  { to: '/mentor/announcements', label: 'Announcements', icon: FileText, end: false },
 ];
 
 // Mobile bottom bar items (4 items + More)

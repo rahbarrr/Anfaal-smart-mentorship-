@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   getMenteeProfile,
@@ -46,10 +46,46 @@ import {
   FileText,
   Phone,
 } from 'lucide-react';
-import type { Mentee360Profile, ShortTermGoal, MenteeChallenge, AiInsightsResult, ProfileSuggestion } from '../types';
+import type { Mentee360Profile, ShortTermGoal, MenteeChallenge, AiInsightsResult, ProfileSuggestion, ProfileFieldProvenance } from '../types';
 import { formatDateTime, formatDateOnly, formatSubmissionTimestamps } from '../lib/dateTime';
 
 type TabType = 'overview' | 'academic' | 'goals' | 'routine' | 'career' | 'challenges' | 'calls' | 'timeline';
+
+type PerformanceHistoryRecord = {
+  _id?: string;
+  id?: string;
+  date: string;
+  studyMinutes?: number;
+  readingMinutes?: number;
+  dayRating?: number;
+  dailyReflection?: string;
+  submittedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  quran?: { ruku?: number; pages?: number };
+};
+
+type PerformanceData = { history: PerformanceHistoryRecord[]; [key: string]: unknown };
+type PerformanceSummary = {
+  responsesThisWeek?: string;
+  avgStudyTimeHours?: string;
+  taskCompletion?: string;
+  currentStreak?: number;
+};
+type TimelineItem = {
+  id?: string;
+  type?: string;
+  title: string;
+  timestamp: string;
+  description: string;
+};
+
+type ProfileEditData = Pick<Mentee360Profile, 'name' | 'standard' | 'makid' | 'location' | 'phone' | 'guardian' | 'status'> & {
+  assignedMentorId?: string;
+};
+type AcademicEditData = Partial<Mentee360Profile['academic']>;
+type RoutineEditData = Partial<Mentee360Profile['routine']>;
+type CareerEditData = Partial<Mentee360Profile['careerInterests']>;
 
 type CallRecord = {
   id: string;
@@ -102,6 +138,10 @@ function formatDuration(min: number): string {
   return `${m}m`;
 }
 
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 function StatusBadge({ status }: { status: string }) {
   const cls = status === 'Approved' || status === 'Completed' || status === 'active'
     ? 'status-completed'
@@ -120,8 +160,8 @@ export function MenteeProfilePage() {
   // Core mentee & calls data
   const [mentee, setMentee] = useState<Mentee360Profile | null>(null);
   const [calls, setCalls] = useState<CallRecord[]>([]);
-  const [perfSummary, setPerfSummary] = useState<any>(null);
-  const [timeline, setTimeline] = useState<any[]>([]);
+  const [perfSummary, setPerfSummary] = useState<PerformanceSummary | null>(null);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [mentorsList, setMentorsList] = useState<Array<{ id: string; name: string }>>([]);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -152,9 +192,9 @@ export function MenteeProfilePage() {
 
   // Daily Performance records view (Routine tab expandable)
   const [showDetailedDailyLogs, setShowDetailedDailyLogs] = useState(false);
-  const [perfData, setPerfData] = useState<any>(null);
+  const [perfData, setPerfData] = useState<PerformanceData | null>(null);
   const [selectedPerfIds, setSelectedPerfIds] = useState<Set<string>>(new Set());
-  const [perfDeleteTarget, setPerfDeleteTarget] = useState<any | 'BULK' | null>(null);
+  const [perfDeleteTarget, setPerfDeleteTarget] = useState<PerformanceHistoryRecord | 'BULK' | null>(null);
   const [isPerfDeleting, setIsPerfDeleting] = useState(false);
   const selectAllPerfRef = useRef<HTMLInputElement | null>(null);
 
@@ -180,8 +220,8 @@ export function MenteeProfilePage() {
       const res = await getMenteeAiInsights(menteeId);
       setAiInsights(res);
       setFeedback({ msg: 'Weekly AI progress insights generated successfully.', type: 'success' });
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Unable to generate AI insights.', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Unable to generate AI insights.'), type: 'error' });
     } finally {
       setIsGeneratingAi(false);
     }
@@ -194,7 +234,7 @@ export function MenteeProfilePage() {
   const [suggestionsModalOpen, setSuggestionsModalOpen] = useState(false);
   const [isReviewingSuggestion, setIsReviewingSuggestion] = useState(false);
 
-  const loadSuggestions = async () => {
+  const loadSuggestions = useCallback(async () => {
     if (!token || !menteeId) return;
     try {
       setIsSuggestionsLoading(true);
@@ -206,12 +246,12 @@ export function MenteeProfilePage() {
     } finally {
       setIsSuggestionsLoading(false);
     }
-  };
+  }, [menteeId, token]);
 
   const handleReviewSuggestion = async (
     suggestionId: string,
     action: 'approve' | 'edit' | 'reject',
-    editedValue?: any,
+    editedValue?: unknown,
   ) => {
     if (!token || !menteeId) return;
     setIsReviewingSuggestion(true);
@@ -220,8 +260,8 @@ export function MenteeProfilePage() {
       setFeedback({ msg: `Suggestion ${action}d successfully.`, type: 'success' });
       await loadProfile();
       await loadSuggestions();
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Unable to review suggestion', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Unable to review suggestion'), type: 'error' });
     } finally {
       setIsReviewingSuggestion(false);
     }
@@ -237,15 +277,15 @@ export function MenteeProfilePage() {
       setFeedback({ msg: `Successfully ${action}d ${pendingIds.length} suggestions.`, type: 'success' });
       await loadProfile();
       await loadSuggestions();
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Unable to bulk review suggestions', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Unable to bulk review suggestions'), type: 'error' });
     } finally {
       setIsReviewingSuggestion(false);
     }
   };
 
   // Load Mentee 360 Profile
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     if (!token || !menteeId) {
       setIsLoading(false);
       return;
@@ -260,19 +300,19 @@ export function MenteeProfilePage() {
       setPerfSummary(res.dailyPerformanceSummary ?? null);
       setTimeline(res.timeline ?? []);
       loadSuggestions();
-    } catch (err: any) {
-      setLoadError(err.message || 'Unable to load mentee profile.');
+    } catch (err: unknown) {
+      setLoadError(errorMessage(err, 'Unable to load mentee profile.'));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [menteeId, token, loadSuggestions]);
 
   useEffect(() => {
     loadProfile();
 
     if (isAdmin && token) {
       getMentors(token)
-        .then((res) => setMentorsList((res.mentors || []).map((m: any) => ({ id: m.id || m._id, name: m.name }))))
+        .then((res) => setMentorsList((res.mentors || []).map((m: { id?: string; _id?: string; name?: string }) => ({ id: m.id || m._id || '', name: m.name || 'Unnamed mentor' }))))
         .catch(() => {});
     }
 
@@ -281,7 +321,7 @@ export function MenteeProfilePage() {
         .then((res) => setPerfData(res))
         .catch(() => {});
     }
-  }, [menteeId, token]);
+  }, [isAdmin, menteeId, token, loadProfile]);
 
   // Audio Playback Handler
   const togglePlayAudio = (callId: string, url?: string) => {
@@ -314,8 +354,8 @@ export function MenteeProfilePage() {
       setNewNoteText('');
       setFeedback({ msg: 'Mentor note recorded successfully.', type: 'success' });
       loadProfile();
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Failed to add note.', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Failed to add note.'), type: 'error' });
     } finally {
       setIsAddingNote(false);
     }
@@ -327,8 +367,8 @@ export function MenteeProfilePage() {
       const res = await deleteMenteeNote(token, menteeId, noteId);
       setMentee((prev) => prev ? { ...prev, notes: res.notes } : prev);
       setFeedback({ msg: 'Note removed successfully.', type: 'success' });
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Failed to delete note.', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Failed to delete note.'), type: 'error' });
     }
   };
 
@@ -345,7 +385,7 @@ export function MenteeProfilePage() {
           description: goalData.description || '',
           progress: Number(goalData.progress ?? 0),
           deadline: goalData.deadline || '',
-          status: (goalData.status as any) || 'In Progress',
+          status: goalData.status || 'In Progress',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -369,8 +409,8 @@ export function MenteeProfilePage() {
       setGoalModal({ isOpen: false, mode: 'add' });
       setFeedback({ msg: 'Goal saved successfully.', type: 'success' });
       loadProfile();
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Failed to save goal.', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Failed to save goal.'), type: 'error' });
     }
   };
 
@@ -387,8 +427,8 @@ export function MenteeProfilePage() {
       setMentee((prev) => prev ? { ...prev, goals: { ...prev.goals, shortTermGoals: updatedGoals } } : prev);
       setFeedback({ msg: 'Goal removed successfully.', type: 'success' });
       loadProfile();
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Failed to delete goal.', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Failed to delete goal.'), type: 'error' });
     }
   };
 
@@ -403,8 +443,8 @@ export function MenteeProfilePage() {
           id: `ch-${Date.now()}`,
           title: challengeData.title || 'Untitled Challenge',
           description: challengeData.description || '',
-          priority: (challengeData.priority as any) || 'Medium',
-          status: (challengeData.status as any) || 'In Progress',
+          priority: challengeData.priority || 'Medium',
+          status: challengeData.status || 'Open',
           mentorAction: challengeData.mentorAction || '',
           progress: Number(challengeData.progress ?? 0),
           createdAt: new Date().toISOString(),
@@ -424,8 +464,8 @@ export function MenteeProfilePage() {
       setChallengeModal({ isOpen: false, mode: 'add' });
       setFeedback({ msg: 'Challenge saved successfully.', type: 'success' });
       loadProfile();
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Failed to save challenge.', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Failed to save challenge.'), type: 'error' });
     }
   };
 
@@ -437,8 +477,8 @@ export function MenteeProfilePage() {
       setMentee((prev) => prev ? { ...prev, challenges: updatedChallenges } : prev);
       setFeedback({ msg: 'Challenge removed successfully.', type: 'success' });
       loadProfile();
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Failed to delete challenge.', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Failed to delete challenge.'), type: 'error' });
     }
   };
 
@@ -449,8 +489,8 @@ export function MenteeProfilePage() {
     try {
       await deleteMentee(token, menteeId);
       navigate('/admin/mentees');
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Unable to delete mentee profile.', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Unable to delete mentee profile.'), type: 'error' });
       setIsDeletingMentee(false);
       setDeleteMenteeConfirmOpen(false);
     }
@@ -464,9 +504,9 @@ export function MenteeProfilePage() {
       if (perfDeleteTarget === 'BULK') {
         const ids = Array.from(selectedPerfIds);
         const res = await bulkDeleteDailyPerformance(token, ids);
-        setPerfData((prev: any) => {
+        setPerfData((prev) => {
           if (!prev) return prev;
-          const newHistory = (prev.history ?? []).filter((r: any) => !selectedPerfIds.has(String(r._id || r.id)));
+          const newHistory = (prev.history ?? []).filter((r) => !selectedPerfIds.has(String(r._id || r.id)));
           return { ...prev, history: newHistory };
         });
         setSelectedPerfIds(new Set());
@@ -474,9 +514,9 @@ export function MenteeProfilePage() {
       } else {
         const targetId = String(perfDeleteTarget._id || perfDeleteTarget.id);
         const res = await deleteDailyPerformance(token, targetId);
-        setPerfData((prev: any) => {
+        setPerfData((prev) => {
           if (!prev) return prev;
-          const newHistory = (prev.history ?? []).filter((r: any) => String(r._id || r.id) !== targetId);
+          const newHistory = (prev.history ?? []).filter((r) => String(r._id || r.id) !== targetId);
           return { ...prev, history: newHistory };
         });
         setSelectedPerfIds((prev) => {
@@ -488,8 +528,8 @@ export function MenteeProfilePage() {
       }
       setPerfDeleteTarget(null);
       loadProfile();
-    } catch (err: any) {
-      setFeedback({ msg: err.message || 'Failed to delete record.', type: 'error' });
+    } catch (err: unknown) {
+      setFeedback({ msg: errorMessage(err, 'Failed to delete record.'), type: 'error' });
     } finally {
       setIsPerfDeleting(false);
     }
@@ -1842,7 +1882,7 @@ export function MenteeProfilePage() {
                             onChange={() => {
                               const history = perfData?.history ?? [];
                               if (selectedPerfIds.size === history.length) setSelectedPerfIds(new Set());
-                              else setSelectedPerfIds(new Set(history.map((r: any) => String(r._id || r.id))));
+                              else setSelectedPerfIds(new Set(history.map((r) => String(r._id || r.id))));
                             }}
                           />
                         </th>
@@ -1864,7 +1904,7 @@ export function MenteeProfilePage() {
                         </td>
                       </tr>
                     ) : (
-                      (perfData?.history ?? []).map((r: any) => {
+                      (perfData?.history ?? []).map((r) => {
                         const recId = String(r._id || r.id);
                         const isSelected = selectedPerfIds.has(recId);
                         const ts = formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt);
@@ -1892,11 +1932,11 @@ export function MenteeProfilePage() {
                               {ts.isEdited && <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Updated: {ts.updatedFormatted}</div>}
                             </td>
                             <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--primary)' }}>
-                              {formatDuration(r.studyMinutes)}
+                              {formatDuration(r.studyMinutes ?? 0)}
                             </td>
                             <td style={{ padding: '10px 12px' }}>{r.quran?.ruku || 0} Ruku, {r.quran?.pages || 0} pgs</td>
-                            <td style={{ padding: '10px 12px' }}>{formatDuration(r.readingMinutes)}</td>
-                            <td style={{ padding: '10px 12px', fontSize: '1.2rem' }}>{MOOD_MAP[r.dayRating]?.emoji || '😐'}</td>
+                            <td style={{ padding: '10px 12px' }}>{formatDuration(r.readingMinutes ?? 0)}</td>
+                            <td style={{ padding: '10px 12px', fontSize: '1.2rem' }}>{MOOD_MAP[r.dayRating ?? 0]?.emoji || '😐'}</td>
                             <td style={{ padding: '10px 12px', maxWidth: 220, fontSize: '0.82rem' }}>{r.dailyReflection || '—'}</td>
                             {isAdmin && (
                               <td style={{ padding: '10px 12px', textAlign: 'right' }}>
@@ -2397,8 +2437,8 @@ export function MenteeProfilePage() {
                               await loadProfile();
                               await loadSuggestions();
                               setSuggestionsModalOpen(true);
-                            } catch (err: any) {
-                              setFeedback({ msg: err.message || 'Extraction failed', type: 'error' });
+                            } catch (err: unknown) {
+                              setFeedback({ msg: errorMessage(err, 'Extraction failed'), type: 'error' });
                             }
                           }}
                         >
@@ -2544,8 +2584,8 @@ export function MenteeProfilePage() {
               setEditProfileModalOpen(false);
               setFeedback({ msg: 'Mentee profile updated successfully.', type: 'success' });
               loadProfile();
-            } catch (err: any) {
-              setFeedback({ msg: err.message || 'Failed to update profile.', type: 'error' });
+            } catch (err: unknown) {
+              setFeedback({ msg: errorMessage(err, 'Failed to update profile.'), type: 'error' });
             }
           }}
         />
@@ -2564,8 +2604,8 @@ export function MenteeProfilePage() {
               setMentee((prev) => prev ? { ...prev, academic: { ...prev.academic, ...academicData } } : prev);
               setEditAcademicModalOpen(false);
               setFeedback({ msg: 'Academic details updated successfully.', type: 'success' });
-            } catch (err: any) {
-              setFeedback({ msg: err.message || 'Failed to update academic details.', type: 'error' });
+            } catch (err: unknown) {
+              setFeedback({ msg: errorMessage(err, 'Failed to update academic details.'), type: 'error' });
             }
           }}
         />
@@ -2586,8 +2626,8 @@ export function MenteeProfilePage() {
               setMentee((prev) => prev ? { ...prev, goals: { ...prev.goals, ...goalsData } } : prev);
               setEditGoalsModalOpen(false);
               setFeedback({ msg: 'High-level goals updated.', type: 'success' });
-            } catch (err: any) {
-              setFeedback({ msg: err.message || 'Failed to update goals.', type: 'error' });
+            } catch (err: unknown) {
+              setFeedback({ msg: errorMessage(err, 'Failed to update goals.'), type: 'error' });
             }
           }}
         />
@@ -2630,8 +2670,8 @@ export function MenteeProfilePage() {
               setMentee((prev) => prev ? { ...prev, routine: routineData } : prev);
               setEditRoutineModalOpen(false);
               setFeedback({ msg: 'Study routine updated.', type: 'success' });
-            } catch (err: any) {
-              setFeedback({ msg: err.message || 'Failed to update routine.', type: 'error' });
+            } catch (err: unknown) {
+              setFeedback({ msg: errorMessage(err, 'Failed to update routine.'), type: 'error' });
             }
           }}
         />
@@ -2650,8 +2690,8 @@ export function MenteeProfilePage() {
               setMentee((prev) => prev ? { ...prev, careerInterests: careerData } : prev);
               setEditCareerModalOpen(false);
               setFeedback({ msg: 'Interests & skills updated.', type: 'success' });
-            } catch (err: any) {
-              setFeedback({ msg: err.message || 'Failed to update interests.', type: 'error' });
+            } catch (err: unknown) {
+              setFeedback({ msg: errorMessage(err, 'Failed to update interests.'), type: 'error' });
             }
           }}
         />
@@ -2757,11 +2797,11 @@ export function MenteeProfilePage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--danger)', marginBottom: 8 }}>Confirm Deletion</h3>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--danger)', marginBottom: 8 }}>Move to Bin?</h3>
             <p className="muted" style={{ fontSize: '0.88rem', marginBottom: 20 }}>
               {perfDeleteTarget === 'BULK'
-                ? `Are you sure you want to delete ${selectedPerfIds.size} daily performance logs? This cannot be undone.`
-                : 'Are you sure you want to delete this daily performance log?'}
+                ? `${selectedPerfIds.size} daily performance logs will move to the Bin and can be restored by an administrator.`
+                : 'This daily performance log will move to the Bin and can be restored by an administrator.'}
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button type="button" className="btn-secondary" onClick={() => setPerfDeleteTarget(null)}>Cancel</button>
@@ -2771,7 +2811,7 @@ export function MenteeProfilePage() {
                 disabled={isPerfDeleting}
                 onClick={executeDeletePerformance}
               >
-                {isPerfDeleting ? 'Deleting…' : 'Delete Log'}
+                {isPerfDeleting ? 'Moving…' : 'Move to Bin'}
               </button>
             </div>
           </div>
@@ -2779,7 +2819,7 @@ export function MenteeProfilePage() {
       )}
 
       {/* ──────────────────────────────────────────────────────────────────────────
-          MODAL 10: DELETE MENTEE PERMANENTLY CONFIRM (ADMIN ONLY)
+          MODAL 10: MOVE MENTEE TO BIN CONFIRMATION (ADMIN ONLY)
       ────────────────────────────────────────────────────────────────────────── */}
       {deleteMenteeConfirmOpen && (
         <div
@@ -2807,11 +2847,11 @@ export function MenteeProfilePage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--danger)', marginBottom: 8 }}>
-              Permanently Delete Mentee?
+              Move Mentee to Bin?
             </h3>
             <p className="muted" style={{ fontSize: '0.88rem', lineHeight: 1.5, marginBottom: 20 }}>
-              This will permanently delete <strong>{mentee.name}</strong> and all linked data including
-              mentorship assignments and call records. This action cannot be reversed.
+              This will move <strong>{mentee.name}</strong> and all linked data including
+              mentorship assignments and call records to the Bin. An administrator can restore them later.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
               <button type="button" className="btn-secondary" onClick={() => setDeleteMenteeConfirmOpen(false)}>
@@ -2823,7 +2863,7 @@ export function MenteeProfilePage() {
                 disabled={isDeletingMentee}
                 onClick={handleDeleteMentee}
               >
-                {isDeletingMentee ? 'Deleting…' : 'Permanently Delete'}
+                {isDeletingMentee ? 'Moving…' : 'Move to Bin'}
               </button>
             </div>
           </div>
@@ -2846,7 +2886,7 @@ function EditProfileModal({
   mentee: Mentee360Profile;
   mentorsList: Array<{ id: string; name: string }>;
   onClose: () => void;
-  onSave: (data: any) => Promise<void>;
+  onSave: (data: ProfileEditData) => Promise<void>;
 }) {
   const [name, setName] = useState(mentee.name);
   const [standard, setStandard] = useState(mentee.standard);
@@ -2903,7 +2943,7 @@ function EditProfileModal({
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Status</label>
-              <select className="input-field" value={status} onChange={(e) => setStatus(e.target.value as any)}>
+              <select className="input-field" value={status} onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
@@ -2947,7 +2987,7 @@ function EditAcademicModal({
 }: {
   academic?: Mentee360Profile['academic'];
   onClose: () => void;
-  onSave: (data: any) => Promise<void>;
+  onSave: (data: AcademicEditData) => Promise<void>;
 }) {
   const [previousPercentage, setPreviousPercentage] = useState<string>(
     academic?.previousPercentage !== undefined && academic?.previousPercentage !== null ? String(academic.previousPercentage) : ''
@@ -3047,7 +3087,7 @@ function EditGoalsModal({
 }: {
   goals?: Mentee360Profile['goals'];
   onClose: () => void;
-  onSave: (data: any) => Promise<void>;
+  onSave: (data: Pick<Mentee360Profile['goals'], 'careerGoal' | 'semesterGoal'>) => Promise<void>;
 }) {
   const [careerGoal, setCareerGoal] = useState(goals?.careerGoal || '');
   const [semesterGoal, setSemesterGoal] = useState(goals?.semesterGoal || '');
@@ -3134,7 +3174,7 @@ function GoalDetailModal({
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Status</label>
-              <select className="input-field" value={status} onChange={(e) => setStatus(e.target.value as any)}>
+              <select className="input-field" value={status} onChange={(e) => setStatus(e.target.value as ShortTermGoal['status'])}>
                 <option value="Not Started">Not Started</option>
                 <option value="In Progress">In Progress</option>
                 <option value="Completed">Completed</option>
@@ -3201,7 +3241,7 @@ function ChallengeDetailModal({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Priority</label>
-              <select className="input-field" value={priority} onChange={(e) => setPriority(e.target.value as any)}>
+              <select className="input-field" value={priority} onChange={(e) => setPriority(e.target.value as MenteeChallenge['priority'])}>
                 <option value="High">High</option>
                 <option value="Medium">Medium</option>
                 <option value="Low">Low</option>
@@ -3209,7 +3249,7 @@ function ChallengeDetailModal({
             </div>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Status</label>
-              <select className="input-field" value={status} onChange={(e) => setStatus(e.target.value as any)}>
+              <select className="input-field" value={status} onChange={(e) => setStatus(e.target.value as MenteeChallenge['status'])}>
                 <option value="Open">Open</option>
                 <option value="In Progress">In Progress</option>
                 <option value="Resolved">Resolved</option>
@@ -3241,7 +3281,7 @@ function EditRoutineModal({
 }: {
   routine?: Mentee360Profile['routine'];
   onClose: () => void;
-  onSave: (data: any) => Promise<void>;
+  onSave: (data: RoutineEditData) => Promise<void>;
 }) {
   const [selfStudyHours, setSelfStudyHours] = useState<string>(
     routine?.selfStudyHours !== undefined && routine?.selfStudyHours !== null ? String(routine.selfStudyHours) : ''
@@ -3298,7 +3338,7 @@ function EditCareerModal({
 }: {
   career?: Mentee360Profile['careerInterests'];
   onClose: () => void;
-  onSave: (data: any) => Promise<void>;
+  onSave: (data: CareerEditData) => Promise<void>;
 }) {
   const [primaryGoal, setPrimaryGoal] = useState(career?.primaryGoal ?? '');
   const [secondaryStr, setSecondaryStr] = useState((career?.secondaryInterests || []).join(', '));
@@ -3443,7 +3483,7 @@ function ProvenanceBadge({
   hasPending,
 }: {
   fieldKey: string;
-  provenance?: Record<string, any>;
+  provenance?: Record<string, ProfileFieldProvenance>;
   hasPending?: boolean;
 }) {
   if (hasPending) {
@@ -3524,7 +3564,7 @@ function ReviewSuggestionsModal({
   isOpen: boolean;
   onClose: () => void;
   suggestions: ProfileSuggestion[];
-  onReview: (suggestionId: string, action: 'approve' | 'edit' | 'reject', editedValue?: any) => Promise<void>;
+  onReview: (suggestionId: string, action: 'approve' | 'edit' | 'reject', editedValue?: unknown) => Promise<void>;
   onBulkReview: (action: 'approve' | 'reject') => Promise<void>;
   isReviewing: boolean;
 }) {
@@ -3549,7 +3589,7 @@ function ReviewSuggestionsModal({
   };
 
   const saveEdit = async (s: ProfileSuggestion) => {
-    let parsed: any = editVal;
+    let parsed: unknown = editVal;
     if (typeof s.extractedValue === 'number') {
       parsed = Number(editVal);
     } else if (Array.isArray(s.extractedValue)) {

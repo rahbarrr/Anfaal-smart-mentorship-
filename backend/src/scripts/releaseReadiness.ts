@@ -1,6 +1,10 @@
 import process from 'node:process';
 
-const baseUrl = (process.env.RELEASE_CHECK_BASE_URL || 'http://127.0.0.1:10000').replace(/\/+$/, '');
+// The API and BullMQ worker expose different health surfaces. The API is the
+// primary release gate; the worker can be checked separately when its health
+// URL is supplied by the deployment environment.
+const baseUrl = (process.env.RELEASE_CHECK_BASE_URL || `http://127.0.0.1:${process.env.PORT || 5000}`).replace(/\/+$/, '');
+const workerBaseUrl = process.env.RELEASE_CHECK_WORKER_BASE_URL?.replace(/\/+$/, '');
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${baseUrl}${path}`, {
@@ -28,11 +32,19 @@ async function main(): Promise<void> {
     throw new Error(`Protected route expected HTTP 401 without credentials, received ${protectedRoute.status}`);
   }
 
+  let workerHealth: 'skipped' | 'ok' = 'skipped';
+  if (workerBaseUrl) {
+    const worker = await fetch(`${workerBaseUrl}/health`, { signal: AbortSignal.timeout(10_000) });
+    if (!worker.ok) throw new Error(`Worker /health returned HTTP ${worker.status}`);
+    workerHealth = 'ok';
+  }
+
   console.log(JSON.stringify({
     baseUrl,
     health: 'ok',
     readiness: readinessBody,
     authenticationBoundary: 'ok',
+    workerHealth,
   }));
 }
 

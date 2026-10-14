@@ -21,6 +21,8 @@ export interface DailyPerformanceRecord {
   };
   readingMinutes: number;
   dayRating: number; // 1-5
+  mentorCallRating?: number;
+  mentorCallFeedback?: string;
   dailyReflection?: string;
   facedDifficulty?: boolean;
   difficultyNote?: string;
@@ -141,7 +143,7 @@ export interface ImportErrorItem {
 export interface ParsedRowItem {
   row: number;
   status: 'valid' | 'warning' | 'error';
-  data: Record<string, any>;
+  data: Record<string, string | number | boolean | null | undefined>;
   message?: string;
   isExisting?: boolean;
 }
@@ -305,8 +307,8 @@ export interface ProfileSuggestion {
   fieldKey: string;
   category: ProfileSuggestionCategory;
   label: string;
-  currentValue?: any;
-  extractedValue: any;
+  currentValue?: unknown;
+  extractedValue: unknown;
   evidence: string;
   sourceType: 'transcript' | 'summary';
   confidence: number;

@@ -16,6 +16,8 @@ import dailyPerformanceRoutes from './routes/dailyPerformanceRoutes.js';
 import bulkImportRoutes from './routes/bulkImportRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import { checkRedisHealth } from './queue/callQueue.js';
+import featureRoutes from './routes/featureRoutes.js';
+import aiMentorRoutes from './routes/aiMentorRoutes.js';
 
 const app = express();
 
@@ -123,7 +125,10 @@ app.get('/api/health', healthHandler);
 app.get('/health/ready', readinessHandler);
 app.get('/api/health/ready', readinessHandler);
 
-
+// Additive feature endpoints are mounted before the existing parameterized
+// routes so paths such as /calls/summary-report are resolved correctly.
+app.use('/api', featureRoutes);
+app.use('/api/ai-mentor', aiMentorRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/mentors', mentorRoutes);
 app.use('/api/mentor', mentorRoutes);

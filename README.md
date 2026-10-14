@@ -191,21 +191,33 @@ Add all required environment variables to both `anfaal-api` and `anfaal-worker`:
 
 ### STEP 12: Set Render CLIENT_URL
 - In the Render Web Service settings, set `CLIENT_URL` to your Vercel URL (e.g. `https://anfaal-mentorship.vercel.app`).
-- This configures CORS so only your Vercel domain can interact with the API.
+- This configures CORS so only your Vercel domain can interact with the API and the Socket.IO chat connection.
 
-### STEP 13: Test Authentication
+### STEP 13: Test Real-Time Chat
+- Mentor and mentee chat uses Socket.IO over WebSocket (with polling fallback), not a fixed-interval refresh loop.
+- Conversation history and messages are stored in MongoDB collections named `conversations` and `messages`.
+- The server authenticates every socket connection with the existing JWT/Supabase token and only permits conversation participants to join or send messages.
+- Keep `VITE_API_URL` pointed at the Render API URL; the frontend derives the Socket.IO server URL from it.
+- Verify two browser sessions receive a newly sent message immediately, then verify the message is still present after refreshing either session.
+
+### STEP 14: Configure AI Mentor
+- Set `OPENAI_API_KEY` (or the existing `AI_API_KEY`) on the backend only.
+- Optionally set `OPENAI_CHAT_MODEL` to select the chat model; the default is `gpt-4o-mini`.
+- AI Mentor is available to mentees at `/mentee/ai-mentor` and uses only server-side authenticated context.
+
+### STEP 15: Test Authentication
 - Navigate to the Vercel app and log in with your admin or mentor credentials.
 - Verify JWT is returned, stored in `localStorage`, and subsequent requests include Bearer token.
 
-### STEP 14: Test Call Upload
+### STEP 16: Test Call Upload
 - As a mentor, create a call session and attach an audio recording (`.m4a`, `.mp3`, `.wav`).
 - Verify the frontend requests `POST /api/calls/presign-upload` and receives a presigned PUT URL.
 
-### STEP 15: Test S3 Recording
+### STEP 17: Test S3 Recording
 - Verify the audio file uploads directly from the browser to the private S3 bucket.
 - Verify the object key in S3 matches `calls/YYYY/MM/call_<uuid>/<filename>`.
 
-### STEP 16: Test BullMQ Processing
+### STEP 18: Test BullMQ Processing
 - Verify the frontend calls `POST /api/calls/complete-upload`.
 - Verify the API creates a `Call` and `CallProcessingJob` and enqueues to `call-processing`.
 - Check Render Background Worker logs to confirm it consumes the job.

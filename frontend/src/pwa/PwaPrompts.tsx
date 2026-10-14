@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Download, RefreshCw, Share, X } from 'lucide-react';
-import { usePwaInstall } from './PwaContext';
+import { usePwaInstall } from './PwaHooks';
 
 /**
  * PWA UX layer: registers the service worker, shows a non-intrusive

@@ -131,6 +131,14 @@ button, input, textarea, select {
   box-sizing: border-box;
 }
 
+/* Lucide icons align predictably with text controls across all portals. */
+button svg, a svg, label svg, h1 svg, h2 svg, h3 svg, h4 svg {
+  flex: 0 0 auto;
+  vertical-align: middle;
+}
+.nav-item svg { width: 18px; height: 18px; }
+.btn-primary svg, .btn-secondary svg, .btn-outline svg { width: 16px; height: 16px; }
+
 /* ── Layout shell ────────────────────────────────────────────────────────── */
 .layout-shell {
   display: flex;
@@ -1976,6 +1984,46 @@ tr:last-child td { border-bottom: none; }
   .upload-box { padding: 24px 14px; border-radius: 16px; }
 }
 
+/* ── Chat workspace ─────────────────────────────────────────────────────── */
+.chat-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 520px;
+}
+.chat-conversations, .chat-thread { min-width: 0; display: flex; flex-direction: column; }
+.chat-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.chat-section-heading h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.chat-connection { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 0.78rem; white-space: nowrap; }
+.chat-connection-dot { width: 8px; height: 8px; border-radius: 50%; background: #d97706; }
+.chat-connection.online { color: #15803d; }
+.chat-connection.online .chat-connection-dot { background: #16a34a; }
+.ai-mentor-card { max-width: 900px; min-height: 560px; display: flex; flex-direction: column; }
+.ai-mentor-messages { flex: 1; min-height: 420px; }
+.chat-new-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin: 14px 0; }
+.chat-new-row .btn-primary, .chat-composer .btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.conversation-list { display: grid; gap: 8px; overflow-y: auto; }
+.conversation-item { display: grid; gap: 4px; width: 100%; min-width: 0; padding: 12px; text-align: left; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-primary); cursor: pointer; }
+.conversation-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: .82rem; }
+.conversation-item.active { border-color: var(--primary); background: rgba(143,63,102,.07); }
+.chat-messages { flex: 1; min-height: 320px; overflow-y: auto; padding: 16px 2px; }
+.chat-message { display: grid; gap: 4px; width: fit-content; max-width: min(80%, 620px); margin: 8px auto 8px 0; padding: 10px 12px; border-radius: 14px 14px 14px 4px; background: var(--surface-muted); overflow-wrap: anywhere; }
+.chat-message.mine { margin-left: auto; margin-right: 0; border-radius: 14px 14px 4px 14px; background: rgba(143,63,102,.12); }
+.chat-message small { color: var(--text-secondary); font-size: .68rem; }
+.chat-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.empty-state.compact { min-height: 120px; padding: 24px 12px; }
+.chat-empty { flex: 1; min-height: 320px; }
+@media (max-width: 760px) {
+  .chat-layout { grid-template-columns: 1fr; min-height: 0; }
+  .chat-conversations { max-height: 360px; }
+  .chat-thread { min-height: 480px; }
+}
+@media (max-width: 420px) {
+  .chat-new-row, .chat-composer { grid-template-columns: 1fr; }
+  .chat-new-row .btn-primary, .chat-composer .btn-primary { width: 100%; }
+  .chat-message { max-width: 90%; }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    LOGIN PAGE  ≤ 700px
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -2395,6 +2443,8 @@ tr:last-child td { border-bottom: none; }
 .summary-list-indigo li{ background: rgba(79,70,229,0.06); }
 .summary-list-teal   { border-left: 3px solid #0d9488; }
 .summary-list-teal li{ background: rgba(13,148,136,0.06); }
+.summary-bullets { margin: 0; padding-left: 1.35rem; display: flex; flex-direction: column; gap: 10px; }
+.summary-bullets li { padding-left: 4px; font-size: 0.95rem; line-height: 1.55; color: var(--text-primary); }
 
 /* ── Tags ─────────────────────────────────────────────────────── */
 .tag-group { display: flex; flex-wrap: wrap; gap: 0.4rem; }

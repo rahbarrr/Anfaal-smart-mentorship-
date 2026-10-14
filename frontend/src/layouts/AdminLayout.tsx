@@ -15,7 +15,8 @@ import {
   CalendarCheck,
   UploadCloud,
   PhoneCall,
-  MoreHorizontal
+  MoreHorizontal,
+  Trash2
 } from 'lucide-react';
 import { MobileHeader } from '../components/MobileHeader';
 import { MobileMoreDrawer, type MoreDrawerLink } from '../components/MobileMoreDrawer';
@@ -34,6 +35,10 @@ const links = [
   { to: '/admin/reviews', label: 'Reviews', icon: ClipboardCheck, end: false },
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3, end: false },
   { to: '/admin/reports', label: 'Reports', icon: FileSpreadsheet, end: false },
+  { to: '/admin/attendance', label: 'Attendance', icon: CalendarCheck, end: false },
+  { to: '/admin/announcements', label: 'Announcements', icon: FileText, end: false },
+  { to: '/admin/proxy-assignments', label: 'Proxy Mentors', icon: Link2, end: false },
+  { to: '/admin/bin', label: 'Bin', icon: Trash2, end: false },
 ];
 
 const sidebarOnlyLinks = [
@@ -59,6 +64,7 @@ const adminDrawerLinks: MoreDrawerLink[] = [
   { to: '/admin/analytics', label: 'Analytics', icon: BarChart3, description: 'High-level mentorship insights' },
   { to: '/admin/reports', label: 'Reports', icon: FileSpreadsheet, description: 'Export performance logs & data' },
   { to: '/admin/mentorships', label: 'Mentorships', icon: FileText, description: 'Pairing status and records' },
+  { to: '/admin/bin', label: 'Bin', icon: Trash2, description: 'Restore deleted records' },
 ];
 
 function getStoredUser() {

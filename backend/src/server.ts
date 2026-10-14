@@ -1,9 +1,12 @@
 import 'dotenv/config';
+import { createServer } from 'node:http';
 import mongoose from 'mongoose';
+import { Server as SocketIOServer } from 'socket.io';
 import app from './app.js';
 import { connectDatabase } from './config/db.js';
 import { validateEnvironment } from './config/env.js';
 import { ensureDefaultAdmin, ensureDefaultMentor, ensureDefaultMenteeUser } from './services/seedService.js';
+import { configureChatGateway } from './realtime/chatGateway.js';
 
 const port = Number(process.env.PORT || 5000);
 
@@ -11,7 +14,24 @@ async function startServer() {
   try {
     validateEnvironment(false);
 
-    const server = app.listen(port, '0.0.0.0', () => {
+    const server = createServer(app);
+    const socketIo = new SocketIOServer(server, {
+      cors: {
+        origin: (origin, callback) => {
+          if (!origin) return callback(null, true);
+          const cleanOrigin = origin.replace(/\/+$/, '');
+          const configuredOrigins = (process.env.CLIENT_URL || '').split(',').map((item) => item.trim().replace(/\/+$/, '')).filter(Boolean);
+          const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(cleanOrigin);
+          const isVercel = /^https:\/\/([a-zA-Z0-9_-]+\.)?anfaal[a-zA-Z0-9_-]*\.vercel\.app$/.test(cleanOrigin);
+          const allowed = configuredOrigins.includes(cleanOrigin) || cleanOrigin === 'https://anfaal-smart-mentorship.vercel.app' || isVercel || (process.env.NODE_ENV !== 'production' && isLocal);
+          return callback(null, allowed);
+        },
+        credentials: true,
+      },
+      transports: ['websocket', 'polling'],
+    });
+    configureChatGateway(socketIo);
+    server.listen(port, '0.0.0.0', () => {
       console.log(`[API Service] Anfaal API listening on 0.0.0.0:${port} (env: ${process.env.NODE_ENV || 'development'})`);
     });
 

@@ -1,5 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import type { CallDocument, CallStatus } from '../types/index.js';
+import { softDeletePlugin } from './plugins/softDelete.js';
 
 const callSchema = new Schema<CallDocument>(
   {
@@ -27,6 +28,8 @@ const callSchema = new Schema<CallDocument>(
       mimeType: { type: String },
       url: { type: String },
     },
+    recordingDeletedAt: { type: Date },
+    recordingDeletionReason: { type: String, maxlength: 500 },
     transcript: { type: String },
     transcription: {
       status: { type: String, enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'], default: 'PENDING' },
@@ -48,6 +51,7 @@ const callSchema = new Schema<CallDocument>(
     aiSummary: {
       status: { type: String, enum: ['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'], default: 'PENDING' },
       shortSummary: { type: String, default: '' },
+      summaryPoints: [{ type: String, default: [] }],
       keyDiscussionPoints: [{ type: String, default: [] }],
       academicProgress: { type: String },
       personalDevelopment: { type: String },
@@ -66,6 +70,8 @@ const callSchema = new Schema<CallDocument>(
     followUpRecommendations: [{ type: String, default: [] }],
     topicsDiscussed: [{ type: String, default: [] }],
     mentorNotes: { type: String },
+    summaryDeletedAt: { type: Date },
+    intelligenceDeletedAt: { type: Date },
     aiStatus: {
       type: String,
       enum: ['pending', 'processing', 'completed', 'failed'],
@@ -115,6 +121,7 @@ callSchema.index({
   'aiSummary.keyDiscussionPoints': 'text',
   'aiSummary.topicsDiscussed': 'text',
 });
+callSchema.plugin(softDeletePlugin);
 
 export const Call = mongoose.model<CallDocument>('Call', callSchema);
 

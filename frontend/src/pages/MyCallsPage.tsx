@@ -71,7 +71,7 @@ export function MyCallsPage() {
     try {
       await deleteCall(token, deleteTarget.id);
       setDeleteTarget(null);
-      setSuccessMessage('✓ Call recording deleted successfully.');
+      setSuccessMessage('✓ Call moved to Bin successfully.');
       loadData();
       setTimeout(() => setSuccessMessage(''), 4000);
     } catch (err) {
@@ -291,15 +291,15 @@ export function MyCallsPage() {
 
             <div style={{ fontSize: '3rem', marginBottom: 10 }}>🗑️</div>
             <h3 style={{ fontWeight: 800, fontSize: '1.3rem', marginBottom: 10, letterSpacing: '-0.03em' }}>
-              Delete call recording?
+              Move call to Bin?
             </h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: 6 }}>
-              This will permanently delete the call recording with{' '}
+              This will move the call record with{' '}
               <strong>{menteeMap[deleteTarget.menteeId] ?? deleteTarget.menteeId}</strong>
               {' '}on <strong>{new Date(deleteTarget.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>.
             </p>
             <p style={{ color: 'var(--danger)', fontWeight: 600, fontSize: '0.85rem', marginBottom: 24 }}>
-              This will also delete the associated call details and recording file. This action cannot be undone.
+              The call details and recording will be preserved in the Bin and can be restored by an administrator.
             </p>
 
             {deleteError && (
@@ -335,10 +335,10 @@ export function MyCallsPage() {
                 {isDeleting ? (
                   <>
                     <span style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
-                    Deleting…
+                    Moving…
                   </>
                 ) : (
-                  <><Trash2 size={15} /> Delete Recording</>
+                  <><Trash2 size={15} /> Move to Bin</>
                 )}
               </button>
             </div>

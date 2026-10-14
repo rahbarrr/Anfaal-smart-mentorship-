@@ -18,13 +18,6 @@ export function PwaInstallModal({
 }: PwaInstallModalProps) {
   const [selectedPlatform, setSelectedPlatform] = useState<InstallModalPlatform>(defaultPlatform);
 
-  // Sync default platform when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedPlatform(defaultPlatform);
-    }
-  }, [isOpen, defaultPlatform]);
-
   // Handle ESC key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

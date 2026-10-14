@@ -2,7 +2,6 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-route
 import { useEffect } from 'react';
 import { AUTH_EXPIRED_EVENT, clearStoredAuth } from './lib/api';
 import { lazy, Suspense } from 'react';
-import './App.css';
 import { AdminLayout } from './layouts/AdminLayout';
 import { MentorLayout } from './layouts/MentorLayout';
 import { MenteeLayout } from './layouts/MenteeLayout';
@@ -35,6 +34,14 @@ const AdminCallsPage = lazy(() => import('./pages/AdminCallsPage').then((m) => (
 const MentorRegistrationPage = lazy(() => import('./pages/MentorRegistrationPage').then((m) => ({ default: m.MentorRegistrationPage })));
 const MentorPendingApprovalPage = lazy(() => import('./pages/MentorPendingApprovalPage').then((m) => ({ default: m.MentorPendingApprovalPage })));
 const MentorRejectedPage = lazy(() => import('./pages/MentorRejectedPage').then((m) => ({ default: m.MentorRejectedPage })));
+const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage').then((m) => ({ default: m.AnnouncementsPage })));
+const AttendancePage = lazy(() => import('./pages/AttendancePage').then((m) => ({ default: m.AttendancePage })));
+const CallSummaryReportPage = lazy(() => import('./pages/CallSummaryReportPage').then((m) => ({ default: m.CallSummaryReportPage })));
+const ProxyAssignmentsPage = lazy(() => import('./pages/ProxyAssignmentsPage').then((m) => ({ default: m.ProxyAssignmentsPage })));
+const AdminBinPage = lazy(() => import('./pages/AdminBinPage').then((m) => ({ default: m.AdminBinPage })));
+const ManualCallSummaryPage = lazy(() => import('./pages/ManualCallSummaryPage').then((m) => ({ default: m.ManualCallSummaryPage })));
+const ChatPage = lazy(() => import('./pages/ChatPage').then((m) => ({ default: m.ChatPage })));
+const AiMentorPage = lazy(() => import('./pages/AiMentorPage').then((m) => ({ default: m.AiMentorPage })));
 
 function getStoredUser() {
   const rawUser = localStorage.getItem('anfaal-user');
@@ -89,12 +96,13 @@ function AuthSessionBoundary() {
 function App() {
   return (
     <BrowserRouter>
-      <PwaProvider>
-        <AuthSessionBoundary />
       <ErrorBoundary>
-        <Suspense fallback={<div className="page-loading">Loading…</div>}>
-          <Routes>
+        <PwaProvider>
+          <AuthSessionBoundary />
+          <Suspense fallback={<div className="page-loading">Loading…</div>}>
+            <Routes>
             <Route path="/" element={<LoginPage />} />
+            <Route path="/login" element={<LoginPage />} />
             <Route path="/mentor/register" element={<MentorRegistrationPage />} />
             <Route
               path="/admin"
@@ -117,6 +125,11 @@ function App() {
               <Route path="reports" element={<AdminReportsPage />} />
               <Route path="calls" element={<AdminCallsPage />} />
               <Route path="calls/:callId" element={<CallIntelligencePage />} />
+              <Route path="announcements" element={<AnnouncementsPage />} />
+              <Route path="attendance" element={<AttendancePage />} />
+              <Route path="call-summary" element={<CallSummaryReportPage />} />
+              <Route path="proxy-assignments" element={<ProxyAssignmentsPage />} />
+              <Route path="bin" element={<AdminBinPage />} />
             </Route>
             <Route path="/mentor/pending" element={<ProtectedRoute requiredRole="MENTOR"><MentorPendingApprovalPage /></ProtectedRoute>} />
             <Route path="/mentor/rejected" element={<ProtectedRoute requiredRole="MENTOR"><MentorRejectedPage /></ProtectedRoute>} />
@@ -135,6 +148,11 @@ function App() {
               <Route path="mentees" element={<MyMenteesPage />} />
               <Route path="mentees/:menteeId" element={<MenteeProfilePage />} />
               <Route path="profile" element={<MentorProfilePage />} />
+              <Route path="announcements" element={<AnnouncementsPage />} />
+              <Route path="attendance" element={<AttendancePage />} />
+              <Route path="call-summary" element={<CallSummaryReportPage />} />
+              <Route path="whatsapp" element={<ManualCallSummaryPage />} />
+              <Route path="chat" element={<ChatPage />} />
             </Route>
             <Route
               path="/mentee"
@@ -147,6 +165,10 @@ function App() {
               <Route index element={<MenteeDashboardPage />} />
               <Route path="daily" element={<DailyPerformanceFormPage />} />
               <Route path="history" element={<MenteePerformanceHistoryPage />} />
+              <Route path="announcements" element={<AnnouncementsPage />} />
+              <Route path="call-summary" element={<CallSummaryReportPage />} />
+              <Route path="chat" element={<ChatPage />} />
+              <Route path="ai-mentor" element={<AiMentorPage />} />
             </Route>
             <Route
               path="/daily-performance"
@@ -158,12 +180,12 @@ function App() {
             >
               <Route index element={<DailyPerformanceFormPage />} />
             </Route>
-          </Routes>
-        </Suspense>
+            </Routes>
+          </Suspense>
+          <OfflineBanner />
+          <PwaPrompts />
+        </PwaProvider>
       </ErrorBoundary>
-      <OfflineBanner />
-      <PwaPrompts />
-    </PwaProvider>
   </BrowserRouter>
   );
 }
