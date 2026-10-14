@@ -24,6 +24,7 @@ import {
 } from '../services/uploadValidationService.js';
 import { removeCallProcessingJob } from '../queue/callQueue.js';
 import { extractProfileFromCall } from '../services/profileExtractionService.js';
+import { maskDeletedCallParts } from '../services/callVisibility.js';
 import mongoose from 'mongoose';
 
 const router = Router();
@@ -147,7 +148,7 @@ router.post('/presign-upload', requireAuth, async (req: AuthRequest, res: Respon
 });
 
 // ──────────────────────────────────────────────────────────────────────────
-// 2. POST /api/calls/complete-upload — finalize call record & enqueue BullMQ
+// 2. POST /api/calls/complete-upload — finalize call record & start summary
 // ──────────────────────────────────────────────────────────────────────────
 router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -527,7 +528,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
       if (!mentorNames.has(id)) mentorNames.set(id, id);
     });
 
-    const enrichedCalls = page.map((call) => {
+    const enrichedCalls = page.map((rawCall) => {
+        const call = maskDeletedCallParts(rawCall);
         const menteeName = menteeNames.get(String(call.menteeId)) || 'Mentee';
         const mentorName = mentorNames.get(String(call.mentorId)) || 'Mentor';
 
@@ -544,10 +546,10 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
           status: call.reviewStatus,
           aiStatus: call.aiStatus,
           recordingStatus: call.recordingStatus,
-          summary: call.aiSummary?.shortSummary || call.summary || 'Processing…',
+          summary: call.summaryDeletedAt ? 'Summary unavailable.' : call.aiSummary?.shortSummary || call.summary || 'Processing…',
           hasTranscript: Boolean(call.transcript || call.transcription?.text),
           topicsDiscussed: call.topicsDiscussed ?? [],
-          hasRecording: Boolean(call.recording?.storageKey || call.recordingUrl || call.recording?.url),
+          hasRecording: !call.recordingDeletedAt && Boolean(call.recording?.storageKey || call.recordingUrl || call.recording?.url),
         };
       });
 
@@ -669,14 +671,16 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
           }
         : null;
 
+    const safeCall = maskDeletedCallParts(call);
+
     return res.json({
       call: {
-        ...call,
-        id: String(call._id),
+        ...safeCall,
+        id: String(safeCall._id),
         mentorName,
         menteeName: mentee?.name || 'Mentee',
         menteeStandard: mentee?.standard || '',
-        uploadedAt: call.uploadedAt || call.createdAt || call.date,
+        uploadedAt: safeCall.uploadedAt || safeCall.createdAt || safeCall.date,
       },
       processingJob: effectiveJob,
     });
@@ -698,6 +702,7 @@ router.get('/:id/audio-url', requireAuth, async (req: AuthRequest, res: Response
 
     const call = await Call.findById(req.params.id).lean();
     if (!call) return res.status(404).json({ message: 'Call not found.' });
+    if (call.recordingDeletedAt) return res.status(404).json({ message: 'The recording is currently in Bin.' });
 
     if (req.user?.role === 'MENTOR') {
       const mentorProfile = await Mentor.findOne({ userId: req.user.id });
@@ -892,7 +897,7 @@ router.post('/:id/retry', requireAuth, async (req: AuthRequest, res: Response) =
       }
     }
 
-    // Avoid duplicate work while allowing calls abandoned by an unavailable worker to recover.
+    // Avoid duplicate work while allowing an interrupted in-process task to be retried.
     const activeJobs = await CallProcessingJob.find({
       callId: req.params.id,
       status: { $in: ['PROCESSING', 'PENDING'] },
@@ -1102,9 +1107,10 @@ const handleCallProcessingStatus = async (req: AuthRequest, res: Response) => {
       stale: staleJob,
       lastHeartbeatAt: job?.heartbeatAt ?? null,
       processingMessage: staleJob
-        ? 'The worker has not reported progress recently. The job will be recovered automatically.'
+        ? 'Summary processing has not reported progress recently. Please retry if it remains stuck.'
         : null,
       chunkProgress: job?.chunkProgress ?? null,
+      partialTranscript: job?.partialTranscript || null,
       estimatedRemainingMs,
       timings: job?.timings ?? null,
       heartbeatAt: job?.heartbeatAt ?? null,
@@ -1286,17 +1292,8 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
-    // Safe S3 deletion: retrieve storageKey
+    // Soft deletion keeps the recording available for Bin restore.
     const storageKey = call.recording?.storageKey;
-    if (storageKey) {
-      try {
-        const storageProvider = createStorageProvider();
-        await storageProvider.deleteFile(storageKey);
-      } catch (storageError) {
-        // Safe S3 deletion failure handling: Log warning but proceed with DB cleanup
-        console.warn(`[CallRoutes] Failed to delete S3 file for key "${storageKey}":`, storageError instanceof Error ? storageError.message : storageError);
-      }
-    }
 
     // Cancel any queued/processing jobs in BullMQ
     try {
@@ -1310,8 +1307,9 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
     }
 
     // Delete Call and processing jobs from DB
-    await Call.findByIdAndDelete(req.params.id);
-    await CallProcessingJob.deleteMany({ callId: req.params.id });
+    await Call.findByIdAndUpdate(req.params.id, {
+      $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Deleted by owner' },
+    });
 
     logAuditEvent({
       userId: req.user!.id,
@@ -1320,11 +1318,11 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       action: 'CALL_DELETED',
       targetType: 'CALL',
       targetId: String(call._id),
-      details: `Deleted call record and S3 recording (storageKey: ${storageKey || 'none'})`,
+      details: `Moved call record to Bin (storageKey preserved: ${storageKey || 'none'})`,
       ipAddress: req.ip,
     });
 
-    return res.json({ message: 'Call record and recording deleted successfully.' });
+    return res.json({ message: 'Call moved to Bin and can be restored by an administrator.' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to delete call';
     return res.status(500).json({ message });
@@ -1399,9 +1397,10 @@ router.post('/:id/extract-profile', requireAuth, async (req: AuthRequest, res: R
       }
     }
 
-    const transcript = call.transcript || call.transcription?.text || '';
-    const summary = call.summary || call.aiSummary?.shortSummary || '';
-    if (!transcript && !summary && !call.mentorNotes) {
+    const safeCall = maskDeletedCallParts(call);
+    const transcript = safeCall.transcript || safeCall.transcription?.text || '';
+    const summary = safeCall.summary || safeCall.aiSummary?.shortSummary || '';
+    if (!transcript && !summary && !safeCall.mentorNotes) {
       return res.status(400).json({ message: 'Call does not have transcript or summary available for extraction.' });
     }
 

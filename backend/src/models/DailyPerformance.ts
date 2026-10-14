@@ -1,5 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import type { DailyPerformanceDocument } from '../types/index.js';
+import { softDeletePlugin } from './plugins/softDelete.js';
 
 const dailyPerformanceSchema = new Schema<DailyPerformanceDocument>(
   {
@@ -13,6 +14,8 @@ const dailyPerformanceSchema = new Schema<DailyPerformanceDocument>(
     },
     readingMinutes: { type: Number, required: true, min: 0 },
     dayRating: { type: Number, required: true, min: 1, max: 5 },
+    mentorCallRating: { type: Number, min: 1, max: 5 },
+    mentorCallFeedback: { type: String, maxlength: 1000 },
     dailyReflection: { type: String, maxlength: 1000 },
     facedDifficulty: { type: Boolean, default: false },
     difficultyNote: { type: String, maxlength: 1000 },
@@ -30,5 +33,6 @@ dailyPerformanceSchema.index({ menteeId: 1, createdAt: -1 });
 dailyPerformanceSchema.index({ date: 1 });
 dailyPerformanceSchema.index({ needsMentorHelp: 1, createdAt: -1 });
 dailyPerformanceSchema.index({ createdAt: -1 });
+dailyPerformanceSchema.plugin(softDeletePlugin);
 
 export const DailyPerformance = mongoose.model<DailyPerformanceDocument>('DailyPerformance', dailyPerformanceSchema);

@@ -1,4 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
+import { softDeletePlugin } from './plugins/softDelete.js';
 import type { UserDocument, UserRole } from '../types/index.js';
 
 const userSchema = new Schema<UserDocument>(
@@ -13,6 +14,7 @@ const userSchema = new Schema<UserDocument>(
   },
   { timestamps: true },
 );
+userSchema.plugin(softDeletePlugin);
 
 userSchema.index({ role: 1 });
 userSchema.index({ menteeId: 1 });

@@ -23,8 +23,9 @@ export interface AuditLogDocument {
     | 'CHANGE_ASSIGNMENT'
     | 'UPDATE_RECORD'
     | 'PROFILE_UPDATED'
-    | 'PASSWORD_RESET';
-  targetType: 'CALL' | 'MENTORSHIP' | 'MENTEE' | 'MENTOR' | 'DAILY_PERFORMANCE' | 'USER';
+    | 'PASSWORD_RESET'
+    | 'RESTORE_RECORD';
+  targetType: 'CALL' | 'MENTORSHIP' | 'MENTEE' | 'MENTOR' | 'DAILY_PERFORMANCE' | 'USER' | 'MENTEE_NOTE' | 'ANNOUNCEMENT' | 'PROXY_ASSIGNMENT' | 'CONVERSATION';
   targetId: string;
   menteeName?: string;
   mentorName?: string;
@@ -56,13 +57,14 @@ const auditLogSchema = new Schema<AuditLogDocument>(
         'DELETE_RECORD',
         'ASSIGNMENT_CHANGED',
         'CHANGE_ASSIGNMENT',
+        'RESTORE_RECORD',
         'PASSWORD_RESET',
       ],
       required: true,
     },
     targetType: {
       type: String,
-      enum: ['CALL', 'MENTORSHIP', 'MENTEE', 'MENTOR', 'DAILY_PERFORMANCE', 'USER'],
+      enum: ['CALL', 'MENTORSHIP', 'MENTEE', 'MENTOR', 'DAILY_PERFORMANCE', 'USER', 'MENTEE_NOTE', 'ANNOUNCEMENT', 'PROXY_ASSIGNMENT', 'CONVERSATION'],
       required: true,
     },
     targetId: { type: String, required: true },

@@ -36,6 +36,7 @@ type Mentee = { id: string; name: string };
 
 type AiSummary = {
   shortSummary: string;
+  summaryPoints: string[];
   keyDiscussionPoints: string[];
   academicProgress: string;
   personalDevelopment: string;
@@ -65,6 +66,7 @@ type JobStatus = {
     completed: number;
     failed: number;
   };
+  partialTranscript?: string | null;
   estimatedRemainingMs?: number | null;
   error?: string;
   errorCode?: string;
@@ -881,13 +883,20 @@ export function UploadCallPage() {
             {!createdCallId
               ? 'Uploading your recording to secure storage. Keep this page open until the upload finishes.'
               : jobStatus?.processingStatus === 'queued'
-                ? 'Your recording is saved and waiting for a worker. You can leave this page while it waits.'
+                ? 'Your recording is saved and the summary is processing in the background. You can leave this page.'
                 : 'Transcription and summarization run in the background. You can leave this page and return later.'}
           </p>
           {jobStatus && <PipelineProgress job={jobStatus} />}
+          {jobStatus?.partialTranscript && (
+            <div className="review-section" style={{ marginTop: '1.25rem' }}>
+              <h3><FileText size={16} /> Live transcript preview</h3>
+              <p className="review-text" style={{ whiteSpace: 'pre-wrap', maxHeight: 220, overflowY: 'auto' }}>{jobStatus.partialTranscript}</p>
+              <p className="field-hint">This transcript grows as each audio chunk finishes processing.</p>
+            </div>
+          )}
           {jobStatus?.stale && (
             <div className="alert-banner alert-error" style={{ marginTop: '1rem' }} role="alert">
-              {jobStatus.processingMessage || 'The worker has not reported progress recently. Recovery is in progress.'}
+              {jobStatus.processingMessage || 'Summary processing has not reported progress recently. You can retry if needed.'}
             </div>
           )}
           {jobStatus?.status === 'FAILED' && (

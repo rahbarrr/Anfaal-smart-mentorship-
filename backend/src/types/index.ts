@@ -20,6 +20,9 @@ export interface UserDocument {
   menteeId?: string;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date;
+  deletedBy?: string;
+  deletionReason?: string;
 }
 
 export type MentorApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -112,6 +115,9 @@ export interface MenteeDocument {
     note: string;
     category?: string;
     createdAt?: Date;
+    deletedAt?: Date;
+    deletedBy?: string;
+    deletionReason?: string;
   }>;
   profileProvenance?: Record<
     string,
@@ -140,6 +146,8 @@ export interface DailyPerformanceDocument {
   };
   readingMinutes: number;
   dayRating: number; // 1 to 5
+  mentorCallRating?: number; // Optional 1 to 5 rating for today's mentor call
+  mentorCallFeedback?: string;
   dailyReflection?: string;
   facedDifficulty?: boolean;
   difficultyNote?: string;
@@ -148,6 +156,9 @@ export interface DailyPerformanceDocument {
   submittedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date;
+  deletedBy?: string;
+  deletionReason?: string;
 }
 
 export interface MentorshipDocument {
@@ -224,6 +235,8 @@ export interface CallDocument {
   uploadedAt?: Date;
   processingStatus: 'queued' | 'processing' | 'completed' | 'failed';
   recording?: CallRecordingData;
+  recordingDeletedAt?: Date;
+  recordingDeletionReason?: string;
   transcript?: string;
   transcription?: CallTranscriptionData;
   summary?: string;
@@ -234,12 +247,17 @@ export interface CallDocument {
   followUpRecommendations: string[];
   topicsDiscussed: string[];
   mentorNotes?: string;
+  summaryDeletedAt?: Date;
+  intelligenceDeletedAt?: Date;
   aiStatus: 'pending' | 'processing' | 'completed' | 'failed';
   reviewStatus: AiReviewStatus;
   mentorReview?: CallMentorReview;
   summaryVersions?: CallSummaryVersion[];
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date;
+  deletedBy?: string;
+  deletionReason?: string;
 }
 
 export type NotificationType =

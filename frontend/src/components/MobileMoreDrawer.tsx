@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { X, LogOut, Download, CheckCircle2, type LucideIcon } from 'lucide-react';
-import { usePwaInstall } from '../pwa/PwaContext';
+import { usePwaInstall } from '../pwa/PwaHooks';
 
 export interface MoreDrawerLink {
   to: string;

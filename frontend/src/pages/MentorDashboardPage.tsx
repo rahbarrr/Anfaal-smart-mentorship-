@@ -16,6 +16,8 @@ interface TodayProgress {
   quranPages: number;
   readingMinutes: number;
   dayRating: number;
+  mentorCallRating?: number;
+  mentorCallFeedback?: string;
   submitted: boolean;
   submittedAt?: string;
   updatedAt?: string;
@@ -217,6 +219,12 @@ export function MentorDashboardPage() {
                             : '—'}
                         </span>
                       </div>
+                      {hasSubmitted && p!.mentorCallRating !== undefined && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span className="muted">Mentor Call:</span>
+                          <strong>{p!.mentorCallRating}/5</strong>
+                        </div>
+                      )}
                       {hasSubmitted && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
                           <span>Submitted:</span>

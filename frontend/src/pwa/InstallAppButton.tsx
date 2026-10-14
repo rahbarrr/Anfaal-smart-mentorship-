@@ -1,6 +1,6 @@
 import React from 'react';
 import { Download, CheckCircle2 } from 'lucide-react';
-import { usePwaInstall } from './PwaContext';
+import { usePwaInstall } from './PwaHooks';
 
 export interface InstallAppButtonProps {
   variant?: 'sidebar' | 'card' | 'inline';

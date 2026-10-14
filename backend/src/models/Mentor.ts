@@ -1,4 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
+import { softDeletePlugin } from './plugins/softDelete.js';
 import type { MentorDocument } from '../types/index.js';
 
 const mentorSchema = new Schema<MentorDocument>(
@@ -16,6 +17,7 @@ const mentorSchema = new Schema<MentorDocument>(
   },
   { timestamps: true },
 );
+mentorSchema.plugin(softDeletePlugin);
 
 mentorSchema.index({ status: 1 });
 mentorSchema.index({ mentorApprovalStatus: 1 });

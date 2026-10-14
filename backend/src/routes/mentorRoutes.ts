@@ -324,7 +324,7 @@ router.put('/reminder-settings', requireAuth, requireRole('MENTOR'), async (req:
   }
 });
 
-// DELETE /api/mentors/:id — permanently remove a mentor and all linked data (admin only)
+// DELETE /api/mentors/:id — move a mentor and linked data to Bin (admin only)
 router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
     const mentor = await Mentor.findById(req.params.id);
@@ -335,16 +335,16 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest
     const mentorId = String(mentor._id);
 
     // Cascade: remove all mentorship assignments for this mentor
-    await Mentorship.deleteMany({ mentorId });
+    await Mentorship.updateMany({ mentorId }, { $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Mentor profile deleted' } });
 
     // Cascade: remove all call records by this mentor
-    await Call.deleteMany({ mentorId });
+    await Call.updateMany({ mentorId }, { $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Mentor profile deleted' } });
 
     // Remove the mentor profile
-    await Mentor.findByIdAndDelete(req.params.id);
+    await Mentor.findByIdAndUpdate(req.params.id, { $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Deleted by administrator' } });
 
     // Remove the linked user account
-    await User.findByIdAndDelete(mentor.userId);
+    await User.findByIdAndUpdate(mentor.userId, { $set: { deletedAt: new Date(), deletedBy: req.user!.id, deletionReason: 'Deleted with mentor profile' } });
 
     logAuditEvent({
       userId: req.user!.id,
@@ -353,11 +353,11 @@ router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest
       action: 'DELETE_RECORD',
       targetType: 'MENTOR',
       targetId: mentorId,
-      details: `Permanently deleted mentor profile ${mentorId} and cascaded records`,
+      details: `Moved mentor profile ${mentorId} and linked records to Bin`,
       ipAddress: req.ip,
     });
 
-    return res.json({ message: 'Mentor and all associated data removed successfully.' });
+    return res.json({ message: 'Mentor and all associated data moved to Bin successfully.' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to delete mentor';
     return res.status(500).json({ message });

@@ -101,7 +101,7 @@ export function AdminAssignmentsPage() {
 
   const handleDeleteAssignment = async (assignmentId: string, mentorName: string, menteeName: string) => {
     if (!token) return;
-    const confirmed = window.confirm(`Remove assignment between ${mentorName} and ${menteeName}? This cannot be undone.`);
+    const confirmed = window.confirm(`Move assignment between ${mentorName} and ${menteeName} to the Bin? It can be restored by an administrator.`);
     if (!confirmed) return;
 
     try {

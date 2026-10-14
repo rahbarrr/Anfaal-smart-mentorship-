@@ -1,38 +1,11 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { PwaInstallModal, type InstallModalPlatform } from './PwaInstallModal';
+import React, { useEffect, useState, useCallback } from 'react';
+import { PwaInstallModal } from './PwaInstallModal';
+import { checkIsStandalone, detectPwaPlatform } from './pwaUtils';
+import { PwaContext, type PwaContextValue } from './PwaContextStore';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
-
-export interface PwaContextValue {
-  isInstalled: boolean;
-  canInstallNatively: boolean;
-  platform: InstallModalPlatform;
-  triggerInstall: () => Promise<void>;
-  openInstructions: () => void;
-}
-
-const PwaContext = createContext<PwaContextValue | null>(null);
-
-export function detectPwaPlatform(): InstallModalPlatform {
-  if (typeof window === 'undefined') return 'desktop';
-  const ua = navigator.userAgent;
-  const isIos =
-    /iphone|ipad|ipod/i.test(ua) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  if (isIos) return 'ios';
-  if (/android/i.test(ua)) return 'android';
-  return 'desktop';
-}
-
-export function checkIsStandalone(): boolean {
-  if (typeof window === 'undefined') return false;
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
 }
 
 export function PwaProvider({ children }: { children: React.ReactNode }) {
@@ -51,10 +24,6 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
         setIsInstalled(true);
       }
     };
-
-    if (mediaQuery.matches || (navigator as Navigator & { standalone?: boolean }).standalone === true) {
-      setIsInstalled(true);
-    }
 
     mediaQuery.addEventListener('change', handleMediaChange);
 
@@ -138,19 +107,4 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
       />
     </PwaContext.Provider>
   );
-}
-
-export function usePwaInstall(): PwaContextValue {
-  const context = useContext(PwaContext);
-  if (!context) {
-    // Graceful fallback if called outside provider
-    return {
-      isInstalled: checkIsStandalone(),
-      canInstallNatively: false,
-      platform: detectPwaPlatform(),
-      triggerInstall: async () => {},
-      openInstructions: () => {},
-    };
-  }
-  return context;
 }

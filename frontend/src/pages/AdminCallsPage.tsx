@@ -196,7 +196,7 @@ export function AdminCallsPage() {
           next.delete(callId);
           return next;
         });
-        setSuccessMessage(res.message || 'Call deleted successfully.');
+        setSuccessMessage(res.message || 'Call moved to Bin successfully.');
       } else if (deleteModal.type === 'RECORDING' && deleteModal.call) {
         const callId = deleteModal.call.id;
         const res = await deleteCallRecording(token, callId);
@@ -207,21 +207,21 @@ export function AdminCallsPage() {
         setCalls((prev) =>
           prev.map((c) => (c.id === callId ? { ...c, hasRecording: false, recordingStatus: 'deleted' } : c)),
         );
-        setSuccessMessage(res.message || 'Call recording deleted successfully.');
+        setSuccessMessage(res.message || 'Call recording moved to Bin successfully.');
       } else if (deleteModal.type === 'SUMMARY' && deleteModal.call) {
         const callId = deleteModal.call.id;
         const res = await deleteCallSummary(token, callId);
         setCalls((prev) =>
           prev.map((c) => (c.id === callId ? { ...c, summary: '' } : c)),
         );
-        setSuccessMessage(res.message || 'Call summary deleted successfully.');
+        setSuccessMessage(res.message || 'Call summary moved to Bin successfully.');
       } else if (deleteModal.type === 'INTELLIGENCE' && deleteModal.call) {
         const callId = deleteModal.call.id;
         const res = await deleteCallIntelligence(token, callId);
         setCalls((prev) =>
           prev.map((c) => (c.id === callId ? { ...c, aiStatus: 'pending', topicsDiscussed: [] } : c)),
         );
-        setSuccessMessage(res.message || 'Call intelligence analysis deleted successfully.');
+        setSuccessMessage(res.message || 'Call intelligence analysis moved to Bin successfully.');
       } else if (deleteModal.type === 'BULK_CALLS' && deleteModal.bulkIds) {
         const ids = deleteModal.bulkIds;
         const res = await bulkDeleteCalls(token, ids);
@@ -871,17 +871,17 @@ export function AdminCallsPage() {
             {deleteModal.type === 'ENTIRE_CALL' && deleteModal.call && (
               <>
                 <h3 style={{ fontWeight: 800, fontSize: '1.35rem', marginBottom: 10, letterSpacing: '-0.03em' }}>
-                  Delete Entire Call?
+                  Move Entire Call to Bin?
                 </h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: 12 }}>
-                  This will permanently delete the call record between{' '}
+                  This will move the call record between{' '}
                   <strong>{deleteModal.call.mentorName}</strong> and <strong>{deleteModal.call.menteeName}</strong> from{' '}
                   <strong>{new Date(deleteModal.call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>.
                 </p>
                 <div style={{ background: 'rgba(199,92,92,0.08)', borderRadius: 12, padding: '10px 14px', marginBottom: 20, textAlign: 'left', fontSize: '0.84rem', color: '#991b1b' }}>
-                  <strong>Permanently removed:</strong>
+                  <strong>Moved to Bin and preserved:</strong>
                   <ul style={{ margin: '6px 0 0 16px', padding: 0 }}>
-                    <li>Audio recording from cloud storage</li>
+                    <li>Audio recording and cloud metadata</li>
                     <li>Transcript & speaker segments</li>
                     <li>AI intelligence & summary analysis</li>
                     <li>Call session record & queue jobs</li>
@@ -896,7 +896,7 @@ export function AdminCallsPage() {
                   Delete Call Recording?
                 </h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: 14 }}>
-                  The audio recording file will be permanently deleted from cloud storage. The call record, transcript, and summary will be retained.
+                  The audio recording will be hidden from normal views and preserved for Bin restore. The call record, transcript, and summary remain retained.
                 </p>
               </>
             )}
@@ -907,7 +907,7 @@ export function AdminCallsPage() {
                   Delete Call Summary?
                 </h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: 14 }}>
-                  The summary content and all revision versions will be cleared from this call record.
+                  The summary content and revision versions will be hidden and preserved for Bin restore.
                 </p>
               </>
             )}
@@ -918,7 +918,7 @@ export function AdminCallsPage() {
                   Delete Call Intelligence?
                 </h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: 14 }}>
-                  The AI intelligence analysis, topics discussed, student concerns, and recommendations will be removed.
+                  The AI intelligence analysis, topics discussed, student concerns, and recommendations will be hidden and preserved for Bin restore.
                 </p>
               </>
             )}
@@ -929,10 +929,10 @@ export function AdminCallsPage() {
                   Delete {deleteModal.bulkIds.length} calls?
                 </h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: 14 }}>
-                  This action will permanently delete all <strong>{deleteModal.bulkIds.length}</strong> selected calls, including their cloud audio files, summaries, transcripts, and AI analysis.
+                  This will move all <strong>{deleteModal.bulkIds.length}</strong> selected calls to the Bin. Their audio, summaries, transcripts, and AI analysis will remain preserved.
                 </p>
                 <div style={{ background: 'rgba(199,92,92,0.08)', borderRadius: 12, padding: '10px 14px', marginBottom: 20, textAlign: 'left', fontSize: '0.84rem', color: '#991b1b' }}>
-                  ⚠️ <strong>Warning:</strong> This cannot be undone. All associated audio files will be deleted from storage.
+                  The records can be restored by an administrator from the Bin.
                 </div>
               </>
             )}
@@ -997,20 +997,20 @@ export function AdminCallsPage() {
                         animation: 'spin 0.7s linear infinite',
                       }}
                     />
-                    Deleting…
+                    Moving…
                   </>
                 ) : (
                   <>
                     <Trash2 size={15} />
                     {deleteModal.type === 'BULK_CALLS'
-                      ? `Delete ${deleteModal.bulkIds?.length} Calls`
+                      ? `Move ${deleteModal.bulkIds?.length} Calls to Bin`
                       : deleteModal.type === 'RECORDING'
-                      ? 'Delete Recording'
+                      ? 'Move Recording to Bin'
                       : deleteModal.type === 'SUMMARY'
-                      ? 'Delete Summary'
+                      ? 'Move Summary to Bin'
                       : deleteModal.type === 'INTELLIGENCE'
-                      ? 'Delete Intelligence'
-                      : 'Delete Call'}
+                      ? 'Move Intelligence to Bin'
+                      : 'Move Call to Bin'}
                   </>
                 )}
               </button>

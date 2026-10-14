@@ -452,15 +452,15 @@ export function MentorManagementPage() {
             <div style={{ fontSize: '3rem', marginBottom: 8 }}>⚠️</div>
             <h3 style={{ fontWeight: 800, fontSize: '1.3rem', marginBottom: 10 }}>Delete Mentor?</h3>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 6, fontSize: '0.92rem' }}>
-              You are about to permanently delete <strong>{deleteTarget.name}</strong>.
+              You are about to move <strong>{deleteTarget.name}</strong> to the Bin.
             </p>
             <p style={{ color: 'var(--danger)', fontWeight: 600, fontSize: '0.85rem', marginBottom: 24 }}>
-              This will also delete all their call records and mentorship assignments. This action cannot be undone.
+              Their call records and mentorship assignments will also move to the Bin and can be restored by an administrator.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               <button className="btn-secondary" onClick={() => setDeleteTarget(null)}>Cancel</button>
               <button className="btn-primary" style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={handleDelete} disabled={isDeleting}>
-                {isDeleting ? 'Deleting…' : 'Yes, Delete'}
+                {isDeleting ? 'Moving…' : 'Yes, Move to Bin'}
               </button>
             </div>
           </div>
@@ -474,15 +474,15 @@ export function MentorManagementPage() {
             <div style={{ fontSize: '3rem', marginBottom: 8 }}>⚠️</div>
             <h3 style={{ fontWeight: 800, fontSize: '1.3rem', marginBottom: 10 }}>Delete {selected.size} Mentor{selected.size !== 1 ? 's' : ''}?</h3>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 6, fontSize: '0.92rem' }}>
-              You are about to permanently delete <strong>{selected.size}</strong> selected mentor{selected.size !== 1 ? 's' : ''}.
+              You are about to move <strong>{selected.size}</strong> selected mentor{selected.size !== 1 ? 's' : ''} to the Bin.
             </p>
             <p style={{ color: 'var(--danger)', fontWeight: 600, fontSize: '0.85rem', marginBottom: 24 }}>
-              All their call records and mentorship assignments will also be removed. This cannot be undone.
+              Their call records and mentorship assignments will also move to the Bin and can be restored by an administrator.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               <button className="btn-secondary" onClick={() => setShowBulkDeleteConfirm(false)}>Cancel</button>
               <button className="btn-primary" style={{ background: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={handleBulkDelete} disabled={isDeleting}>
-                {isDeleting ? 'Deleting…' : `Yes, Delete ${selected.size}`}
+                {isDeleting ? 'Moving…' : `Move ${selected.size} to Bin`}
               </button>
             </div>
           </div>
