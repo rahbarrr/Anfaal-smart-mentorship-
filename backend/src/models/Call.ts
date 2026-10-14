@@ -102,6 +102,9 @@ callSchema.index({ recordingStatus: 1 });
 callSchema.index({ aiStatus: 1 });
 callSchema.index({ 'recording.storageKey': 1 });
 callSchema.index({ mentorId: 1, date: -1 });
+callSchema.index({ menteeId: 1, date: -1 });
+callSchema.index({ date: -1, _id: -1 });
+callSchema.index({ createdAt: -1 });
 // Full-text search index across transcripts and summaries
 callSchema.index({
   transcript: 'text',

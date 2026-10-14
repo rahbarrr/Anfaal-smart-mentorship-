@@ -34,8 +34,38 @@ export async function getDashboardSummary(): Promise<Record<string, unknown>> {
   const [callsThisMonth, dailySubmissionsToday, recentCallsDocs, recentPerformanceDocs] = await Promise.all([
     Call.countDocuments({ createdAt: { $gte: thisMonth } }),
     DailyPerformance.countDocuments({ date: todayStr }),
-    Call.find().sort({ createdAt: -1 }).limit(5).lean(),
-    DailyPerformance.find().sort({ createdAt: -1 }).limit(5).lean(),
+    Call.find({}, {
+      date: 1,
+      uploadedAt: 1,
+      createdAt: 1,
+      duration: 1,
+      mentorId: 1,
+      menteeId: 1,
+      reviewStatus: 1,
+      aiStatus: 1,
+      'aiSummary.shortSummary': 1,
+      summary: 1,
+      recordingUrl: 1,
+      'recording.url': 1,
+    })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean(),
+    DailyPerformance.find({}, {
+      menteeId: 1,
+      date: 1,
+      submittedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      studyMinutes: 1,
+      'quran.ruku': 1,
+      dayRating: 1,
+      needsMentorHelp: 1,
+      mentorHelpNote: 1,
+    })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean(),
   ]);
 
   const recentMenteeIds = [...new Set([...recentCallsDocs.map((c) => c.menteeId), ...recentPerformanceDocs.map((p) => p.menteeId)])];
@@ -55,6 +85,7 @@ export async function getDashboardSummary(): Promise<Record<string, unknown>> {
       return {
         id: String(c._id),
         date: c.date,
+        uploadedAt: c.uploadedAt || c.createdAt || c.date,
         duration: c.duration,
         mentorName: mentorNames.get(String(c.mentorId)) || 'Mentor',
         menteeName: menteeNames.get(String(c.menteeId)) || 'Mentee',
@@ -72,6 +103,8 @@ export async function getDashboardSummary(): Promise<Record<string, unknown>> {
         menteeId: p.menteeId,
         menteeName: menteeNames.get(String(p.menteeId)) || 'Mentee',
         date: p.date,
+        submittedAt: p.submittedAt || p.createdAt,
+        updatedAt: p.updatedAt,
         studyMinutes: p.studyMinutes,
         quranRuku: p.quran?.ruku || 0,
         dayRating: p.dayRating,
@@ -99,7 +132,13 @@ export async function getDashboardSummary(): Promise<Record<string, unknown>> {
     });
   }
 
-  const helpRequests = await DailyPerformance.find({ needsMentorHelp: true }).sort({ createdAt: -1 }).limit(3).lean();
+  const helpRequests = await DailyPerformance.find(
+    { needsMentorHelp: true },
+    { menteeId: 1, mentorHelpNote: 1, createdAt: 1 }
+  )
+    .sort({ createdAt: -1 })
+    .limit(3)
+    .lean();
   const helpMentees = await Mentee.find({ _id: { $in: helpRequests.map((h) => h.menteeId) } }, { name: 1 }).lean();
   const helpNames = new Map(helpMentees.map((m) => [String(m._id), m.name]));
   for (const h of helpRequests) {

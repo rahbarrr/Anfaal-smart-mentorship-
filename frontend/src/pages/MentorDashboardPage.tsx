@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMentorCalls, getMyMentees } from '../lib/api';
+import { formatDateTime, formatDateOnly, formatSubmissionTimestamps } from '../lib/dateTime';
 import {
   Users,
   ArrowRight,
@@ -16,6 +17,8 @@ interface TodayProgress {
   readingMinutes: number;
   dayRating: number;
   submitted: boolean;
+  submittedAt?: string;
+  updatedAt?: string;
   needsMentorHelp: boolean;
   mentorHelpNote?: string;
 }
@@ -214,6 +217,20 @@ export function MentorDashboardPage() {
                             : '—'}
                         </span>
                       </div>
+                      {hasSubmitted && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                          <span>Submitted:</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {formatSubmissionTimestamps(p!.submittedAt, p!.updatedAt).submittedFormatted}
+                          </span>
+                        </div>
+                      )}
+                      {hasSubmitted && formatSubmissionTimestamps(p!.submittedAt, p!.updatedAt).isEdited && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                          <span>Updated:</span>
+                          <span>{formatSubmissionTimestamps(p!.submittedAt, p!.updatedAt).updatedFormatted}</span>
+                        </div>
+                      )}
                       {needsHelp && p?.mentorHelpNote && (
                         <div
                           style={{
@@ -268,63 +285,121 @@ export function MentorDashboardPage() {
           </button>
         </div>
 
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Mentee</th>
-                <th>Date</th>
-                <th>Duration</th>
-                <th>Status</th>
-                <th>AI Summary</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {calls.length === 0 ? (
+        {/* Desktop Table View */}
+        <div className="desktop-table">
+          <div className="table-wrap">
+            <table>
+              <thead>
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
-                    No mentorship calls recorded yet.
-                  </td>
+                  <th>Mentee</th>
+                  <th>Date</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>AI Summary</th>
+                  <th>Action</th>
                 </tr>
-              ) : (
-                calls.slice(0, 8).map((call) => (
-                  <tr key={call.id}>
-                    <td style={{ fontWeight: 600 }}>{call.menteeName || 'Mentee'}</td>
-                    <td>
-                      {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </td>
-                    <td>{call.duration} min</td>
-                    <td>
-                      <StatusBadge status={call.status} />
-                    </td>
-                    <td style={{ fontSize: '0.85rem', maxWidth: 240 }}>
-                      <span
-                        style={{
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {call.summary || 'Processing…'}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        className="btn-outline btn-sm"
-                        style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                        onClick={() => navigate(`/mentor/calls/${call.id}`)}
-                      >
-                        <Sparkles size={12} /> View Intelligence
-                      </button>
+              </thead>
+              <tbody>
+                {calls.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
+                      No mentorship calls recorded yet.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  calls.slice(0, 8).map((call) => (
+                    <tr key={call.id}>
+                      <td style={{ fontWeight: 600 }}>{call.menteeName || 'Mentee'}</td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{formatDateOnly(call.date)}</div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                          Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}
+                        </div>
+                      </td>
+                      <td>{call.duration} min</td>
+                      <td>
+                        <StatusBadge status={call.status} />
+                      </td>
+                      <td style={{ fontSize: '0.85rem', maxWidth: 240 }}>
+                        <span
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {call.summary || 'Processing…'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="btn-outline btn-sm"
+                          style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          onClick={() => navigate(`/mentor/calls/${call.id}`)}
+                        >
+                          <Sparkles size={12} /> View Intelligence
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile Card List View */}
+        <div className="mobile-card-list">
+          {calls.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px 16px', color: 'var(--text-secondary)' }}>
+              No mentorship calls recorded yet.
+            </div>
+          ) : (
+            calls.slice(0, 8).map((call) => (
+              <div key={call.id} className="call-mobile-card">
+                <div className="call-mobile-card-header">
+                  <div className="call-mobile-card-names">
+                    <div className="call-mobile-card-title">{call.menteeName || 'Mentee'}</div>
+                    <div className="call-mobile-card-subtitle" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span>Call Date: {formatDateOnly(call.date)}</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                  <StatusBadge status={call.status} />
+                </div>
+                <div className="call-mobile-card-meta">
+                  <div className="call-mobile-card-meta-item">
+                    <span className="call-mobile-card-meta-label">Duration</span>
+                    <span className="call-mobile-card-meta-value">{call.duration} min</span>
+                  </div>
+                  <div className="call-mobile-card-meta-item">
+                    <span className="call-mobile-card-meta-label">Uploaded</span>
+                    <span className="call-mobile-card-meta-value" style={{ overflowWrap: 'break-word' }}>
+                      {formatDateTime(call.uploadedAt || call.createdAt)}
+                    </span>
+                  </div>
+                </div>
+                {call.summary && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+                    {call.summary}
+                  </div>
+                )}
+                <div className="call-mobile-card-actions">
+                  <button
+                    className="btn-primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, width: '100%' }}
+                    onClick={() => navigate(`/mentor/calls/${call.id}`)}
+                  >
+                    <Sparkles size={14} /> View Intelligence
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

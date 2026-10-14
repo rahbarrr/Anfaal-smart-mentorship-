@@ -7,6 +7,7 @@ import { Mentorship } from '../models/Mentorship.js';
 import { Call } from '../models/Call.js';
 import { User } from '../models/User.js';
 import { logAuditEvent } from '../services/auditService.js';
+import { notifyAdmins } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -69,7 +70,10 @@ router.get('/', requireAuth, requireRole('ADMIN'), async (_req: AuthRequest, res
   try {
     const requestedLimit = Number(_req.query.limit || 100);
     const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 250) : 100;
-    const mentors = await Mentor.find().limit(limit).lean();
+    const mentors = await Mentor.find({}, { userId: 1, phone: 1, bio: 1, status: 1, createdAt: 1 })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
     const userIds = mentors.map((m) => m.userId);
     const users = await User.find({ _id: { $in: userIds } }, { name: 1, email: 1, status: 1 }).lean();
     const userMap = new Map(users.map((u) => [String(u._id), u]));
@@ -154,6 +158,16 @@ router.post('/register', async (req, res) => {
       preferredSubjects: normalized.preferredSubjects,
       mentorApprovalStatus: 'PENDING',
       status: 'disabled',
+    });
+
+    // Notify administrators of pending mentor registration
+    void notifyAdmins({
+      type: 'MENTOR_APPROVAL_REQUIRED',
+      category: 'systemNotifications',
+      title: 'Mentor approval required',
+      message: `${user.name} has registered and requires approval.`,
+      link: '/admin/mentors',
+      metadata: { mentorId: String(mentor._id), userId: String(user._id) },
     });
 
     return res.status(201).json({
@@ -277,6 +291,38 @@ router.patch('/:id/status', requireAuth, requireRole('ADMIN'), async (req: AuthR
   }
 });
 
+// GET /api/mentors/reminder-settings — Get authenticated mentor's reminder schedule
+router.get('/reminder-settings', requireAuth, requireRole('MENTOR'), async (req: AuthRequest, res: Response) => {
+  try {
+    const mentor = await Mentor.findOne({ userId: req.user!.id });
+    if (!mentor) {
+      return res.status(404).json({ message: 'Mentor profile not found.' });
+    }
+    const { getMentorReminderSettings } = await import('../services/reminderSchedulerService.js');
+    const settings = await getMentorReminderSettings(String(mentor._id));
+    return res.json({ settings });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message || 'Unable to retrieve reminder settings.' });
+  }
+});
+
+// PUT /api/mentors/reminder-settings — Update authenticated mentor's reminder schedule
+router.put('/reminder-settings', requireAuth, requireRole('MENTOR'), async (req: AuthRequest, res: Response) => {
+  try {
+    const mentor = await Mentor.findOne({ userId: req.user!.id });
+    if (!mentor) {
+      return res.status(404).json({ message: 'Mentor profile not found.' });
+    }
+    const { saveMentorReminderSettings } = await import('../services/reminderSchedulerService.js');
+    const updated = await saveMentorReminderSettings(String(mentor._id), req.body);
+    return res.json({
+      message: 'Daily progress reminder settings saved.',
+      settings: updated,
+    });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message || 'Unable to save reminder settings.' });
+  }
+});
 
 // DELETE /api/mentors/:id — permanently remove a mentor and all linked data (admin only)
 router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {

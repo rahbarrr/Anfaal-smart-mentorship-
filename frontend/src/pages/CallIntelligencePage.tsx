@@ -8,6 +8,10 @@ import {
   retryCallProcessing,
   approveCallSummary,
   updateCallSummary,
+  deleteCall,
+  deleteCallRecording,
+  deleteCallSummary,
+  deleteCallIntelligence,
 } from '../lib/api';
 import {
   FileText,
@@ -28,7 +32,10 @@ import {
   ChevronDown,
   ChevronUp,
   Volume2,
+  Trash2,
+  Upload,
 } from 'lucide-react';
+import { formatDateTime, formatDateOnly } from '../lib/dateTime';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TranscriptSegment = {
@@ -70,6 +77,8 @@ type CallData = {
   menteeName?: string;
   menteeStandard?: string;
   date: string;
+  uploadedAt?: string;
+  createdAt?: string;
   duration: number;
   reviewStatus: string;
   aiStatus: string;
@@ -193,6 +202,13 @@ export function CallIntelligencePage() {
   const [transcriptOpen, setTranscriptOpen] = useState(true);
   const [signedAudioUrl, setSignedAudioUrl] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
+
+  // Admin delete state
+  const rawUser = localStorage.getItem('anfaal-user');
+  const userRole = rawUser ? JSON.parse(rawUser)?.role : null;
+  const isAdmin = userRole === 'ADMIN';
+  const [adminDeleteTarget, setAdminDeleteTarget] = useState<'ENTIRE_CALL' | 'RECORDING' | 'SUMMARY' | 'INTELLIGENCE' | null>(null);
+  const [isAdminDeleting, setIsAdminDeleting] = useState(false);
 
   const token = localStorage.getItem('anfaal-token') ?? '';
 
@@ -414,6 +430,33 @@ export function CallIntelligencePage() {
     }
   };
 
+  const handleAdminDelete = async () => {
+    if (!adminDeleteTarget || !callId) return;
+    setIsAdminDeleting(true);
+    try {
+      if (adminDeleteTarget === 'ENTIRE_CALL') {
+        await deleteCall(token, callId);
+        navigate('/admin/calls', { replace: true });
+        return;
+      } else if (adminDeleteTarget === 'RECORDING') {
+        await deleteCallRecording(token, callId);
+        setFeedback({ msg: 'Recording deleted successfully.', type: 'success' });
+      } else if (adminDeleteTarget === 'SUMMARY') {
+        await deleteCallSummary(token, callId);
+        setFeedback({ msg: 'Summary deleted successfully.', type: 'success' });
+      } else if (adminDeleteTarget === 'INTELLIGENCE') {
+        await deleteCallIntelligence(token, callId);
+        setFeedback({ msg: 'AI intelligence analysis deleted successfully.', type: 'success' });
+      }
+      setAdminDeleteTarget(null);
+      await loadData();
+    } catch (err) {
+      setFeedback({ msg: err instanceof Error ? err.message : 'Deletion failed.', type: 'error' });
+    } finally {
+      setIsAdminDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="call-intel-loading">
@@ -443,8 +486,9 @@ export function CallIntelligencePage() {
         <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)}>
           <ArrowLeft size={16} /> Back
         </button>
-        <div className="call-intel-meta">
-          <span><Calendar size={14} /> {new Date(call.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+        <div className="call-intel-meta" style={{ flexWrap: 'wrap', gap: 10 }}>
+          <span><Calendar size={14} /> Call Date: {formatDateOnly(call.date)}</span>
+          <span><Upload size={14} /> Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}</span>
           <span><Clock size={14} /> {call.duration} mins</span>
           <span className={`status-badge ${isApproved ? 'status-approved' : isProcessing ? 'status-processing' : 'status-pending'}`}>
             {isApproved ? (
@@ -456,6 +500,49 @@ export function CallIntelligencePage() {
             )}
           </span>
         </div>
+
+        {isAdmin && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginLeft: 'auto', alignItems: 'center' }}>
+            {(call.recording?.storageKey || call.recordingUrl || call.recording?.url) && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                style={{ color: 'var(--danger)', fontSize: '0.8rem', padding: '4px 10px', border: '1px solid rgba(199,92,92,0.3)' }}
+                onClick={() => setAdminDeleteTarget('RECORDING')}
+              >
+                <Trash2 size={13} /> Delete Recording
+              </button>
+            )}
+            {Boolean(call.summary || call.aiSummary?.shortSummary) && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                style={{ color: 'var(--danger)', fontSize: '0.8rem', padding: '4px 10px', border: '1px solid rgba(199,92,92,0.3)' }}
+                onClick={() => setAdminDeleteTarget('SUMMARY')}
+              >
+                <Trash2 size={13} /> Delete Summary
+              </button>
+            )}
+            {Boolean(call.aiSummary || (call.topicsDiscussed && call.topicsDiscussed.length > 0)) && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                style={{ color: 'var(--danger)', fontSize: '0.8rem', padding: '4px 10px', border: '1px solid rgba(199,92,92,0.3)' }}
+                onClick={() => setAdminDeleteTarget('INTELLIGENCE')}
+              >
+                <Trash2 size={13} /> Delete Intelligence
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ color: '#fff', background: 'var(--danger)', fontSize: '0.8rem', padding: '4px 12px', border: 'none' }}
+              onClick={() => setAdminDeleteTarget('ENTIRE_CALL')}
+            >
+              <Trash2 size={13} /> Delete Call
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Feedback */}
@@ -537,8 +624,13 @@ export function CallIntelligencePage() {
               </div>
               <span style={{ color: 'var(--border)' }}>•</span>
               <div>
-                <span className="muted" style={{ fontSize: '0.82rem' }}>Date: </span>
-                <strong>{new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>
+                <span className="muted" style={{ fontSize: '0.82rem' }}>Call Date: </span>
+                <strong>{formatDateOnly(call.date)}</strong>
+              </div>
+              <span style={{ color: 'var(--border)' }}>•</span>
+              <div>
+                <span className="muted" style={{ fontSize: '0.82rem' }}>Uploaded: </span>
+                <strong style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{formatDateTime(call.uploadedAt || call.createdAt)}</strong>
               </div>
               <span style={{ color: 'var(--border)' }}>•</span>
               <div>
@@ -825,6 +917,117 @@ export function CallIntelligencePage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Admin Delete Modal ──────────────────────────────────────────────── */}
+      {adminDeleteTarget && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            zIndex: 1200,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            boxSizing: 'border-box',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isAdminDeleting) {
+              setAdminDeleteTarget(null);
+            }
+          }}
+        >
+          <div
+            className="form-card"
+            style={{
+              width: '100%',
+              maxWidth: 'min(calc(100vw - 24px), 480px)',
+              maxHeight: 'calc(100dvh - 32px)',
+              overflowY: 'auto',
+              position: 'relative',
+              borderRadius: 24,
+              padding: '24px 20px',
+              textAlign: 'center',
+              boxShadow: '0 28px 70px rgba(0,0,0,0.3)',
+              boxSizing: 'border-box',
+            }}
+          >
+            {!isAdminDeleting && (
+              <button
+                onClick={() => setAdminDeleteTarget(null)}
+                style={{
+                  position: 'absolute',
+                  top: 16,
+                  right: 16,
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)',
+                  padding: 4,
+                }}
+              >
+                <X size={20} />
+              </button>
+            )}
+
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(199,92,92,0.12)', color: 'var(--danger)', display: 'grid', placeItems: 'center', margin: '0 auto 16px' }}>
+              <Trash2 size={28} />
+            </div>
+
+            <h3 style={{ fontWeight: 800, fontSize: 'clamp(1.15rem, 3.5vw, 1.35rem)', marginBottom: 10, letterSpacing: '-0.03em' }}>
+              {adminDeleteTarget === 'ENTIRE_CALL'
+                ? 'Delete Entire Call?'
+                : adminDeleteTarget === 'RECORDING'
+                ? 'Delete Audio Recording?'
+                : adminDeleteTarget === 'SUMMARY'
+                ? 'Delete Call Summary?'
+                : 'Delete Call Intelligence?'}
+            </h3>
+
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, marginBottom: 20 }}>
+              {adminDeleteTarget === 'ENTIRE_CALL'
+                ? 'This will permanently delete this call record, its audio recording in cloud storage, transcripts, and AI intelligence analysis. This cannot be undone.'
+                : adminDeleteTarget === 'RECORDING'
+                ? 'The audio file will be deleted from cloud storage. Transcripts, summaries, and notes will remain intact.'
+                : adminDeleteTarget === 'SUMMARY'
+                ? 'The summary and its revision versions will be cleared from this call.'
+                : 'The AI intelligence analysis, topics discussed, and action items will be cleared.'}
+            </p>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setAdminDeleteTarget(null)}
+                disabled={isAdminDeleting}
+                style={{ flex: '1 1 110px', minHeight: 44, justifyContent: 'center' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{
+                  background: 'var(--danger)',
+                  borderColor: 'var(--danger)',
+                  flex: '1 1 140px',
+                  minHeight: 44,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  justifyContent: 'center',
+                  opacity: isAdminDeleting ? 0.75 : 1,
+                }}
+                onClick={handleAdminDelete}
+                disabled={isAdminDeleting}
+              >
+                {isAdminDeleting ? 'Deleting…' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

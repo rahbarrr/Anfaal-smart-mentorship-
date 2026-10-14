@@ -257,6 +257,7 @@ export function UploadCallPage() {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploadStatusText, setUploadStatusText] = useState<string>('');
   const [isRetrying, setIsRetrying] = useState<boolean>(false);
+  const [uploadedAt, setUploadedAt] = useState<Date | null>(null);
 
   // Load mentees
   useEffect(() => {
@@ -463,6 +464,7 @@ export function UploadCallPage() {
       }
 
       setCreatedCallId(result.callId);
+      setUploadedAt(new Date());
       setJobStatus({
         stage: 'UPLOAD',
         status: 'PENDING',
@@ -545,19 +547,69 @@ export function UploadCallPage() {
   };
 
   const selectedMenteeName = mentees.find((m) => m.id === form.menteeId)?.name ?? 'Unknown Mentee';
+  const processingStateBadge:
+    | 'Preparing'
+    | 'Uploading'
+    | 'Uploaded'
+    | 'Processing'
+    | 'Transcribing'
+    | 'Generating summary'
+    | 'Completed'
+    | 'Failed' = !createdCallId
+    ? uploadProgress !== null
+      ? 'Uploading'
+      : 'Preparing'
+    : jobStatus?.status === 'FAILED'
+      ? 'Failed'
+      : jobStatus?.status === 'COMPLETED'
+        ? 'Completed'
+        : jobStatus?.stageStatus?.transcription === 'PROCESSING'
+          ? 'Transcribing'
+          : jobStatus?.stageStatus?.summary === 'PROCESSING'
+            ? 'Generating summary'
+            : jobStatus?.stageStatus?.upload === 'COMPLETED' &&
+                jobStatus?.stageStatus?.audioProcessing === 'PENDING'
+              ? 'Uploaded'
+              : 'Processing';
+
+  const formatCallDateTime = (date: Date) => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${day} ${month} ${year} • ${hours}:${minutes} ${ampm}`;
+  };
+
   const processingLabel = !createdCallId
     ? 'Uploading recording...'
     : jobStatus?.processingStatus === 'queued'
-    ? 'Waiting for processing'
-    : jobStatus?.processingStatus === 'completed'
-      ? 'Recording processed successfully'
-      : jobStatus?.processingStatus === 'failed'
-        ? 'Processing failed — Retry'
-        : jobStatus?.stageStatus.transcription === 'PROCESSING'
-          ? 'Transcribing recording...'
-          : jobStatus?.stageStatus.summary === 'PROCESSING'
-            ? 'Generating AI summary...'
-            : 'Processing recording...';
+      ? 'Waiting for processing'
+      : jobStatus?.processingStatus === 'completed'
+        ? 'Recording processed successfully'
+        : jobStatus?.processingStatus === 'failed'
+          ? 'Processing failed — Retry'
+          : jobStatus?.stageStatus.transcription === 'PROCESSING'
+            ? 'Transcribing recording...'
+            : jobStatus?.stageStatus.summary === 'PROCESSING'
+              ? 'Generating AI summary...'
+              : 'Processing recording...';
 
   return (
     <div className="upload-call-page">
@@ -775,11 +827,26 @@ export function UploadCallPage() {
               <Brain size={22} /> {processingLabel}
             </h2>
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, margin: '8px 0 14px' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: 'rgba(143,63,102,0.1)', color: 'var(--primary)', fontWeight: 700, fontSize: '0.8rem' }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: processingStateBadge === 'Completed' ? '#22c55e' : processingStateBadge === 'Failed' ? '#ef4444' : 'var(--primary)' }} />
+              Status: {processingStateBadge}
+            </div>
+            {uploadedAt && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                <Clock size={14} />
+                <span>Call uploaded: <strong style={{ color: 'var(--text-primary)' }}>{formatCallDateTime(uploadedAt)}</strong></span>
+              </div>
+            )}
+          </div>
+
           {uploadStatusText && (
             <p style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '0.9rem', marginBottom: 12 }}>
               {uploadStatusText}
             </p>
           )}
+
           {uploadProgress !== null && uploadProgress < 100 && (
             <div style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
@@ -791,6 +858,25 @@ export function UploadCallPage() {
               </div>
             </div>
           )}
+
+          {createdCallId && (
+            <div style={{ background: 'rgba(34, 197, 94, 0.08)', border: '1px solid rgba(34, 197, 94, 0.25)', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#15803d', fontWeight: 700, fontSize: '0.88rem' }}>
+                <CheckCircle size={16} /> Safe to navigate away
+              </div>
+              <p style={{ margin: '4px 0 10px', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                Your recording is uploaded and queued. AI processing runs asynchronously in the background. You do not need to keep this page open.
+              </p>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => navigate('/mentor/calls')}
+              >
+                View Call Records →
+              </button>
+            </div>
+          )}
+
           <p className="processing-subtitle">
             {!createdCallId
               ? 'Uploading your recording to secure storage. Keep this page open until the upload finishes.'

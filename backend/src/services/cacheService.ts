@@ -1,11 +1,27 @@
-import { getSharedRedisConnection } from '../queue/callQueue.js';
+import { getSharedRedisConnection, withTimeout } from '../queue/callQueue.js';
 
 const PREFIX = 'anfaal:cache:';
+const CACHE_TIMEOUT_MS = 100;
+
+function isRedisReady(): boolean {
+  if (process.env.DISABLE_REDIS === 'true') return false;
+  try {
+    const client = getSharedRedisConnection();
+    return client && client.status === 'ready';
+  } catch {
+    return false;
+  }
+}
 
 export async function getCachedJson<T>(key: string): Promise<T | null> {
-  if (process.env.DISABLE_REDIS === 'true') return null;
+  if (!isRedisReady()) return null;
   try {
-    const value = await getSharedRedisConnection().get(`${PREFIX}${key}`);
+    const client = getSharedRedisConnection();
+    const value = await withTimeout(
+      client.get(`${PREFIX}${key}`),
+      CACHE_TIMEOUT_MS,
+      'Redis get timed out',
+    );
     return value ? (JSON.parse(value) as T) : null;
   } catch (error) {
     console.warn('[Cache] Read skipped:', error instanceof Error ? error.message : error);
@@ -14,17 +30,29 @@ export async function getCachedJson<T>(key: string): Promise<T | null> {
 }
 
 export async function setCachedJson(key: string, value: unknown, ttlSeconds: number): Promise<void> {
-  if (process.env.DISABLE_REDIS === 'true') return;
+  if (!isRedisReady()) return;
   try {
-    await getSharedRedisConnection().set(`${PREFIX}${key}`, JSON.stringify(value), 'EX', ttlSeconds);
+    const client = getSharedRedisConnection();
+    await withTimeout(
+      client.set(`${PREFIX}${key}`, JSON.stringify(value), 'EX', ttlSeconds),
+      CACHE_TIMEOUT_MS,
+      'Redis set timed out',
+    );
   } catch (error) {
     console.warn('[Cache] Write skipped:', error instanceof Error ? error.message : error);
   }
 }
 
 export async function invalidateCache(key: string): Promise<void> {
-  if (process.env.DISABLE_REDIS === 'true') return;
-  try { await getSharedRedisConnection().del(`${PREFIX}${key}`); } catch (error) {
+  if (!isRedisReady()) return;
+  try {
+    const client = getSharedRedisConnection();
+    await withTimeout(
+      client.del(`${PREFIX}${key}`),
+      CACHE_TIMEOUT_MS,
+      'Redis del timed out',
+    );
+  } catch (error) {
     console.warn('[Cache] Invalidation skipped:', error instanceof Error ? error.message : error);
   }
 }

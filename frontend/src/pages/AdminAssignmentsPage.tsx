@@ -16,7 +16,7 @@ type AssignmentRow = {
 export function AdminAssignmentsPage() {
   const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
   const [mentors, setMentors] = useState<Array<{ id: string; name: string; email: string }>>([]);
-  const [mentees, setMentees] = useState<Array<{ id: string; name: string; standard: string }>>([]);
+  const [mentees, setMentees] = useState<Array<{ id: string; name: string; standard: string; makid?: string }>>([]);
   const [selectedMentorId, setSelectedMentorId] = useState('');
   const [selectedMenteeId, setSelectedMenteeId] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -142,7 +142,9 @@ export function AdminAssignmentsPage() {
             <select className="input" value={selectedMenteeId} onChange={(event) => setSelectedMenteeId(event.target.value)}>
               <option value="">Select mentee</option>
               {mentees.map((mentee) => (
-                <option key={mentee.id} value={mentee.id}>{mentee.name}</option>
+                <option key={mentee.id} value={mentee.id}>
+                  {mentee.name} {mentee.makid ? `(MAKID: ${mentee.makid})` : ''}
+                </option>
               ))}
             </select>
           </div>

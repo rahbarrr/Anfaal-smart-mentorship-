@@ -52,6 +52,9 @@ function shutdown(signal: string): Promise<void> {
 
     if (recoveryTimer) clearInterval(recoveryTimer);
 
+    const { stopReminderScheduler } = await import('./services/reminderSchedulerService.js');
+    stopReminderScheduler();
+
     try {
       if (redisConnection && redisConnection.status !== 'end') {
         if (redisConnection.status === 'ready') await redisConnection.quit();
@@ -112,6 +115,8 @@ async function runWorker() {
       });
     }, 60_000).unref();
     console.log('[Worker Service] BullMQ call worker is active and listening to queue: call-processing');
+    const { startReminderScheduler } = await import('./services/reminderSchedulerService.js');
+    startReminderScheduler();
   } catch (err) {
     console.error('[Worker Service] Fatal error during startup:', err);
     await shutdown('startup failure');

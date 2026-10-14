@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMentorCalls, getMyMentees, deleteCall } from '../lib/api';
+import { formatDateTime, formatDateOnly } from '../lib/dateTime';
 import { Brain, Trash2, X } from 'lucide-react';
 
 function StatusBadge({ status }: { status: string }) {
@@ -158,7 +159,12 @@ export function MyCallsPage() {
               ) : (
                 filtered.map((call) => (
                   <tr key={call.id}>
-                    <td style={{ fontWeight: 600 }}>{new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{formatDateOnly(call.date)}</div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                        Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}
+                      </div>
+                    </td>
                     <td>{menteeMap[call.menteeId] ?? call.menteeId}</td>
                     <td>{call.duration} min</td>
                     <td><StatusBadge status={call.status} /></td>
@@ -212,8 +218,11 @@ export function MyCallsPage() {
               <div className="call-mobile-card-header">
                 <div className="call-mobile-card-names">
                   <div className="call-mobile-card-title">{menteeMap[call.menteeId] ?? call.menteeId}</div>
-                  <div className="call-mobile-card-subtitle">
-                    {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  <div className="call-mobile-card-subtitle" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span>Call Date: {formatDateOnly(call.date)}</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                      Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}
+                    </span>
                   </div>
                 </div>
                 <StatusBadge status={call.status} />
@@ -224,8 +233,10 @@ export function MyCallsPage() {
                   <span className="call-mobile-card-meta-value">{call.duration} min</span>
                 </div>
                 <div className="call-mobile-card-meta-item">
-                  <span className="call-mobile-card-meta-label">AI Status</span>
-                  <span className="call-mobile-card-meta-value"><AiStatusDot status={call.aiStatus} /></span>
+                  <span className="call-mobile-card-meta-label">Uploaded</span>
+                  <span className="call-mobile-card-meta-value" style={{ overflowWrap: 'break-word' }}>
+                    {formatDateTime(call.uploadedAt || call.createdAt)}
+                  </span>
                 </div>
               </div>
               {call.summary && (

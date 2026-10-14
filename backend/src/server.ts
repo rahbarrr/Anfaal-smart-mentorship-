@@ -30,6 +30,10 @@ async function startServer() {
           } else if (isProduction && process.env.DISABLE_BOOTSTRAP_ADMIN !== 'true') {
             await ensureDefaultAdmin();
           }
+
+          // Start backend-driven Daily Progress Reminder evaluation scheduler
+          const { startReminderScheduler } = await import('./services/reminderSchedulerService.js');
+          startReminderScheduler();
         } catch (dbErr: any) {
           console.error('[API Service] MongoDB connection attempt failed:', dbErr.message);
           console.log('[API Service] Will retry database connection in 5 seconds...');
@@ -45,6 +49,8 @@ async function startServer() {
     // Graceful shutdown handling for Render deployments & restarts
     const shutdown = async (signal: string) => {
       console.log(`[API Service] Received ${signal}. Shutting down gracefully...`);
+      const { stopReminderScheduler } = await import('./services/reminderSchedulerService.js');
+      stopReminderScheduler();
       server.close(async () => {
         try {
           await mongoose.disconnect();

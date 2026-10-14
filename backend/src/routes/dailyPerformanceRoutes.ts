@@ -7,6 +7,8 @@ import { Mentee } from '../models/Mentee.js';
 import { Mentor } from '../models/Mentor.js';
 import { Mentorship } from '../models/Mentorship.js';
 import { createDailyPerformanceAiService } from '../services/dailyPerformanceAiService.js';
+import { logAuditEvent } from '../services/auditService.js';
+import { notifyMentorsForMentee } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -135,6 +137,13 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
       return res.status(403).json({ message: 'Mentee profile could not be determined.' });
     }
 
+    if (req.user?.role === 'MENTOR') {
+      const isAssigned = await verifyMentorAccess(req.user.id, menteeId);
+      if (!isAssigned) {
+        return res.status(403).json({ message: 'Access denied: You are not assigned to this mentee.' });
+      }
+    }
+
     const targetDate = parsed.data.date || getTodayString();
 
     // Prevent accidental duplicate submissions
@@ -150,6 +159,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
     const record = await DailyPerformance.create({
       menteeId,
       date: targetDate,
+      submittedAt: new Date(),
       studyMinutes: parsed.data.studyMinutes,
       quran: parsed.data.quran,
       readingMinutes: parsed.data.readingMinutes,
@@ -161,6 +171,25 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
       mentorHelpNote: parsed.data.needsMentorHelp ? parsed.data.mentorHelpNote?.trim() : undefined,
     });
 
+    // Notify assigned mentor(s) asynchronously
+    void (async () => {
+      try {
+        const menteeDoc = await Mentee.findById(menteeId).select('name').lean();
+        const menteeName = menteeDoc?.name || 'Your mentee';
+        await notifyMentorsForMentee(menteeId, {
+          type: 'MENTEE_DAILY_SUBMITTED',
+          category: 'dailyReminders',
+          title: 'Daily Log Submitted',
+          message: `${menteeName} submitted today's daily performance.`,
+          link: `/mentor/mentees/${menteeId}`,
+          metadata: { menteeId, recordId: record._id.toString(), date: targetDate },
+          idempotencyKey: `daily-submitted:${record._id.toString()}`,
+        });
+      } catch (err) {
+        console.error('[DailyPerformance] Failed to notify mentor:', err);
+      }
+    })();
+
     return res.status(201).json({
       message: 'Your daily progress has been recorded. Your mentor can now see your progress.',
       record,
@@ -170,6 +199,26 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
       return res.status(409).json({ message: "Today's progress already submitted" });
     }
     const message = error instanceof Error ? error.message : 'Unable to record daily progress';
+    return res.status(500).json({ message });
+  }
+});
+
+// ── 1.5 GET /api/daily-performance/growth-summary ─────────────────────────────
+router.get('/growth-summary', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const auth = await authorizeMenteeAccess(req, req.query.menteeId as string | undefined);
+    if (!auth.authorized || !auth.menteeId) {
+      return res.status(auth.errorStatus).json({ message: auth.errorMessage });
+    }
+    const menteeId = auth.menteeId;
+    const weekOffset = Number(req.query.weekOffset || 0);
+    const timezone = (req.query.timezone as string) || 'Asia/Kolkata';
+
+    const { getMenteeGrowthSummary } = await import('../services/menteeGrowthService.js');
+    const summary = await getMenteeGrowthSummary(menteeId, { weekOffset, timezone });
+    return res.json(summary);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to load growth summary';
     return res.status(500).json({ message });
   }
 });
@@ -185,8 +234,14 @@ router.get('/today', requireAuth, async (req: AuthRequest, res: Response) => {
 
     const date = (req.query.date as string) || getTodayString();
     const record = await DailyPerformance.findOne({ menteeId, date }).lean();
+    const enrichedRecord = record
+      ? {
+          ...record,
+          submittedAt: record.submittedAt || record.createdAt,
+        }
+      : null;
 
-    return res.json({ record: record ?? null, date });
+    return res.json({ record: enrichedRecord, date });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch today performance';
     return res.status(500).json({ message });
@@ -219,7 +274,12 @@ router.get('/history', requireAuth, async (req: AuthRequest, res: Response) => {
 
     const totalCount = await DailyPerformance.countDocuments(filter);
 
-    return res.json({ records, totalCount });
+    const enrichedRecords = records.map((r) => ({
+      ...r,
+      submittedAt: r.submittedAt || r.createdAt,
+    }));
+
+    return res.json({ records: enrichedRecords, totalCount });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch history';
     return res.status(500).json({ message });
@@ -362,6 +422,13 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       if (record.menteeId !== menteeId) {
         return res.status(403).json({ message: 'You can only edit your own performance records.' });
       }
+    } else if (req.user?.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Access denied: You cannot edit this record.' });
+    }
+
+    // Preserve original submittedAt. If legacy record lacked submittedAt, fallback to createdAt or current time.
+    if (!record.submittedAt) {
+      record.submittedAt = record.createdAt || new Date();
     }
 
     if (parsed.data.studyMinutes !== undefined) record.studyMinutes = parsed.data.studyMinutes;
@@ -446,8 +513,16 @@ router.get(['/mentor-view/:menteeId', '/mentor/mentees/:menteeId/performance', '
       ? Number((weekRecords.reduce((acc, r) => acc + (r.dayRating || 0), 0) / weekDaysSubmitted).toFixed(1))
       : 0;
 
+    const enrichedToday = todayRecord
+      ? { ...todayRecord, submittedAt: todayRecord.submittedAt || todayRecord.createdAt }
+      : null;
+    const enrichedHistory = allHistory.map((r) => ({
+      ...r,
+      submittedAt: r.submittedAt || r.createdAt,
+    }));
+
     return res.json({
-      today: todayRecord ?? null,
+      today: enrichedToday,
       weekly: {
         startDate: dates[0],
         endDate: dates[dates.length - 1],
@@ -462,7 +537,7 @@ router.get(['/mentor-view/:menteeId', '/mentor/mentees/:menteeId/performance', '
         totalReadingMinutes: weekTotalReadingMin,
         averageDayRating: weekAvgRating,
       },
-      history: allHistory,
+      history: enrichedHistory,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch mentee performance';
@@ -805,6 +880,71 @@ router.get(['/admin/analytics', '/admin/performance/analytics'], requireAuth, re
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch admin performance analytics';
+    return res.status(500).json({ message });
+  }
+});
+
+// ── 11. DELETE /api/daily-performance/:id ─────────────────────────────────────
+router.delete('/:id', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const record = await DailyPerformance.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: 'Daily performance record not found.' });
+    }
+
+    await DailyPerformance.findByIdAndDelete(req.params.id);
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'DAILY_PERFORMANCE',
+      targetId: String(record._id),
+      details: `Administrator deleted daily performance response for date ${record.date}`,
+      ipAddress: req.ip,
+    });
+
+    return res.json({ message: 'Daily performance response deleted successfully.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to delete daily performance entry';
+    return res.status(500).json({ message });
+  }
+});
+
+// ── 12. POST /api/daily-performance/bulk-delete ────────────────────────────────
+const bulkDeleteDailySchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'Please select at least one record to delete.').max(200),
+});
+
+router.post('/bulk-delete', requireAuth, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const parsed = bulkDeleteDailySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message || 'Invalid request body.' });
+    }
+
+    const ids = parsed.data.ids;
+    const result = await DailyPerformance.deleteMany({ _id: { $in: ids } });
+
+    logAuditEvent({
+      userId: req.user!.id,
+      userName: req.user!.email || 'Admin',
+      userRole: 'ADMIN',
+      action: 'DELETE_RECORD',
+      targetType: 'DAILY_PERFORMANCE',
+      targetId: 'BULK',
+      details: `Administrator bulk deleted ${result.deletedCount} daily performance entries.`,
+      ipAddress: req.ip,
+    });
+
+    return res.json({
+      message: `${result.deletedCount} ${result.deletedCount === 1 ? 'daily performance entry' : 'daily performance entries'} deleted successfully.`,
+      deletedCount: result.deletedCount,
+      deletedIds: ids,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to bulk delete daily performance entries';
     return res.status(500).json({ message });
   }
 });

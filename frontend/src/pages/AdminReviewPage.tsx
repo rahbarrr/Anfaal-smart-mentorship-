@@ -109,21 +109,21 @@ export function AdminReviewPage() {
 
                 {isExpanded && (
                   <div style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid var(--border)' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 18 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: 14, marginBottom: 18 }}>
                       <div>
                         <div className="label" style={{ marginBottom: 4 }}>Mentor ID</div>
-                        <div style={{ fontWeight: 600, fontSize: '0.88rem', wordBreak: 'break-all' }}>{call.mentorId}</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.88rem', overflowWrap: 'anywhere', wordBreak: 'break-all' }}>{call.mentorId}</div>
                       </div>
                       <div>
                         <div className="label" style={{ marginBottom: 4 }}>Mentee ID</div>
-                        <div style={{ fontWeight: 600, fontSize: '0.88rem', wordBreak: 'break-all' }}>{call.menteeId}</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.88rem', overflowWrap: 'anywhere', wordBreak: 'break-all' }}>{call.menteeId}</div>
                       </div>
                     </div>
 
                     {call.summary && (
                       <div style={{ marginBottom: 18 }}>
                         <div className="label" style={{ marginBottom: 6 }}>AI Summary</div>
-                        <p style={{ lineHeight: 1.7, padding: '12px 14px', background: 'rgba(143,63,102,0.04)', borderRadius: 10, fontSize: '0.92rem' }}>
+                        <p style={{ lineHeight: 1.7, padding: '12px 14px', background: 'rgba(143,63,102,0.04)', borderRadius: 10, fontSize: '0.92rem', overflowWrap: 'break-word' }}>
                           {call.summary}
                         </p>
                       </div>
@@ -139,21 +139,21 @@ export function AdminReviewPage() {
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                       <button
                         className="btn-outline"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: '0.85rem', minHeight: 44, flex: '1 1 auto' }}
                         onClick={(e) => { e.stopPropagation(); navigate(`/admin/calls/${call.id}`); }}
                       >
                         <Sparkles size={14} /> Full Call Intelligence & Transcript
                       </button>
                       <button
                         className="btn-secondary"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--danger)' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: 'var(--danger)', minHeight: 44, flex: '1 1 100px' }}
                         onClick={(e) => { e.stopPropagation(); handleReview(call.id, 'Rejected'); }}
                       >
                         <XCircle size={15} /> Reject
                       </button>
                       <button
                         className="btn-primary"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, flex: '1 1 100px' }}
                         onClick={(e) => { e.stopPropagation(); handleReview(call.id, 'Approved'); }}
                       >
                         <CheckCircle size={15} /> Approve

@@ -26,6 +26,7 @@ export interface DailyPerformanceRecord {
   difficultyNote?: string;
   needsMentorHelp?: boolean;
   mentorHelpNote?: string;
+  submittedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -96,6 +97,7 @@ export interface Mentee {
   id: string;
   name: string;
   standard: string;
+  makid?: string;
   age: string;
   status: 'Active' | 'At Risk' | 'Paused';
   assignedMentor: string;
@@ -108,6 +110,7 @@ export interface CallRecord {
   id: string;
   mentee: string;
   date: string;
+  uploadedAt?: string;
   duration: string;
   status: 'Completed' | 'Processing' | 'Pending Review' | 'Submitted' | 'Failed';
   summary: string;
@@ -191,5 +194,128 @@ export interface ImportHistoryItem {
   errorCount: number;
   createdAt: string;
   completedAt?: string;
+}
+
+export interface ShortTermGoal {
+  id: string;
+  title: string;
+  description: string;
+  progress: number;
+  deadline?: string;
+  status: 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MenteeChallenge {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'High' | 'Medium' | 'Low';
+  status: 'Open' | 'In Progress' | 'Resolved';
+  mentorAction: string;
+  progress: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MentorNote {
+  id: string;
+  mentorId?: string;
+  mentorName: string;
+  note: string;
+  category?: string;
+  createdAt: string;
+}
+
+export interface Mentee360Profile {
+  id: string;
+  name: string;
+  standard: string;
+  makid: string;
+  location: string;
+  guardian: string;
+  phone: string;
+  status: 'active' | 'inactive';
+  assignedMentor?: string;
+  assignedMentorId?: string;
+  createdAt: string;
+  lastActivity?: string;
+  academic: {
+    previousPercentage?: number;
+    latestPercentage?: number;
+    targetPercentage?: number;
+    attendancePercentage?: number;
+    academicLevel?: string;
+    favouriteSubjects?: string[];
+    weakSubjects?: string[];
+    currentExam?: string;
+    examProgress?: Array<{
+      subject: string;
+      portionCompleted: number;
+      status?: string;
+    }>;
+  };
+  goals: {
+    careerGoal?: string;
+    semesterGoal?: string;
+    shortTermGoals?: ShortTermGoal[];
+  };
+  routine: {
+    selfStudyHours?: number;
+    schedule?: string;
+    habits?: string[];
+  };
+  careerInterests: {
+    primaryGoal?: string;
+    secondaryInterests?: string[];
+    otherExplored?: string[];
+    hobbies?: string[];
+    skills?: string[];
+    skillsToDevelop?: string[];
+    recommendedCourses?: Array<{
+      name: string;
+      provider?: string;
+      status?: string;
+    }>;
+  };
+  challenges: MenteeChallenge[];
+  notes: MentorNote[];
+  profileProvenance?: Record<string, ProfileFieldProvenance>;
+  lastProfileUpdate?: string;
+  pendingSuggestionsCount?: number;
+}
+
+export type ProfileSuggestionStatus = 'pending' | 'approved' | 'rejected' | 'modified';
+export type ProfileSuggestionCategory = 'basic' | 'academic' | 'goals' | 'routine' | 'career' | 'challenges';
+
+export interface ProfileFieldProvenance {
+  method: 'manual' | 'ai_approved';
+  updatedBy: string;
+  updatedByName?: string;
+  updatedAt: string;
+  sourceCallId?: string;
+}
+
+export interface ProfileSuggestion {
+  _id: string;
+  menteeId: string;
+  sourceCallId: string;
+  callDate?: string;
+  fieldKey: string;
+  category: ProfileSuggestionCategory;
+  label: string;
+  currentValue?: any;
+  extractedValue: any;
+  evidence: string;
+  sourceType: 'transcript' | 'summary';
+  confidence: number;
+  status: ProfileSuggestionStatus;
+  conflictFlag: boolean;
+  conflictDetails?: string;
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  createdAt: string;
 }
 

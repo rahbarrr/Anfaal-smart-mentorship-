@@ -66,12 +66,16 @@ export function AdminMentorshipPage() {
               const maxCount = Math.max(...summary.mentorsByAssignmentCount.map((e) => e.assignmentCount), 1);
               const pct = Math.round((entry.assignmentCount / maxCount) * 100);
               return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ fontWeight: 600, minWidth: 140, fontSize: '0.9rem' }}>{entry.mentorName}</div>
-                  <div style={{ flex: 1, height: 10, borderRadius: 999, background: 'var(--surface-muted)', overflow: 'hidden' }}>
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderBottom: i < summary.mentorsByAssignmentCount.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.92rem', color: 'var(--text-primary)', minWidth: 0, overflowWrap: 'anywhere' }}>{entry.mentorName}</div>
+                    <div style={{ fontWeight: 700, textAlign: 'right', fontSize: '0.9rem', color: 'var(--primary)', flexShrink: 0 }}>
+                      {entry.assignmentCount} {entry.assignmentCount === 1 ? 'mentee' : 'mentees'}
+                    </div>
+                  </div>
+                  <div style={{ width: '100%', height: 8, borderRadius: 999, background: 'var(--surface-muted)', overflow: 'hidden' }}>
                     <div style={{ width: `${pct}%`, height: '100%', background: 'var(--primary)', borderRadius: 999, transition: 'width 0.4s ease' }} />
                   </div>
-                  <div style={{ minWidth: 28, fontWeight: 700, textAlign: 'right', fontSize: '0.9rem' }}>{entry.assignmentCount}</div>
                 </div>
               );
             })}

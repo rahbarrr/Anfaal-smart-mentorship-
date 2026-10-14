@@ -22,6 +22,8 @@ import {
   isValidRecordingSize,
   sanitizeUploadFileName,
 } from '../services/uploadValidationService.js';
+import { removeCallProcessingJob } from '../queue/callQueue.js';
+import { extractProfileFromCall } from '../services/profileExtractionService.js';
 import mongoose from 'mongoose';
 
 const router = Router();
@@ -216,7 +218,7 @@ router.post('/complete-upload', requireAuth, async (req: AuthRequest, res: Respo
           }
         : undefined,
       recordingStatus: hasRecording ? 'uploaded' : 'pending',
-      ...(hasRecording ? { uploadedAt: new Date() } : {}),
+      uploadedAt: new Date(),
       processingStatus: 'queued',
       reviewStatus: 'Draft',
       aiStatus: 'pending',
@@ -387,7 +389,7 @@ router.post('/upload', requireAuth, upload.single('recording'), async (req: Auth
           }
         : undefined,
       recordingStatus: storageKey ? 'uploaded' : 'pending',
-      ...(storageKey ? { uploadedAt: new Date() } : {}),
+      uploadedAt: new Date(),
       processingStatus: 'queued',
       reviewStatus: 'Draft',
       aiStatus: 'pending',
@@ -494,23 +496,36 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const calls = await Call.find(filter).sort({ date: -1, _id: -1 }).limit(limit + 1).lean();
+    const calls = await Call.find(filter)
+      .select('-transcription.segments -transcription.words -summaryVersions')
+      .sort({ date: -1, _id: -1 })
+      .limit(limit + 1)
+      .lean();
     const page = calls.slice(0, limit);
     const menteeIds = [...new Set(page.map((call) => call.menteeId))];
     const mentorIds = [...new Set(page.map((call) => call.mentorId))];
+    const validMenteeIds = menteeIds.filter((id) => mongoose.isValidObjectId(id));
+    const validMentorIds = mentorIds.filter((id) => mongoose.isValidObjectId(id));
+
     const [mentees, mentorProfiles, directUsers] = await Promise.all([
-      Mentee.find({ _id: { $in: menteeIds } }, { name: 1 }).lean(),
-      Mentor.find({ _id: { $in: mentorIds } }, { userId: 1 }).lean(),
-      User.find({ _id: { $in: mentorIds } }, { name: 1 }).lean(),
+      Mentee.find({ _id: { $in: validMenteeIds } }, { name: 1 }).lean(),
+      Mentor.find({ _id: { $in: validMentorIds } }, { userId: 1 }).lean(),
+      User.find({ _id: { $in: validMentorIds } }, { name: 1 }).lean(),
     ]);
     const menteeNames = new Map(mentees.map((mentee) => [String(mentee._id), mentee.name]));
-    const mentorUsers = await User.find({ _id: { $in: mentorProfiles.map((profile) => profile.userId) } }, { name: 1 }).lean();
+    menteeIds.forEach((id) => {
+      if (!mongoose.isValidObjectId(id)) menteeNames.set(id, id);
+    });
+    const mentorUsers = await User.find({ _id: { $in: mentorProfiles.map((profile) => profile.userId).filter((id) => mongoose.isValidObjectId(id)) } }, { name: 1 }).lean();
     const mentorNames = new Map<string, string>();
     mentorProfiles.forEach((profile) => {
       const user = mentorUsers.find((candidate) => String(candidate._id) === String(profile.userId));
       mentorNames.set(String(profile._id), user?.name || 'Mentor');
     });
     directUsers.forEach((user) => mentorNames.set(String(user._id), user.name));
+    mentorIds.forEach((id) => {
+      if (!mentorNames.has(id)) mentorNames.set(id, id);
+    });
 
     const enrichedCalls = page.map((call) => {
         const menteeName = menteeNames.get(String(call.menteeId)) || 'Mentee';
@@ -523,6 +538,8 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response) => {
           menteeId: call.menteeId,
           menteeName,
           date: call.date,
+          uploadedAt: call.uploadedAt || call.createdAt || call.date,
+          createdAt: call.createdAt,
           duration: call.duration,
           status: call.reviewStatus,
           aiStatus: call.aiStatus,
@@ -659,6 +676,7 @@ router.get('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
         mentorName,
         menteeName: mentee?.name || 'Mentee',
         menteeStandard: mentee?.standard || '',
+        uploadedAt: call.uploadedAt || call.createdAt || call.date,
       },
       processingJob: effectiveJob,
     });
@@ -1280,6 +1298,17 @@ router.delete('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       }
     }
 
+    // Cancel any queued/processing jobs in BullMQ
+    try {
+      const jobs = await CallProcessingJob.find({ callId: req.params.id }).select('_id').lean();
+      for (const job of jobs) {
+        await removeCallProcessingJob(String(job._id)).catch(() => {});
+      }
+      await removeCallProcessingJob(String(call._id)).catch(() => {});
+    } catch (queueErr) {
+      console.warn(`[CallRoutes] Queue cleanup warning for call "${call._id}":`, queueErr);
+    }
+
     // Delete Call and processing jobs from DB
     await Call.findByIdAndDelete(req.params.id);
     await CallProcessingJob.deleteMany({ callId: req.params.id });
@@ -1352,5 +1381,44 @@ function expressRawMiddleware() {
     });
   };
 }
+// ────────────────────────────────────────────────────────────────────────────
+// POST /api/calls/:id/extract-profile — on-demand profile extraction from call
+// ────────────────────────────────────────────────────────────────────────────
+router.post('/:id/extract-profile', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const callId = String(req.params.id);
+    const call = await Call.findById(callId).lean();
+    if (!call) {
+      return res.status(404).json({ message: 'Call not found.' });
+    }
+
+    if (req.user?.role !== 'ADMIN') {
+      const isAssigned = await verifyMentorMenteeAccess(req.user!.id, call.menteeId);
+      if (!isAssigned) {
+        return res.status(403).json({ message: 'Access denied: You are not assigned to this mentee.' });
+      }
+    }
+
+    const transcript = call.transcript || call.transcription?.text || '';
+    const summary = call.summary || call.aiSummary?.shortSummary || '';
+    if (!transcript && !summary && !call.mentorNotes) {
+      return res.status(400).json({ message: 'Call does not have transcript or summary available for extraction.' });
+    }
+
+    const result = await extractProfileFromCall(callId, transcript, summary, call.menteeId);
+    if (!result.success) {
+      return res.status(500).json({ message: result.error || 'Profile extraction failed' });
+    }
+
+    return res.json({
+      message: `Profile extraction completed. Found ${result.extractedCount} suggestions.`,
+      extractedCount: result.extractedCount,
+      suggestions: result.suggestions,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to extract profile from call';
+    return res.status(500).json({ message });
+  }
+});
 
 export default router;

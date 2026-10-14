@@ -9,6 +9,15 @@ const menteeSchema = new Schema<MenteeDocument>(
     contactInformation: { type: Schema.Types.Mixed },
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     userId: { type: String },
+    location: { type: String, trim: true, default: '' },
+    academic: { type: Schema.Types.Mixed },
+    goals: { type: Schema.Types.Mixed },
+    routine: { type: Schema.Types.Mixed },
+    careerInterests: { type: Schema.Types.Mixed },
+    challenges: [{ type: Schema.Types.Mixed }],
+    notes: [{ type: Schema.Types.Mixed }],
+    profileProvenance: { type: Schema.Types.Mixed, default: {} },
+    lastProfileUpdate: { type: Date },
   },
   { timestamps: true },
 );
@@ -17,5 +26,7 @@ menteeSchema.index({ status: 1 });
 menteeSchema.index({ standard: 1 });
 menteeSchema.index({ userId: 1 });
 menteeSchema.index({ makid: 1 });
+menteeSchema.index({ createdAt: -1 });
+menteeSchema.index({ name: 1 });
 
 export const Mentee = mongoose.model<MenteeDocument>('Mentee', menteeSchema);

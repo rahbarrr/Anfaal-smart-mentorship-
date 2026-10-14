@@ -31,6 +31,7 @@ import {
   exportBulkData,
 } from '../lib/api';
 import type { ImportType, ImportPreview, ImportProgress, ImportHistoryItem } from '../types';
+import { formatDateTime, formatDateOnly } from '../lib/dateTime';
 
 export function BulkImportPage() {
   const navigate = useNavigate();
@@ -284,12 +285,12 @@ export function BulkImportPage() {
   });
 
   return (
-    <div className="main-panel" style={{ maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', width: '100%', minWidth: 0 }}>
       {/* Top Header */}
-      <div className="topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <UploadCloud size={28} color="var(--primary)" /> Bulk Import System
+      <div className="topbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
+        <div style={{ minWidth: 0, flex: '1 1 280px' }}>
+          <h1 style={{ fontSize: 'clamp(1.3rem, 4vw, 1.75rem)', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
+            <UploadCloud size={28} color="var(--primary)" style={{ flexShrink: 0 }} /> Bulk Import System
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: 4 }}>
             Add or update mentors, mentees, and assignments efficiently using standardized CSV files.
@@ -297,11 +298,11 @@ export function BulkImportPage() {
         </div>
 
         {/* Tab Controls */}
-        <div style={{ display: 'flex', gap: 8, background: 'var(--surface)', padding: 4, borderRadius: 12, border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', gap: 8, background: 'var(--surface)', padding: 4, borderRadius: 12, border: '1px solid var(--border)', overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxWidth: '100%', boxSizing: 'border-box' }}>
           <button
             type="button"
             className={`btn ${activeTab === 'import' ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ padding: '8px 16px', fontSize: '0.88rem', borderRadius: 8 }}
+            style={{ padding: '8px 16px', fontSize: '0.88rem', borderRadius: 8, whiteSpace: 'nowrap', minHeight: 42 }}
             onClick={() => setActiveTab('import')}
           >
             <UploadCloud size={16} style={{ marginRight: 6 }} /> Bulk Import
@@ -309,7 +310,7 @@ export function BulkImportPage() {
           <button
             type="button"
             className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ padding: '8px 16px', fontSize: '0.88rem', borderRadius: 8 }}
+            style={{ padding: '8px 16px', fontSize: '0.88rem', borderRadius: 8, whiteSpace: 'nowrap', minHeight: 42 }}
             onClick={() => setActiveTab('history')}
           >
             <History size={16} style={{ marginRight: 6 }} /> Import History
@@ -317,7 +318,7 @@ export function BulkImportPage() {
           <button
             type="button"
             className={`btn ${activeTab === 'export' ? 'btn-primary' : 'btn-ghost'}`}
-            style={{ padding: '8px 16px', fontSize: '0.88rem', borderRadius: 8 }}
+            style={{ padding: '8px 16px', fontSize: '0.88rem', borderRadius: 8, whiteSpace: 'nowrap', minHeight: 42 }}
             onClick={() => setActiveTab('export')}
           >
             <FileDown size={16} style={{ marginRight: 6 }} /> Export Data
@@ -506,6 +507,8 @@ export function BulkImportPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 14,
                   background: 'rgba(143,63,102,0.06)',
                   border: '1px solid rgba(143,63,102,0.2)',
                   borderRadius: 12,
@@ -513,7 +516,7 @@ export function BulkImportPage() {
                   marginBottom: 28,
                 }}
               >
-                <div>
+                <div style={{ minWidth: 0, flex: '1 1 240px' }}>
                   <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--primary)', marginBottom: 2 }}>
                     Need the correct format? Download our sample CSV template
                   </h4>
@@ -524,7 +527,7 @@ export function BulkImportPage() {
                 <button
                   type="button"
                   className="btn-secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.88rem', flexShrink: 0 }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: '0.88rem', flex: '1 1 auto', maxWidth: '100%', minHeight: 44 }}
                   onClick={() => handleDownloadTemplate(selectedType)}
                 >
                   <Download size={16} /> Download {selectedType.charAt(0) + selectedType.slice(1).toLowerCase()} Template
@@ -599,7 +602,7 @@ export function BulkImportPage() {
 
               {/* Selected File Card */}
               {selectedFile && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', marginBottom: 24 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 38, height: 38, borderRadius: 8, background: 'rgba(143,63,102,0.12)', display: 'grid', placeItems: 'center', color: 'var(--primary)' }}>
                       <FileSpreadsheet size={20} />
@@ -725,7 +728,7 @@ export function BulkImportPage() {
               {/* Preview Table */}
               <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
                 <div style={{ overflowX: 'auto', maxHeight: 420 }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.86rem', textAlign: 'left' }}>
+                  <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', fontSize: '0.86rem', textAlign: 'left' }}>
                     <thead style={{ background: 'var(--surface-muted)', position: 'sticky', top: 0, zIndex: 10 }}>
                       <tr>
                         <th style={{ padding: '10px 14px', width: 60, fontWeight: 700 }}>Row</th>
@@ -805,11 +808,11 @@ export function BulkImportPage() {
               </div>
 
               {/* Navigation buttons */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                 <button
                   type="button"
                   className="btn-secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, flex: '1 1 180px' }}
                   onClick={handleReset}
                 >
                   <ArrowLeft size={16} /> Upload Different File
@@ -818,7 +821,7 @@ export function BulkImportPage() {
                 <button
                   type="button"
                   className="btn-primary"
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 28px', fontSize: '0.95rem' }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 28px', fontSize: '0.95rem', minHeight: 44, flex: '1 1 200px' }}
                   onClick={() => setWizardStep(4)}
                 >
                   Configure Import Settings <ArrowRight size={18} />
@@ -969,19 +972,21 @@ export function BulkImportPage() {
               </div>
 
               {/* Confirmation Action Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                 <button
                   type="button"
                   className="btn-secondary"
+                  style={{ minHeight: 44, flex: '1 1 140px', justifyContent: 'center' }}
                   onClick={() => setWizardStep(3)}
                 >
                   <ArrowLeft size={16} style={{ marginRight: 6 }} /> Back to Preview
                 </button>
 
-                <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flex: '1 1 220px', justifyContent: 'flex-end' }}>
                   <button
                     type="button"
                     className="btn-ghost"
+                    style={{ minHeight: 44 }}
                     onClick={handleReset}
                   >
                     Cancel
@@ -989,7 +994,7 @@ export function BulkImportPage() {
                   <button
                     type="button"
                     className="btn-primary"
-                    style={{ padding: '12px 28px', fontSize: '0.95rem' }}
+                    style={{ padding: '12px 28px', fontSize: '0.95rem', minHeight: 44, flex: '1 1 auto' }}
                     onClick={handleStartImport}
                   >
                     Import {previewData.validRows + (duplicateAction === 'update' ? previewData.warningRows : 0)} Records
@@ -1142,7 +1147,7 @@ export function BulkImportPage() {
       ────────────────────────────────────────────────────────────────────────── */}
       {activeTab === 'history' && (
         <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 28, boxShadow: 'var(--shadow-soft)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
             <div>
               <h2 style={{ fontSize: '1.35rem', fontWeight: 700, marginBottom: 4 }}>Import History</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
@@ -1169,87 +1174,193 @@ export function BulkImportPage() {
               No import history found. Upload a CSV file to get started!
             </div>
           ) : (
-            <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', textAlign: 'left' }}>
-                <thead style={{ background: 'var(--surface-muted)' }}>
-                  <tr>
-                    <th style={{ padding: '12px 16px', fontWeight: 700 }}>Date</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 700 }}>Type</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 700 }}>File Name</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 700 }}>Total</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 700 }}>Created</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 700 }}>Updated</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 700 }}>Skipped / Failed</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 700 }}>Imported By</th>
-                    <th style={{ padding: '12px 16px', fontWeight: 700 }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historyItems.map((job) => (
-                    <tr key={job.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
-                        {new Date(job.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: 14,
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            background:
-                              job.type === 'MENTORS'
-                                ? 'rgba(143,63,102,0.1)'
-                                : job.type === 'MENTEES'
-                                ? 'rgba(43,138,91,0.1)'
-                                : 'rgba(93,126,184,0.1)',
-                            color:
-                              job.type === 'MENTORS'
-                                ? 'var(--primary)'
-                                : job.type === 'MENTEES'
-                                ? 'var(--success)'
-                                : 'var(--info)',
-                          }}
-                        >
-                          {job.type}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px 16px', fontWeight: 600 }}>{job.fileName}</td>
-                      <td style={{ padding: '12px 16px' }}>{job.totalRows}</td>
-                      <td style={{ padding: '12px 16px', color: 'var(--success)', fontWeight: 600 }}>{job.createdCount}</td>
-                      <td style={{ padding: '12px 16px', color: 'var(--info)', fontWeight: 600 }}>{job.updatedCount}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <span style={{ color: 'var(--warning)', fontWeight: 600 }}>{job.skippedCount}</span> /{' '}
-                        <span style={{ color: 'var(--danger)', fontWeight: 600 }}>{job.failedCount}</span>
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-secondary)' }}>{job.uploadedBy}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button
-                            type="button"
-                            className="btn-ghost"
-                            style={{ fontSize: '0.8rem', padding: '4px 8px' }}
-                            onClick={() => setSelectedHistoryJob(job)}
-                          >
-                            Details
-                          </button>
-                          {job.errorCount > 0 && (
-                            <button
-                              type="button"
-                              className="btn-ghost"
-                              style={{ fontSize: '0.8rem', padding: '4px 8px', color: 'var(--danger)' }}
-                              onClick={() => handleDownloadErrors(job.id)}
-                            >
-                              Errors CSV
-                            </button>
-                          )}
+            <>
+              {/* Desktop Table */}
+              <div className="desktop-table">
+                <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                  <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    <table style={{ width: '100%', minWidth: 1040, borderCollapse: 'collapse', fontSize: '0.88rem', textAlign: 'left' }}>
+                      <thead style={{ background: 'var(--surface-muted)' }}>
+                        <tr>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>Date</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>Type</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, minWidth: 180 }}>File Name</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>Total</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>Created</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>Updated</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>Skipped / Failed</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, whiteSpace: 'nowrap' }}>Imported By</th>
+                          <th style={{ padding: '12px 16px', fontWeight: 700, textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historyItems.map((job) => (
+                          <tr key={job.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                              <div style={{ fontWeight: 600 }}>{formatDateOnly(job.createdAt)}</div>
+                              <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                                {new Date(job.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                              </div>
+                            </td>
+                            <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  whiteSpace: 'nowrap',
+                                  padding: '4px 10px',
+                                  borderRadius: 14,
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  letterSpacing: '0.02em',
+                                  background:
+                                    job.type === 'MENTORS'
+                                      ? 'rgba(143,63,102,0.1)'
+                                      : job.type === 'MENTEES'
+                                      ? 'rgba(43,138,91,0.1)'
+                                      : 'rgba(93,126,184,0.1)',
+                                  color:
+                                    job.type === 'MENTORS'
+                                      ? 'var(--primary)'
+                                      : job.type === 'MENTEES'
+                                      ? 'var(--success)'
+                                      : 'var(--info)',
+                                }}
+                              >
+                                {job.type}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 16px', fontWeight: 600, minWidth: 220, whiteSpace: 'nowrap' }}>{job.fileName}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>{job.totalRows}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--success)', fontWeight: 600, whiteSpace: 'nowrap' }}>{job.createdCount}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', color: 'var(--info)', fontWeight: 600, whiteSpace: 'nowrap' }}>{job.updatedCount}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <span style={{ color: 'var(--warning)', fontWeight: 600 }}>{job.skippedCount}</span> /{' '}
+                              <span style={{ color: 'var(--danger)', fontWeight: 600 }}>{job.failedCount}</span>
+                            </td>
+                            <td style={{ padding: '12px 16px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{job.uploadedBy}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                <button
+                                  type="button"
+                                  className="btn-ghost"
+                                  style={{ fontSize: '0.8rem', padding: '4px 8px' }}
+                                  onClick={() => setSelectedHistoryJob(job)}
+                                >
+                                  Details
+                                </button>
+                                {job.errorCount > 0 && (
+                                  <button
+                                    type="button"
+                                    className="btn-ghost"
+                                    style={{ fontSize: '0.8rem', padding: '4px 8px', color: 'var(--danger)' }}
+                                    onClick={() => handleDownloadErrors(job.id)}
+                                  >
+                                    Errors CSV
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile Card List */}
+              <div className="mobile-card-list">
+                {historyItems.map((job) => (
+                  <div key={job.id} className="mobile-card" style={{ padding: '16px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+                          {job.fileName}
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                          {formatDateTime(job.createdAt)} · By {job.uploadedBy}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          whiteSpace: 'nowrap',
+                          padding: '4px 10px',
+                          borderRadius: 14,
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          background:
+                            job.type === 'MENTORS'
+                              ? 'rgba(143,63,102,0.1)'
+                              : job.type === 'MENTEES'
+                              ? 'rgba(43,138,91,0.1)'
+                              : 'rgba(93,126,184,0.1)',
+                          color:
+                            job.type === 'MENTORS'
+                              ? 'var(--primary)'
+                              : job.type === 'MENTEES'
+                              ? 'var(--success)'
+                              : 'var(--info)',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {job.type}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gap: 6,
+                        padding: '10px 8px',
+                        background: 'var(--surface-muted)',
+                        borderRadius: 10,
+                        textAlign: 'center',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)' }}>Total</div>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{job.totalRows}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--success)' }}>Created</div>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--success)' }}>{job.createdCount}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--info)' }}>Updated</div>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--info)' }}>{job.updatedCount}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '0.68rem', color: 'var(--danger)' }}>Failed</div>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--danger)' }}>{job.failedCount}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ flex: 1, minHeight: 40, justifyContent: 'center' }}
+                        onClick={() => setSelectedHistoryJob(job)}
+                      >
+                        Details
+                      </button>
+                      {job.errorCount > 0 && (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ flex: 1, minHeight: 40, justifyContent: 'center', color: 'var(--danger)' }}
+                          onClick={() => handleDownloadErrors(job.id)}
+                        >
+                          Errors CSV
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {/* Job Details Modal */}
@@ -1300,11 +1411,11 @@ export function BulkImportPage() {
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-secondary)' }}>Date:</span>
-                    <div style={{ fontWeight: 600 }}>{new Date(selectedHistoryJob.createdAt).toLocaleString()}</div>
+                    <div style={{ fontWeight: 600 }}>{formatDateTime(selectedHistoryJob.createdAt)}</div>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, textAlign: 'center', marginBottom: 24 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))', gap: 8, textAlign: 'center', marginBottom: 24 }}>
                   <div style={{ background: 'var(--surface)', padding: 10, borderRadius: 8 }}>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Created</div>
                     <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--success)' }}>{selectedHistoryJob.createdCount}</div>

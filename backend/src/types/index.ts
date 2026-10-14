@@ -46,7 +46,86 @@ export interface MenteeDocument {
   contactInformation?: Record<string, unknown>;
   status: 'active' | 'inactive';
   userId?: string;
+  location?: string;
+  academic?: {
+    previousPercentage?: number;
+    latestPercentage?: number;
+    targetPercentage?: number;
+    attendancePercentage?: number;
+    academicLevel?: string;
+    favouriteSubjects?: string[];
+    weakSubjects?: string[];
+    currentExam?: string;
+    examProgress?: Array<{
+      subject: string;
+      portionCompleted: number;
+      status?: string;
+    }>;
+  };
+  goals?: {
+    careerGoal?: string;
+    semesterGoal?: string;
+    shortTermGoals?: Array<{
+      id: string;
+      title: string;
+      description: string;
+      progress: number;
+      deadline?: string;
+      status: 'Not Started' | 'In Progress' | 'Completed' | 'On Hold';
+      createdAt?: Date;
+      updatedAt?: Date;
+    }>;
+  };
+  routine?: {
+    selfStudyHours?: number;
+    schedule?: string;
+    habits?: string[];
+  };
+  careerInterests?: {
+    primaryGoal?: string;
+    secondaryInterests?: string[];
+    otherExplored?: string[];
+    hobbies?: string[];
+    skills?: string[];
+    skillsToDevelop?: string[];
+    recommendedCourses?: Array<{
+      name: string;
+      provider?: string;
+      status?: string;
+    }>;
+  };
+  challenges?: Array<{
+    id: string;
+    title: string;
+    description: string;
+    priority: 'High' | 'Medium' | 'Low';
+    status: 'Open' | 'In Progress' | 'Resolved';
+    mentorAction: string;
+    progress: number;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }>;
+  notes?: Array<{
+    id: string;
+    mentorId?: string;
+    mentorName: string;
+    note: string;
+    category?: string;
+    createdAt?: Date;
+  }>;
+  profileProvenance?: Record<
+    string,
+    {
+      method: 'manual' | 'ai_approved';
+      updatedBy: string;
+      updatedByName?: string;
+      updatedAt: Date;
+      sourceCallId?: string;
+    }
+  >;
+  lastProfileUpdate?: Date;
   createdAt: Date;
+  updatedAt?: Date;
 }
 
 export interface DailyPerformanceDocument {
@@ -66,6 +145,7 @@ export interface DailyPerformanceDocument {
   difficultyNote?: string;
   needsMentorHelp?: boolean;
   mentorHelpNote?: string;
+  submittedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -161,4 +241,78 @@ export interface CallDocument {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type NotificationType =
+  | 'MENTEE_DAILY_SUBMITTED'
+  | 'MENTOR_REGISTERED'
+  | 'MENTOR_APPROVAL_REQUIRED'
+  | 'CALL_PROCESSING_COMPLETED'
+  | 'CALL_PROCESSING_FAILED'
+  | 'CALL_SUMMARY_AVAILABLE'
+  | 'MENTOR_ASSIGNED'
+  | 'MENTEE_ASSIGNED'
+  | 'DAILY_REMINDER'
+  | 'SYSTEM_ALERT';
+
+export type NotificationCategory =
+  | 'dailyReminders'
+  | 'mentorshipActivity'
+  | 'callUpdates'
+  | 'systemNotifications';
+
+export interface NotificationDocument {
+  _id: string;
+  userId: string;
+  type: NotificationType;
+  category: NotificationCategory;
+  title: string;
+  message: string;
+  link?: string;
+  read: boolean;
+  metadata?: Record<string, unknown>;
+  idempotencyKey?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PushSubscriptionDocument {
+  _id: string;
+  userId: string;
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+  userAgent?: string;
+  createdAt: Date;
+}
+
+export interface NotificationPreferenceDocument {
+  _id: string;
+  userId: string;
+  pushEnabled: boolean;
+  dailyReminders: boolean;
+  mentorshipActivity: boolean;
+  callUpdates: boolean;
+  systemNotifications: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ReminderSlot {
+  slotIndex: number; // 1, 2, or 3
+  time: string; // 'HH:mm' in 24h format
+  enabled: boolean;
+}
+
+export interface DailyReminderSettingDocument {
+  _id: string;
+  mentorId: string;
+  enabled: boolean;
+  timezone: string;
+  slots: ReminderSlot[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 

@@ -111,7 +111,7 @@ export function AdminReportsPage() {
       {loadError && <div className="alert-banner alert-error" role="alert">Unable to load the latest report data: {loadError}</div>}
 
       {/* Primary Tab Navigation */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch', minWidth: 0, width: '100%' }}>
         <button
           onClick={() => setActiveTab('export')}
           style={{
@@ -127,6 +127,9 @@ export function AdminReportsPage() {
             background: activeTab === 'export' ? 'var(--primary)' : 'transparent',
             color: activeTab === 'export' ? '#fff' : 'var(--text-secondary)',
             transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            minHeight: 44,
           }}
         >
           <FileSpreadsheet size={16} /> Export Call Reports
@@ -146,6 +149,9 @@ export function AdminReportsPage() {
             background: activeTab === 'audit' ? 'var(--primary)' : 'transparent',
             color: activeTab === 'audit' ? '#fff' : 'var(--text-secondary)',
             transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+            minHeight: 44,
           }}
         >
           <ShieldCheck size={16} /> Security Audit Log
@@ -260,10 +266,10 @@ export function AdminReportsPage() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', width: '100%', maxWidth: 440 }}>
               <select
                 className="select"
-                style={{ minWidth: 200 }}
+                style={{ flex: 1, minWidth: 180 }}
                 value={auditActionFilter}
                 onChange={(e) => setAuditActionFilter(e.target.value)}
               >
@@ -279,7 +285,7 @@ export function AdminReportsPage() {
 
               <button
                 className="btn-secondary"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 42 }}
                 onClick={fetchAuditLogs}
                 disabled={auditLoading}
               >
@@ -300,38 +306,113 @@ export function AdminReportsPage() {
               <p style={{ fontSize: '0.85rem' }}>Audio playback, upload, edit, and approval events will appear here automatically.</p>
             </div>
           ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Timestamp</th>
-                    <th>User</th>
-                    <th>Action</th>
-                    <th>Target / Mentee</th>
-                    <th>Details</th>
-                    <th>IP Address</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditLogs.map((log) => {
-                    const badge = getActionBadge(log.action);
-                    const IconComponent = badge.icon;
-                    return (
-                      <tr key={log._id}>
-                        <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                          {new Date(log.createdAt).toLocaleString('en-IN', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{log.userName}</div>
+            <>
+              {/* Desktop Table View */}
+              <div className="desktop-table">
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Timestamp</th>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Target / Mentee</th>
+                        <th>Details</th>
+                        <th>IP Address</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditLogs.map((log) => {
+                        const badge = getActionBadge(log.action);
+                        const IconComponent = badge.icon;
+                        return (
+                          <tr key={log._id}>
+                            <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                              {new Date(log.createdAt).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{log.userName}</div>
+                              <span
+                                style={{
+                                  fontSize: '0.72rem',
+                                  fontWeight: 800,
+                                  textTransform: 'uppercase',
+                                  padding: '2px 6px',
+                                  borderRadius: 4,
+                                  background: log.userRole === 'ADMIN' ? 'rgba(143,63,102,0.1)' : 'rgba(59,130,246,0.1)',
+                                  color: log.userRole === 'ADMIN' ? 'var(--primary)' : '#2563eb',
+                                }}
+                              >
+                                {log.userRole}
+                              </span>
+                            </td>
+                            <td>
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  color: badge.color,
+                                  background: badge.bg,
+                                  padding: '4px 10px',
+                                  borderRadius: 999,
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                <IconComponent size={13} />
+                                {badge.label}
+                              </span>
+                            </td>
+                            <td>
+                              {log.menteeName ? (
+                                <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>
+                                  Mentee: <strong>{log.menteeName}</strong>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                  {log.targetType}
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ fontSize: '0.85rem', maxWidth: 300, lineHeight: 1.4 }}>
+                              {log.details}
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                              {log.ipAddress || '127.0.0.1'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Mobile Card List View */}
+              <div className="mobile-card-list">
+                {auditLogs.map((log) => {
+                  const badge = getActionBadge(log.action);
+                  const IconComponent = badge.icon;
+                  return (
+                    <div key={log._id} className="mobile-card" style={{ padding: '14px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+                            {log.userName}
+                          </div>
                           <span
                             style={{
-                              fontSize: '0.72rem',
+                              display: 'inline-block',
+                              marginTop: 2,
+                              fontSize: '0.7rem',
                               fontWeight: 800,
                               textTransform: 'uppercase',
                               padding: '2px 6px',
@@ -342,49 +423,52 @@ export function AdminReportsPage() {
                           >
                             {log.userRole}
                           </span>
-                        </td>
-                        <td>
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              fontSize: '0.8rem',
-                              fontWeight: 700,
-                              color: badge.color,
-                              background: badge.bg,
-                              padding: '4px 10px',
-                              borderRadius: 999,
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            <IconComponent size={13} />
-                            {badge.label}
-                          </span>
-                        </td>
-                        <td>
-                          {log.menteeName ? (
-                            <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>
-                              Mentee: <strong>{log.menteeName}</strong>
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                              {log.targetType}
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ fontSize: '0.85rem', maxWidth: 300, lineHeight: 1.4 }}>
-                          {log.details}
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                          {log.ipAddress || '127.0.0.1'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            color: badge.color,
+                            background: badge.bg,
+                            padding: '4px 10px',
+                            borderRadius: 999,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <IconComponent size={13} />
+                          {badge.label}
+                        </span>
+                      </div>
+
+                      {log.menteeName && (
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                          Mentee: {log.menteeName}
+                        </div>
+                      )}
+
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.45, overflowWrap: 'anywhere' }}>
+                        {log.details}
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 8, borderTop: '1px solid var(--border)', fontSize: '0.78rem', color: 'var(--text-secondary)', flexWrap: 'wrap', gap: 6 }}>
+                        <span>
+                          {new Date(log.createdAt).toLocaleString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                        <span style={{ fontFamily: 'monospace' }}>{log.ipAddress || '127.0.0.1'}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       )}

@@ -186,7 +186,7 @@ export function MentorRegistrationPage() {
                 <input className="input" value={form.fullName} onChange={(event) => updateField('fullName', event.target.value)} placeholder="Your full name" />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-grid-2">
                 <div className="field">
                   <label>Email address</label>
                   <input className="input" type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} placeholder="you@example.com" />
@@ -237,7 +237,7 @@ export function MentorRegistrationPage() {
 
           {step === 2 && (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="form-grid-2">
                 <div className="field">
                   <label>Gender</label>
                   <select className="input" value={form.gender} onChange={(event) => updateField('gender', event.target.value)}>

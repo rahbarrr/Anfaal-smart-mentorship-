@@ -12,6 +12,7 @@ import {
   Sparkles,
   ArrowRight,
 } from 'lucide-react';
+import { formatDateTime, formatDateOnly, formatSubmissionTimestamps } from '../lib/dateTime';
 
 type AttentionItem = {
   type: string;
@@ -23,6 +24,7 @@ type AttentionItem = {
 type RecentCall = {
   id: string;
   date: string;
+  uploadedAt?: string;
   duration: number;
   mentorName: string;
   menteeName: string;
@@ -37,6 +39,8 @@ type RecentProgress = {
   menteeId: string;
   menteeName: string;
   date: string;
+  submittedAt?: string;
+  updatedAt?: string;
   studyMinutes: number;
   quranRuku: number;
   dayRating: number;
@@ -135,7 +139,7 @@ export function AdminDashboardPage() {
   ];
 
   return (
-    <div style={{ display: 'grid', gap: 24, maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ display: 'grid', gap: 24, maxWidth: 1200, margin: '0 auto', minWidth: 0, width: '100%' }}>
       {loadError && <div className="alert-banner alert-error" role="alert">Unable to load the latest dashboard data: {loadError}</div>}
       {/* ── Section 13 High-Level Mentorship Activity Metrics ─────────────── */}
       <div className="card-grid">
@@ -228,23 +232,32 @@ export function AdminDashboardPage() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: 12,
+                    gap: 10,
+                    flexWrap: 'wrap',
                   }}
                 >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.92rem' }}>{call.menteeName}</span>
-                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>with {call.mentorName}</span>
+                  <div style={{ minWidth: 0, flex: '1 1 180px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, fontSize: '0.92rem', overflowWrap: 'anywhere' }}>{call.menteeName}</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>with {call.mentorName}</span>
                     </div>
-                    <div className="muted" style={{ fontSize: '0.8rem', marginTop: 2 }}>
-                      {new Date(call.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} · {call.duration} min
+                    <div className="muted" style={{ fontSize: '0.8rem', marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: '4px 8px' }}>
+                      <span>Call: {formatDateOnly(call.date)}</span>
+                      <span>·</span>
+                      <span>{call.duration} min</span>
+                      {call.uploadedAt && (
+                        <>
+                          <span>·</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>Uploaded: {formatDateTime(call.uploadedAt)}</span>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <StatusBadge status={call.reviewStatus} />
                     <button
                       className="btn-primary btn-sm"
-                      style={{ fontSize: '0.75rem', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      style={{ fontSize: '0.75rem', padding: '4px 8px', display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 36 }}
                       onClick={() => navigate(`/admin/calls/${call.id}`)}
                     >
                       <Sparkles size={11} /> View
@@ -274,43 +287,53 @@ export function AdminDashboardPage() {
                 No daily progress logs submitted recently.
               </div>
             ) : (
-              data.recentProgress.slice(0, 5).map((p) => (
-                <div
-                  key={p.id}
-                  style={{
-                    padding: '12px 14px',
-                    borderRadius: 10,
-                    border: '1px solid var(--border)',
-                    background: 'var(--surface-muted)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.92rem' }}>{p.menteeName}</span>
-                      <span>{ratingEmojis[p.dayRating] || '🙂'}</span>
-                      {p.needsMentorHelp && (
-                        <span className="status-badge status-failed" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
-                          Needs Help
-                        </span>
-                      )}
-                    </div>
-                    <div className="muted" style={{ fontSize: '0.8rem', marginTop: 2 }}>
-                      Study: {Math.floor(p.studyMinutes / 60)}h {p.studyMinutes % 60}m · Quran: {p.quranRuku} Ruku · {p.date}
-                    </div>
-                  </div>
-                  <button
-                    className="btn-outline btn-sm"
-                    style={{ fontSize: '0.75rem', padding: '4px 8px' }}
-                    onClick={() => navigate(`/admin/mentees/${p.menteeId}`)}
+              data.recentProgress.slice(0, 5).map((p) => {
+                const timestamps = formatSubmissionTimestamps(p.submittedAt, p.updatedAt);
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      padding: '12px 14px',
+                      borderRadius: 10,
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      flexWrap: 'wrap',
+                    }}
                   >
-                    Profile
-                  </button>
-                </div>
-              ))
+                    <div style={{ minWidth: 0, flex: '1 1 180px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.92rem', overflowWrap: 'anywhere' }}>{p.menteeName}</span>
+                        <span>{ratingEmojis[p.dayRating] || '🙂'}</span>
+                        {p.needsMentorHelp && (
+                          <span className="status-badge status-failed" style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
+                            Needs Help
+                          </span>
+                        )}
+                      </div>
+                      <div className="muted" style={{ fontSize: '0.8rem', marginTop: 2 }}>
+                        <div>Study: {Math.floor(p.studyMinutes / 60)}h {p.studyMinutes % 60}m · Quran: {p.quranRuku} Ruku · Log Date: {formatDateOnly(p.date)}</div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                          Submitted: {timestamps.submittedFormatted}
+                          {timestamps.isEdited && (
+                            <span style={{ marginLeft: 6 }}>· Updated: {timestamps.updatedFormatted}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="btn-outline btn-sm"
+                      style={{ fontSize: '0.75rem', padding: '4px 8px', minHeight: 36 }}
+                      onClick={() => navigate(`/admin/mentees/${p.menteeId}`)}
+                    >
+                      Profile
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>

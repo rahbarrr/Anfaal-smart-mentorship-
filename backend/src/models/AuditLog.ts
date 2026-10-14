@@ -21,6 +21,8 @@ export interface AuditLogDocument {
     | 'DELETE_RECORD'
     | 'ASSIGNMENT_CHANGED'
     | 'CHANGE_ASSIGNMENT'
+    | 'UPDATE_RECORD'
+    | 'PROFILE_UPDATED'
     | 'PASSWORD_RESET';
   targetType: 'CALL' | 'MENTORSHIP' | 'MENTEE' | 'MENTOR' | 'DAILY_PERFORMANCE' | 'USER';
   targetId: string;

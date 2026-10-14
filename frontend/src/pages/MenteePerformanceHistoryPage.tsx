@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Filter, Plus } from 'lucide-react';
 import { getPerformanceHistory } from '../lib/api';
+import { formatDateOnly, formatSubmissionTimestamps } from '../lib/dateTime';
 
 const MOOD_MAP: Record<number, string> = {
   1: '😞',
@@ -18,15 +19,6 @@ function formatDuration(min: number): string {
   if (h > 0 && m > 0) return `${h}h ${m}m`;
   if (h > 0) return `${h}h`;
   return `${m}m`;
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return dateStr;
-  }
 }
 
 export function MenteePerformanceHistoryPage() {
@@ -150,65 +142,167 @@ export function MenteePerformanceHistoryPage() {
         )}
       </div>
 
-      {/* History Table */}
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Study</th>
-              <th>Ruku</th>
-              <th>Ayat</th>
-              <th>Pages</th>
-              <th>Reading</th>
-              <th>Day</th>
-              <th>Reflection</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
+      {/* Desktop Table View */}
+      <div className="desktop-table">
+        <div className="table-wrap">
+          <table>
+            <thead>
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
-                  Loading history…
-                </td>
+                <th>Date</th>
+                <th>Study</th>
+                <th>Ruku</th>
+                <th>Ayat</th>
+                <th>Pages</th>
+                <th>Reading</th>
+                <th>Day</th>
+                <th>Reflection</th>
               </tr>
-            ) : records.length === 0 ? (
-              <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
-                  <div style={{ fontWeight: 700, marginBottom: 4 }}>No performance records found</div>
-                  <div style={{ fontSize: '0.88rem' }}>Start logging your daily progress to see your history table.</div>
-                </td>
-              </tr>
-            ) : (
-              records.map((r) => (
-                <tr key={r._id || r.id || r.date}>
-                  <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {formatDate(r.date)}
-                  </td>
-                  <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
-                    {formatDuration(r.studyMinutes)}
-                  </td>
-                  <td>{r.quran?.ruku ?? 0}</td>
-                  <td>{r.quran?.ayat ?? 0}</td>
-                  <td>{r.quran?.pages ?? 0}</td>
-                  <td>{formatDuration(r.readingMinutes)}</td>
-                  <td style={{ fontSize: '1.4rem' }}>
-                    {MOOD_MAP[r.dayRating] ?? '—'}
-                  </td>
-                  <td style={{ fontSize: '0.85rem', maxWidth: 260 }}>
-                    {r.dailyReflection ? (
-                      <span title={r.dailyReflection}>
-                        {r.dailyReflection.length > 60 ? r.dailyReflection.slice(0, 60) + '…' : r.dailyReflection}
-                      </span>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
+                    Loading history…
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : records.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>No performance records found</div>
+                    <div style={{ fontSize: '0.88rem' }}>Start logging your daily progress to see your history table.</div>
+                  </td>
+                </tr>
+              ) : (
+                records.map((r) => {
+                  const timestamps = formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt);
+                  return (
+                    <tr key={r._id || r.id || r.date}>
+                      <td>
+                        <div style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {formatDateOnly(r.date)}
+                        </div>
+                        <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: 2, whiteSpace: 'nowrap' }}>
+                          Submitted: {timestamps.submittedFormatted}
+                        </div>
+                        {timestamps.isEdited && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                            Updated: {timestamps.updatedFormatted}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                        {formatDuration(r.studyMinutes)}
+                      </td>
+                      <td>{r.quran?.ruku ?? 0}</td>
+                      <td>{r.quran?.ayat ?? 0}</td>
+                      <td>{r.quran?.pages ?? 0}</td>
+                      <td>{formatDuration(r.readingMinutes)}</td>
+                      <td style={{ fontSize: '1.4rem' }}>
+                        {MOOD_MAP[r.dayRating] ?? '—'}
+                      </td>
+                      <td style={{ fontSize: '0.85rem', maxWidth: 260 }}>
+                        {r.dailyReflection ? (
+                          <span title={r.dailyReflection}>
+                            {r.dailyReflection.length > 60 ? r.dailyReflection.slice(0, 60) + '…' : r.dailyReflection}
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Mobile Card List View */}
+      <div className="mobile-card-list">
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
+            Loading history…
+          </div>
+        ) : records.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>No performance records found</div>
+            <div style={{ fontSize: '0.88rem' }}>Start logging your daily progress to see your history table.</div>
+          </div>
+        ) : (
+          records.map((r) => {
+            const timestamps = formatSubmissionTimestamps(r.submittedAt || r.createdAt, r.updatedAt);
+            return (
+              <div
+                key={r._id || r.id || r.date}
+                className="mobile-card"
+                style={{ padding: '16px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: 10 }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div>
+                    <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                      Performance: {formatDateOnly(r.date)}
+                    </span>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                      Submitted: {timestamps.submittedFormatted}
+                    </div>
+                    {timestamps.isEdited && (
+                      <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                        Updated: {timestamps.updatedFormatted}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ fontSize: '1.5rem', lineHeight: 1 }} title={`Day rating: ${r.dayRating}/5`}>
+                    {MOOD_MAP[r.dayRating] ?? '🙂'}
+                  </span>
+                </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 8,
+                  padding: '10px 12px',
+                  background: 'var(--surface-muted)',
+                  borderRadius: 12,
+                  textAlign: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                    Study
+                  </div>
+                  <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--primary)', marginTop: 2 }}>
+                    {formatDuration(r.studyMinutes)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                    Quran
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)', marginTop: 2 }}>
+                    {r.quran?.ruku ?? 0}R · {r.quran?.pages ?? 0}p
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>
+                    Reading
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)', marginTop: 2 }}>
+                    {formatDuration(r.readingMinutes)}
+                  </div>
+                </div>
+              </div>
+
+              {r.dailyReflection && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.45, padding: '8px 10px', background: '#fff', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  "{r.dailyReflection}"
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
       </div>
     </div>
   );

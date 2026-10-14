@@ -18,13 +18,17 @@ const dailyPerformanceSchema = new Schema<DailyPerformanceDocument>(
     difficultyNote: { type: String, maxlength: 1000 },
     needsMentorHelp: { type: Boolean, default: false },
     mentorHelpNote: { type: String, maxlength: 1000 },
+    submittedAt: { type: Date, default: Date.now },
   },
   { timestamps: true },
 );
 
 // Compound unique index prevents multiple daily submissions for the same mentee/date
 dailyPerformanceSchema.index({ menteeId: 1, date: 1 }, { unique: true });
+dailyPerformanceSchema.index({ menteeId: 1, date: -1 });
 dailyPerformanceSchema.index({ menteeId: 1, createdAt: -1 });
 dailyPerformanceSchema.index({ date: 1 });
+dailyPerformanceSchema.index({ needsMentorHelp: 1, createdAt: -1 });
+dailyPerformanceSchema.index({ createdAt: -1 });
 
 export const DailyPerformance = mongoose.model<DailyPerformanceDocument>('DailyPerformance', dailyPerformanceSchema);

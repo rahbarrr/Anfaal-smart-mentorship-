@@ -18,6 +18,13 @@
     "@aws-sdk/client-s3": "^3.1131.0",
     "@aws-sdk/s3-request-presigner": "^3.1131.0",
     "@supabase/supabase-js": "2.57.4",
+    "@types/bcryptjs": "^2.4.1",
+    "@types/cors": "^2.8.5",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.2",
+    "@types/morgan": "^1.9.10",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^24.0.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^6.3.9",
     "cors": "^2.8.5",
@@ -30,17 +37,12 @@
     "mongoose": "^8.8.2",
     "morgan": "^1.10.0",
     "multer": "^2.0.0",
-    "@types/bcryptjs": "^2.4.1",
-    "@types/cors": "^2.8.5",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.2",
-    "@types/morgan": "^1.9.10",
-    "@types/multer": "^2.2.0",
-    "@types/node": "^24.0.0",
     "typescript": "^5.7.2",
+    "web-push": "^3.6.7",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/web-push": "^3.6.4",
     "nodemon": "^3.1.14",
     "tsx": "^4.23.13"
   }
