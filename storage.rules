@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.role == 'ADMIN';
+    }
+
+    function isApprovedMentor() {
+      return isAuthenticated() && request.auth.token.role == 'MENTOR' && request.auth.token.mentorApprovalStatus == 'APPROVED';
+    }
+
+    // Call Recordings path: recordings/{year}/{month}/{callId}/{filename}
+    match /recordings/{allPaths=**} {
+      // Mentors can upload audio recordings up to 100MB
+      allow create: if isApprovedMentor()
+        && request.resource.size < 100 * 1024 * 1024
+        && request.resource.contentType.matches('audio/.*');
+
+      // Playback requires authentication (Admin or Mentor)
+      allow read: if isAuthenticated();
+
+      // Deletion restricted to Admins and Approved Mentors
+      allow delete: if isAdmin() || isApprovedMentor();
+    }
+  }
+}

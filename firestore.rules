@@ -1,0 +1,140 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Authorization Functions ─────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.role == 'ADMIN';
+    }
+
+    function isMentor() {
+      return isAuthenticated() && request.auth.token.role == 'MENTOR';
+    }
+
+    function isApprovedMentor() {
+      return isMentor() && request.auth.token.mentorApprovalStatus == 'APPROVED';
+    }
+
+    function isMentee() {
+      return isAuthenticated() && request.auth.token.role == 'MENTEE';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ── Users Collection ────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin() || isMentor());
+      allow write: if isAdmin();
+    }
+
+    // ── Mentors Collection ──────────────────────────────────────────────────────
+    match /mentors/{userId} {
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated() && (isAdmin() || (isApprovedMentor() && isOwner(userId)));
+      allow create, delete: if isAdmin();
+    }
+
+    // ── Mentees Collection ──────────────────────────────────────────────────────
+    match /mentees/{menteeId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isMentee() && request.auth.token.menteeId == menteeId) ||
+        isApprovedMentor()
+      );
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        isApprovedMentor() ||
+        (isMentee() && request.auth.token.menteeId == menteeId)
+      );
+      allow create, delete: if isAdmin();
+    }
+
+    // ── Mentorships Collection ──────────────────────────────────────────────────
+    match /mentorships/{mentorshipId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isMentor() && resource.data.mentorId == request.auth.uid) ||
+        (isMentee() && resource.data.menteeId == request.auth.token.menteeId)
+      );
+      allow write: if isAdmin();
+    }
+
+    // ── Calls Collection ────────────────────────────────────────────────────────
+    match /calls/{callId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isMentor() && resource.data.mentorId == request.auth.uid) ||
+        (isMentee() && resource.data.menteeId == request.auth.token.menteeId)
+      );
+      allow create: if isApprovedMentor() && request.resource.data.mentorId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isApprovedMentor() && resource.data.mentorId == request.auth.uid)
+      );
+      allow delete: if isAdmin() || (isApprovedMentor() && resource.data.mentorId == request.auth.uid);
+    }
+
+    // ── Daily Performance Submissions ───────────────────────────────────────────
+    match /dailyPerformances/{docId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        isMentor() ||
+        (isMentee() && resource.data.menteeId == request.auth.token.menteeId)
+      );
+      allow create: if isMentee() && request.resource.data.menteeId == request.auth.token.menteeId;
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isMentee() && resource.data.menteeId == request.auth.token.menteeId)
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ── Mentor Daily Reminder Settings ──────────────────────────────────────────
+    match /dailyReminderSettings/{mentorId} {
+      allow read: if isAuthenticated() && (isAdmin() || (isMentor() && isOwner(mentorId)));
+      allow write: if isAuthenticated() && (isAdmin() || (isApprovedMentor() && isOwner(mentorId)));
+    }
+
+    // ── Notifications ───────────────────────────────────────────────────────────
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow update: if isAuthenticated() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create, delete: if isAdmin();
+    }
+
+    // ── Notification Preferences ────────────────────────────────────────────────
+    match /notificationPreferences/{userId} {
+      allow read, write: if isAuthenticated() && (isOwner(userId) || isAdmin());
+    }
+
+    // ── Profile Suggestions ─────────────────────────────────────────────────────
+    match /profileSuggestions/{suggestionId} {
+      allow read: if isAuthenticated() && (isAdmin() || isApprovedMentor());
+      allow update: if isAuthenticated() && (isAdmin() || isApprovedMentor());
+      allow create, delete: if isAdmin();
+    }
+
+    // ── Audit Logs ──────────────────────────────────────────────────────────────
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false; // Only written via Firebase Admin SDK
+    }
+
+    // ── Call Processing Jobs ────────────────────────────────────────────────────
+    match /callProcessingJobs/{jobId} {
+      allow read: if isAuthenticated() && (isAdmin() || isMentor());
+      allow write: if false; // Handled exclusively by trusted Cloud Functions / Admin SDK
+    }
+
+    // ── Default Deny ────────────────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

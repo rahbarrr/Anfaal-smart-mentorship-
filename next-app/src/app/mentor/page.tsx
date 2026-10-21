@@ -1,0 +1,417 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { getMentorCalls, getMyMentees } from '@/lib/api';
+import { formatDateTime, formatDateOnly, formatSubmissionTimestamps } from '@/lib/dateTime';
+import {
+  Users,
+  ArrowRight,
+  Sparkles,
+} from 'lucide-react';
+
+interface TodayProgress {
+  studyMinutes: number;
+  studyFormatted: string;
+  quranRuku: number;
+  quranAyat: number;
+  quranPages: number;
+  readingMinutes: number;
+  dayRating: number;
+  mentorCallRating?: number;
+  mentorCallFeedback?: string;
+  submitted: boolean;
+  submittedAt?: string;
+  updatedAt?: string;
+  needsMentorHelp: boolean;
+  mentorHelpNote?: string;
+}
+
+interface AssignedMentee {
+  id: string;
+  name: string;
+  standard: string;
+  guardian?: string;
+  phone?: string;
+  status: string;
+  totalCalls: number;
+  lastCallDate: string;
+  lastCallSummary?: string | null;
+  todayProgress?: TodayProgress | null;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const cls = (() => {
+    switch (status) {
+      case 'Approved':
+      case 'Completed':
+        return 'status-completed';
+      case 'Processing':
+        return 'status-processing';
+      case 'Pending Review':
+        return 'status-pending';
+      case 'Submitted':
+      case 'Draft':
+        return 'status-submitted';
+      case 'Failed':
+      case 'Rejected':
+        return 'status-failed';
+      default:
+        return 'status-pending';
+    }
+  })();
+  return <span className={`status-badge ${cls}`}>{status}</span>;
+}
+
+const ratingLabels = ['', 'Difficult', 'Okay', 'Good', 'Very Good', 'Excellent'];
+const ratingEmojis = ['', '😞', '😐', '🙂', '😊', '🤩'];
+
+export default function MentorDashboardPage() {
+  const router = useRouter();
+  const [calls, setCalls] = useState<any[]>([]);
+  const [mentees, setMentees] = useState<AssignedMentee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('anfaal-token');
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
+    Promise.all([getMentorCalls(token), getMyMentees(token)])
+      .then(([callRes, menteeRes]) => {
+        setCalls(callRes.calls ?? []);
+        setMentees(menteeRes.mentees ?? []);
+      })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : 'Unable to load mentor dashboard data.'))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const callsThisMonth = calls.filter((c) => new Date(c.date) >= startOfMonth).length;
+  const pendingCalls = calls.filter((c) => c.status === 'Pending Review' || c.status === 'Draft').length;
+  const lastCallDate = calls.length > 0 ? new Date(calls[0].date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—';
+
+  const cards = [
+    { label: 'Assigned Mentees', value: isLoading ? '—' : String(mentees.length), change: 'Active students' },
+    { label: 'Calls This Month', value: isLoading ? '—' : String(callsThisMonth), change: `${now.toLocaleString('default', { month: 'long' })} ${now.getFullYear()}` },
+    { label: 'Pending Review', value: isLoading ? '—' : String(pendingCalls), change: pendingCalls > 0 ? 'Action required' : 'All approved' },
+    { label: 'Last Call', value: isLoading ? '—' : lastCallDate, change: calls.length > 0 ? `${calls[0].duration ?? 0} min` : 'No calls yet' },
+  ];
+
+  return (
+    <div style={{ display: 'grid', gap: 24, minWidth: 0, maxWidth: '100%' }}>
+      {loadError && <div className="alert-banner alert-error" role="alert">Unable to load the latest dashboard data: {loadError}</div>}
+      {/* ── Top Metric Cards ──────────────────────────────────────────────── */}
+      <div className="card-grid">
+        {cards.map((card) => (
+          <div key={card.label} className="dashboard-card">
+            <div className="label">{card.label}</div>
+            <div className="value">{card.value}</div>
+            <div className="change">{card.change}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Section 9: My Mentees Cards Grid ──────────────────────────────── */}
+      <div style={{ minWidth: 0, maxWidth: '100%' }}>
+        <div className="page-header" style={{ marginBottom: 14 }}>
+          <div>
+            <div className="eyebrow">Assigned Students</div>
+            <h3 className="page-title" style={{ fontSize: '1.6rem' }}>My Mentees</h3>
+            <p className="page-subtitle">Track today's study consistency, Quran recitation, and call history.</p>
+          </div>
+          <button className="btn-primary" onClick={() => router.push('/mentor/upload')}>
+            + Upload Call
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>
+            Loading assigned mentees…
+          </div>
+        ) : mentees.length === 0 ? (
+          <div className="summary-card" style={{ textAlign: 'center', padding: '48px 20px' }}>
+            <Users size={32} color="var(--text-secondary)" style={{ margin: '0 auto 12px' }} />
+            <h4 style={{ fontWeight: 700, marginBottom: 6 }}>No mentees assigned yet</h4>
+            <p className="muted">Your administrator will assign mentees to your mentor profile shortly.</p>
+          </div>
+        ) : (
+          <div className="mentees-card-grid">
+            {mentees.map((mentee) => {
+              const p = mentee.todayProgress;
+              const hasSubmitted = Boolean(p && p.submitted);
+              const needsHelp = Boolean(p && p.needsMentorHelp);
+
+              return (
+                <div
+                  key={mentee.id}
+                  className="summary-card"
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    borderLeftWidth: 4,
+                    borderLeftStyle: 'solid',
+                    borderLeftColor: needsHelp ? 'var(--danger)' : hasSubmitted ? 'var(--success)' : 'var(--border)',
+                    position: 'relative',
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <div>
+                    {/* Header */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 2, wordBreak: 'break-word' }}>{mentee.name}</h4>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                          Class: {mentee.standard}
+                        </span>
+                      </div>
+                      <div style={{ flexShrink: 0 }}>
+                        {needsHelp ? (
+                          <span className="status-badge status-failed" style={{ fontSize: '0.72rem', padding: '3px 8px', whiteSpace: 'nowrap' }}>
+                            Needs Help
+                          </span>
+                        ) : hasSubmitted ? (
+                          <span className="status-badge status-completed" style={{ fontSize: '0.72rem', padding: '3px 8px', whiteSpace: 'nowrap' }}>
+                            ✓ Logged Today
+                          </span>
+                        ) : (
+                          <span className="status-badge status-pending" style={{ fontSize: '0.72rem', padding: '3px 8px', whiteSpace: 'nowrap' }}>
+                            No Log Today
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Performance & Call details */}
+                    <div
+                      style={{
+                        margin: '14px 0',
+                        padding: '12px 14px',
+                        background: 'var(--surface-muted)',
+                        borderRadius: 10,
+                        fontSize: '0.86rem',
+                        display: 'grid',
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Last Call:</span>
+                        <strong style={{ color: 'var(--text-primary)' }}>{mentee.lastCallDate}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Today's Study:</span>
+                        <strong>{hasSubmitted ? p!.studyFormatted : '—'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Quran:</span>
+                        <strong>{hasSubmitted ? `${p!.quranRuku} Ruku` : '—'}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className="muted">Day Rating:</span>
+                        <span>
+                          {hasSubmitted
+                            ? `${ratingEmojis[p!.dayRating]} ${ratingLabels[p!.dayRating]}`
+                            : '—'}
+                        </span>
+                      </div>
+                      {hasSubmitted && p!.mentorCallRating !== undefined && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span className="muted">Mentor Call:</span>
+                          <strong>{p!.mentorCallRating}/5</strong>
+                        </div>
+                      )}
+                      {hasSubmitted && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', paddingTop: 6, marginTop: 2 }}>
+                          <span>Submitted:</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {formatSubmissionTimestamps(p!.submittedAt, p!.updatedAt).submittedFormatted}
+                          </span>
+                        </div>
+                      )}
+                      {hasSubmitted && formatSubmissionTimestamps(p!.submittedAt, p!.updatedAt).isEdited && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                          <span>Updated:</span>
+                          <span>{formatSubmissionTimestamps(p!.submittedAt, p!.updatedAt).updatedFormatted}</span>
+                        </div>
+                      )}
+                      {needsHelp && p?.mentorHelpNote && (
+                        <div
+                          style={{
+                            marginTop: 4,
+                            padding: '8px 10px',
+                            background: 'rgba(217,83,79,0.1)',
+                            borderRadius: 8,
+                            fontSize: '0.8rem',
+                            color: 'var(--danger)',
+                          }}
+                        >
+                          <strong>Student Note:</strong> {p.mentorHelpNote}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <button
+                      className="btn-primary btn-sm"
+                      style={{ flex: 1, minWidth: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                      onClick={() => router.push(`/mentor/mentees/${mentee.id}`)}
+                    >
+                      View Mentee <ArrowRight size={14} />
+                    </button>
+                    <button
+                      className="btn-outline btn-sm"
+                      style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', flexShrink: 0 }}
+                      title="Upload Call with this Mentee"
+                      onClick={() => router.push('/mentor/upload')}
+                    >
+                      + Call
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Recent Mentorship Sessions Table ──────────────────────────────── */}
+      <div style={{ marginTop: 10, minWidth: 0, maxWidth: '100%' }}>
+        <div className="page-header" style={{ marginBottom: 14 }}>
+          <div>
+            <div className="eyebrow">Call Records</div>
+            <h3 className="page-title" style={{ fontSize: '1.4rem' }}>Recent Mentorship Sessions</h3>
+          </div>
+          <button className="btn-outline btn-sm" onClick={() => router.push('/mentor/calls')}>
+            View All Calls →
+          </button>
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="desktop-table">
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mentee</th>
+                  <th>Date</th>
+                  <th>Duration</th>
+                  <th>Status</th>
+                  <th>AI Summary</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {calls.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text-secondary)' }}>
+                      No mentorship calls recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  calls.slice(0, 8).map((call) => (
+                    <tr key={call.id}>
+                      <td style={{ fontWeight: 600 }}>{call.menteeName || 'Mentee'}</td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{formatDateOnly(call.date)}</div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                          Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}
+                        </div>
+                      </td>
+                      <td>{call.duration} min</td>
+                      <td>
+                        <StatusBadge status={call.status} />
+                      </td>
+                      <td style={{ fontSize: '0.85rem', maxWidth: 240 }}>
+                        <span
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {call.summary || 'Processing…'}
+                        </span>
+                      </td>
+                      <td>
+                        <button
+                          className="btn-outline btn-sm"
+                          style={{ fontSize: '0.78rem', padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          onClick={() => router.push(`/mentor/calls/${call.id}`)}
+                        >
+                          <Sparkles size={12} /> View Intelligence
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile Card List View */}
+        <div className="mobile-card-list">
+          {calls.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px 16px', color: 'var(--text-secondary)' }}>
+              No mentorship calls recorded yet.
+            </div>
+          ) : (
+            calls.slice(0, 8).map((call) => (
+              <div key={call.id} className="call-mobile-card">
+                <div className="call-mobile-card-header">
+                  <div className="call-mobile-card-names">
+                    <div className="call-mobile-card-title">{call.menteeName || 'Mentee'}</div>
+                    <div className="call-mobile-card-subtitle" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span>Call Date: {formatDateOnly(call.date)}</span>
+                      <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                        Uploaded: {formatDateTime(call.uploadedAt || call.createdAt)}
+                      </span>
+                    </div>
+                  </div>
+                  <StatusBadge status={call.status} />
+                </div>
+                <div className="call-mobile-card-meta">
+                  <div className="call-mobile-card-meta-item">
+                    <span className="call-mobile-card-meta-label">Duration</span>
+                    <span className="call-mobile-card-meta-value">{call.duration} min</span>
+                  </div>
+                  <div className="call-mobile-card-meta-item">
+                    <span className="call-mobile-card-meta-label">Uploaded</span>
+                    <span className="call-mobile-card-meta-value" style={{ overflowWrap: 'break-word' }}>
+                      {formatDateTime(call.uploadedAt || call.createdAt)}
+                    </span>
+                  </div>
+                </div>
+                {call.summary && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+                    {call.summary}
+                  </div>
+                )}
+                <div className="call-mobile-card-actions">
+                  <button
+                    className="btn-primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, width: '100%' }}
+                    onClick={() => router.push(`/mentor/calls/${call.id}`)}
+                  >
+                    <Sparkles size={14} /> View Intelligence
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

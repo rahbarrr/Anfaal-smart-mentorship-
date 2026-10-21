@@ -1,0 +1,507 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANFAAL DAILY PROGRESS / PERFORMANCE FORM STYLES
+   Responsive Mobile-First UX System
+═══════════════════════════════════════════════════════════════════════════ */
+
+.daily-form-container {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 10px 0 36px 0;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* ── Top Back Button (Desktop only, mobile header has back button) ────────── */
+.daily-form-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.daily-form-back-btn:hover {
+  background: rgba(143, 63, 102, 0.06);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+@media (max-width: 1023px) {
+  .daily-form-back-btn {
+    display: none !important;
+  }
+}
+
+/* ── Form Hero Block ──────────────────────────────────────────────────────── */
+.daily-form-hero {
+  margin-bottom: 22px;
+  text-align: center;
+}
+
+.daily-form-hero h1 {
+  font-size: clamp(1.4rem, 4.5vw, 2.1rem);
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.daily-form-hero p {
+  font-size: clamp(0.85rem, 2.5vw, 0.98rem);
+  color: var(--text-secondary);
+  margin: 6px auto 0;
+  max-width: 480px;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .daily-form-hero {
+    margin-bottom: 16px;
+  }
+}
+
+/* ── Form Section Cards ──────────────────────────────────────────────────── */
+.daily-form-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 20px 22px;
+  box-shadow: 0 2px 10px rgba(95, 70, 81, 0.04);
+  box-sizing: border-box;
+  margin-bottom: 18px;
+  min-width: 0;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .daily-form-card {
+    padding: 16px 14px;
+    border-radius: 16px;
+    margin-bottom: 14px;
+  }
+}
+
+.daily-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.daily-card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.daily-card-title svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.daily-card-desc {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin: 0 0 14px 0;
+  line-height: 1.4;
+}
+
+/* ── Preset Chips Row ─────────────────────────────────────────────────────── */
+.daily-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.daily-preset-chip {
+  padding: 8px 16px;
+  min-height: 40px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: #ffffff;
+  color: var(--text-primary);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.daily-preset-chip:hover {
+  border-color: #d1b8c6;
+  background: #faf7f8;
+}
+
+.daily-preset-chip.active {
+  border-color: var(--primary);
+  background: rgba(143, 63, 102, 0.1);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .daily-preset-chip {
+    padding: 7px 13px;
+    font-size: 0.84rem;
+    min-height: 38px;
+  }
+}
+
+.daily-custom-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.daily-recorded-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: rgba(143, 63, 102, 0.06);
+  border-radius: 10px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.daily-recorded-badge strong {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* ── Quran / Islamic Reading Grid ────────────────────────────────────────── */
+.daily-quran-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .daily-quran-grid {
+    gap: 8px;
+  }
+}
+
+.daily-quran-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.daily-quran-field label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.daily-quran-field input {
+  height: 48px;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: center;
+  border-radius: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.daily-quran-field small {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* ── Mood Selector Grid (Section 4 Responsive Grid) ──────────────────────── */
+.daily-mood-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .daily-mood-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+}
+
+.daily-mood-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 8px;
+  min-height: 90px;
+  border-radius: 16px;
+  border: 2px solid var(--border);
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  box-sizing: border-box;
+  touch-action: manipulation;
+  user-select: none;
+  width: 100%;
+}
+
+.daily-mood-card:hover {
+  border-color: #d1b8c6;
+  background: #faf7f8;
+}
+
+.daily-mood-card.selected {
+  border-color: var(--primary, #8f3f66) !important;
+  background: rgba(143, 63, 102, 0.08) !important;
+  box-shadow: 0 0 0 3px rgba(143, 63, 102, 0.14);
+}
+
+.daily-mood-emoji {
+  font-size: 2rem;
+  line-height: 1;
+  margin-bottom: 6px;
+  transition: transform 0.15s ease;
+}
+
+.daily-mood-card.selected .daily-mood-emoji {
+  transform: scale(1.1);
+}
+
+.daily-mood-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+.daily-mood-card.selected .daily-mood-label {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+/* On narrow mobile screens, span the 5th mood option cleanly */
+@media (max-width: 640px) {
+  .daily-mood-card:nth-child(5) {
+    grid-column: span 2;
+    min-height: 72px;
+    flex-direction: row;
+    gap: 10px;
+    padding: 10px 16px;
+  }
+  .daily-mood-card:nth-child(5) .daily-mood-emoji {
+    margin-bottom: 0;
+  }
+}
+
+/* Accessible Checkmark Indicator (Visible without relying on color alone) */
+.daily-mood-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary, #8f3f66);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(143, 63, 102, 0.3);
+}
+
+/* ── Toggle Buttons (Yes / No) ───────────────────────────────────────────── */
+.daily-toggle-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.daily-toggle-btn {
+  padding: 8px 24px;
+  min-height: 42px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: #ffffff;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.daily-toggle-btn:hover {
+  border-color: #d1b8c6;
+  background: #faf7f8;
+}
+
+.daily-toggle-btn.active {
+  border-color: var(--primary);
+  background: rgba(143, 63, 102, 0.12);
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* ── Submission Section (Sections 1 & 2 Natural Flow & Sizing) ────────────── */
+.daily-submission-card {
+  position: relative;
+  margin-top: 6px;
+  margin-bottom: 30px;
+  background: #ffffff;
+  border: 1.5px solid var(--border);
+  border-radius: 18px;
+  padding: 18px 20px;
+  box-shadow: 0 4px 20px rgba(95, 70, 81, 0.08);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .daily-submission-card {
+    padding: 16px 14px;
+    border-radius: 16px;
+    margin-bottom: 24px;
+  }
+}
+
+.daily-submission-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.daily-submission-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.daily-submission-summary-tag {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.daily-submission-summary-date {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.daily-submission-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.daily-summary-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: rgba(143, 63, 102, 0.08);
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.daily-summary-pill svg {
+  flex-shrink: 0;
+}
+
+/* Redesigned Submit Button */
+.daily-submit-btn {
+  width: 100%;
+  height: 54px;
+  min-height: 52px;
+  max-height: 58px;
+  background: var(--primary, #8f3f66);
+  color: #ffffff;
+  border: none;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(143, 63, 102, 0.28);
+  transition: transform 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.daily-submit-btn:hover:not(:disabled) {
+  filter: brightness(0.93);
+  box-shadow: 0 6px 18px rgba(143, 63, 102, 0.35);
+}
+
+.daily-submit-btn:active:not(:disabled) {
+  transform: scale(0.985);
+  filter: brightness(0.88);
+}
+
+.daily-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.daily-submit-hint {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin: 10px 0 0 0;
+  line-height: 1.35;
+}
+
+/* ── Animation: Spinner ──────────────────────────────────────────────────── */
+@keyframes dailySpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.daily-spinner {
+  animation: dailySpin 0.9s linear infinite;
+}
