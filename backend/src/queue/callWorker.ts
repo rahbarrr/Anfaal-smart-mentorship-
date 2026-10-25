@@ -177,7 +177,7 @@ export async function processCallProcessingJob(
                     lastChunkAt: new Date(),
                   },
                   'stageStatus.audioProcessing': 'COMPLETED',
-                  'stageStatus.transcription': completed === total && !_chunk.error ? 'COMPLETED' : 'PROCESSING',
+                  'stageStatus.transcription': completed === total && failedChunks === 0 ? 'COMPLETED' : 'PROCESSING',
                 });
               },
             })
@@ -186,22 +186,32 @@ export async function processCallProcessingJob(
               originalname: fileName,
               mimetype: mimeType,
             });
-          const transcriptionMs = Date.now() - transcriptionStartedAt;
-          console.info(`[CALL_TRANSCRIPTION_SUCCESS] callId=${callId} durationMs=${Date.now() - transcriptionStartedAt}`);
 
-          if ('partial' in result && result.partial) {
-            const failedChunkIndexes = result.chunks.filter((chunk) => chunk.error).map((chunk) => chunk.index).join(', ');
-            throw new Error(`Transcription failed for audio chunk(s): ${failedChunkIndexes || 'unknown'}.`);
+          if (!result || typeof result !== 'object') {
+            throw new Error('Transcription failed: service returned an invalid result.');
           }
 
-          transcriptText = result.text;
+          if ('partial' in result && result.partial) {
+            const failedDetails = (result.chunks ?? [])
+              .filter((chunk) => chunk.error)
+              .map((chunk) => `chunk ${chunk.index} (${chunk.error})`)
+              .join('; ');
+            throw new Error(`Transcription failed for audio chunk(s): ${failedDetails || 'unknown chunk error'}.`);
+          }
+
+          const resolvedText = (result.text ?? '').trim();
+          if (!resolvedText) {
+            throw new Error('Transcription completed but returned an empty transcript.');
+          }
+
+          transcriptText = resolvedText;
           segments = (result.segments ?? []).map((s) => ({
             start: s.start,
             end: s.end,
             text: s.text,
             speaker: s.speaker,
           }));
-          transcriptionDuration = result.duration;
+          transcriptionDuration = result.duration ?? 0;
 
           if ('preparationMs' in result) {
             await updateJob({
@@ -226,11 +236,13 @@ export async function processCallProcessingJob(
             },
           });
 
+          const transcriptionMs = Date.now() - transcriptionStartedAt;
           await updateJob({
             progress: 50,
             'stageStatus.transcription': 'COMPLETED',
             'timings.transcriptionMs': transcriptionMs,
           });
+          console.info(`[CALL_TRANSCRIPTION_SUCCESS] callId=${callId} durationMs=${transcriptionMs}`);
         } catch (transcriptionErr) {
           currentStage = 'transcription';
           throw transcriptionErr;

@@ -10,6 +10,7 @@ export interface TranscriptInput {
   originalname: string;
   mimetype: string;
   audioUrl?: string;
+  allowEmpty?: boolean;
 }
 
 export interface TranscriptionResult {
@@ -36,9 +37,41 @@ export class NonRetryableTranscriptionError extends Error {
   }
 }
 
+export class TranscriptionApiError extends Error {
+  status?: number;
+  retryable: boolean;
+
+  constructor(message: string, options?: { status?: number; retryable?: boolean; cause?: unknown }) {
+    super(message, options);
+    this.name = 'TranscriptionApiError';
+    this.status = options?.status;
+    this.retryable = options?.retryable ?? (options?.status ? (options.status >= 500 || options.status === 429 || options.status === 408) : true);
+  }
+}
+
 export function isNonRetryableTranscriptionError(error: unknown): boolean {
-  return error instanceof NonRetryableTranscriptionError
-    || (error instanceof Error && /recordings? larger than 25 MB|unsupported audio MIME type|unsupported audio format/i.test(error.message));
+  if (error instanceof NonRetryableTranscriptionError) return true;
+  if (error instanceof TranscriptionApiError && !error.retryable) return true;
+  if (error && typeof error === 'object' && 'status' in error) {
+    const status = (error as any).status;
+    if (typeof status === 'number' && status >= 400 && status < 500 && status !== 429 && status !== 408) {
+      return true;
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  if (/Whisper API responded with (400|401|403|404)/i.test(message)) return true;
+  if (/API key is not configured|API key is missing|unauthorized|forbidden/i.test(message)) return true;
+  return /recordings? larger than 25 MB|unsupported audio MIME type|unsupported audio format|Audio recording buffer is empty/i.test(message);
+}
+
+export function isFatalAuthOrClientError(error: unknown): boolean {
+  if (error instanceof TranscriptionApiError && (error.status === 401 || error.status === 403)) return true;
+  if (error && typeof error === 'object' && 'status' in error) {
+    const status = (error as any).status;
+    if (status === 401 || status === 403) return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return /Whisper API responded with (401|403)|API key is not configured|API key is missing|unauthorized|forbidden/i.test(message);
 }
 
 export class MockTranscriptionService implements TranscriptionService {
@@ -200,13 +233,13 @@ function buildWhisperFileName(originalname: string, mimeType?: string): string {
 }
 
 export class RealTranscriptionService implements TranscriptionService {
-  async transcribe({ buffer, originalname, mimetype }: TranscriptInput): Promise<TranscriptionResult> {
+  async transcribe({ buffer, originalname, mimetype, allowEmpty }: TranscriptInput): Promise<TranscriptionResult> {
     const isProduction = process.env.NODE_ENV === 'production';
     const apiKey = process.env.TRANSCRIPTION_API_KEY || process.env.OPENAI_API_KEY;
     const allowMock = !isProduction && process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
 
     if (!buffer || buffer.length === 0) {
-      throw new Error('Audio recording buffer is empty.');
+      throw new NonRetryableTranscriptionError('Audio recording buffer is empty.');
     }
 
     if (buffer.length > MAX_TRANSCRIPTION_FILE_BYTES) {
@@ -218,9 +251,9 @@ export class RealTranscriptionService implements TranscriptionService {
     if (!apiKey) {
       if (allowMock) {
         console.warn('[Transcription] No API key found. Falling back to mock transcription because ALLOW_MOCK_TRANSCRIPTION=true');
-        return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype });
+        return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype, allowEmpty });
       }
-      throw new Error('Transcription API key is not configured. Real transcription required in production (OPENAI_API_KEY).');
+      throw new NonRetryableTranscriptionError('Transcription API key is not configured. Real transcription required in production (OPENAI_API_KEY).');
     }
 
     try {
@@ -234,17 +267,30 @@ export class RealTranscriptionService implements TranscriptionService {
       body.append('model', process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'whisper-1');
       body.append('response_format', 'verbose_json');
 
+      const timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || process.env.TRANSCRIPTION_TIMEOUT_MS || 60000);
+      const signal = AbortSignal.timeout(Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 60000);
+
       const response = await fetch(`${process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1'}/audio/transcriptions`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
         },
         body,
+        signal,
       });
 
       if (!response.ok) {
         const errBody = await response.text().catch(() => '');
-        throw new Error(`Whisper API responded with ${response.status}: ${errBody}`);
+        const sanitizedErr = errBody
+          .slice(0, 500)
+          .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [REDACTED]')
+          .replace(/sk-[A-Za-z0-9_-]+/gi, 'sk-[REDACTED]');
+        const isRetryable = response.status === 429 || response.status === 408 || response.status >= 500;
+        console.error(`[Transcription] OpenAI API error: status=${response.status} file=${safeFileName} error=${sanitizedErr}`);
+        throw new TranscriptionApiError(`Whisper API responded with ${response.status}: ${sanitizedErr}`, {
+          status: response.status,
+          retryable: isRetryable,
+        });
       }
 
       const payload = (await response.json()) as {
@@ -254,9 +300,23 @@ export class RealTranscriptionService implements TranscriptionService {
         segments?: Array<{ start: number; end: number; text: string }>;
       };
 
+      if (!payload || typeof payload !== 'object') {
+        throw new Error('Invalid JSON response received from Whisper API');
+      }
+
       const rawText = payload.text?.trim() || '';
       if (!rawText) {
-        throw new Error('No transcript text returned from Whisper');
+        if (allowEmpty) {
+          return {
+            text: '',
+            language: payload.language || 'en',
+            duration: payload.duration || 0,
+            segments: [],
+            provider: 'openai-whisper-verbose',
+            confidenceWarning: true,
+          };
+        }
+        throw new NonRetryableTranscriptionError('No transcript text returned from Whisper');
       }
 
       // Convert Whisper segments with speaker alternation (Speaker 1 / Speaker 2 or Mentor / Mentee)
@@ -305,9 +365,19 @@ export class RealTranscriptionService implements TranscriptionService {
         confidenceWarning: rawText.length < 50,
       };
     } catch (err) {
+      if (err instanceof NonRetryableTranscriptionError || err instanceof TranscriptionApiError) {
+        throw err;
+      }
       if (allowMock) {
         console.warn('[Transcription] Whisper error, falling back to mock because ALLOW_MOCK_TRANSCRIPTION=true:', err instanceof Error ? err.message : err);
-        return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype });
+        return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype, allowEmpty });
+      }
+      const isTimeout = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError' || /timeout/i.test(err.message));
+      if (isTimeout) {
+        console.error(`[Transcription] OpenAI request timed out: ${err instanceof Error ? err.message : String(err)}`);
+        throw new TranscriptionApiError(`Whisper API request timed out: ${err instanceof Error ? err.message : String(err)}`, {
+          retryable: true,
+        });
       }
       throw new Error(`Transcription failed: ${err instanceof Error ? err.message : String(err)}`);
     }

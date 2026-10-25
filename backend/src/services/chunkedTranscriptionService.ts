@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
-import { prepareAudioChunks } from './audioChunkingService.js';
+import { prepareAudioChunks, PrepareAudioChunksInput, PreparedAudioChunks } from './audioChunkingService.js';
 import {
   createTranscriptionService,
+  isFatalAuthOrClientError,
   isNonRetryableTranscriptionError,
   TranscriptInput,
   TranscriptionResult,
@@ -29,6 +30,7 @@ export interface ChunkedTranscriptionInput {
   chunkSeconds?: number;
   overlapSeconds?: number;
   maxAttempts?: number;
+  prepareChunks?: (input: PrepareAudioChunksInput) => Promise<PreparedAudioChunks>;
   transcribeChunk?: (input: TranscriptInput) => Promise<TranscriptionResult>;
   onChunksPrepared?: (total: number, durationSeconds: number) => Promise<void> | void;
   onChunkCompleted?: (result: ChunkTranscriptionResult, completed: number, total: number) => Promise<void> | void;
@@ -96,7 +98,8 @@ export function mergeChunkResults(results: ChunkTranscriptionResult[], duration:
 
 export async function transcribeAudioInChunks(input: ChunkedTranscriptionInput): Promise<ChunkedTranscriptionResult> {
   const preparationStartedAt = Date.now();
-  const prepared = await prepareAudioChunks({
+  const prepare = input.prepareChunks || prepareAudioChunks;
+  const prepared = await prepare({
     buffer: input.buffer,
     originalname: input.originalname,
     chunkSeconds: input.chunkSeconds,
@@ -111,9 +114,11 @@ export async function transcribeAudioInChunks(input: ChunkedTranscriptionInput):
   let nextIndex = 0;
   let completed = 0;
   const concurrency = Math.min(normalizedTranscriptionConcurrency(input.concurrency), prepared.chunks.length);
+  let fatalError: unknown = null;
 
   const processNext = async (): Promise<void> => {
     while (true) {
+      if (fatalError) return;
       const index = nextIndex;
       nextIndex += 1;
       const chunk = prepared.chunks[index];
@@ -124,18 +129,38 @@ export async function transcribeAudioInChunks(input: ChunkedTranscriptionInput):
       let result: Awaited<ReturnType<ReturnType<typeof createTranscriptionService>['transcribe']>> | undefined;
 
       while (attempts < maxAttempts && !result) {
+        if (fatalError) break;
         attempts += 1;
         try {
           const chunkBuffer = await fs.readFile(chunk.path);
-          result = await transcribeChunk({
+          const rawResult = await transcribeChunk({
             buffer: chunkBuffer,
             originalname: chunk.fileName,
             mimetype: chunk.mimeType,
+            allowEmpty: true,
           });
+          if (!rawResult || typeof rawResult !== 'object' || typeof rawResult.text !== 'string') {
+            throw new Error(`Chunk ${chunk.index} returned invalid result format.`);
+          }
+          result = rawResult;
         } catch (error) {
+          result = undefined;
           lastError = error instanceof Error ? error.message : String(error);
-          if (isNonRetryableTranscriptionError(error)) break;
-          if (attempts < maxAttempts) await new Promise((resolve) => setTimeout(resolve, Math.min(3000, attempts * 500)));
+          const nonRetryable = isNonRetryableTranscriptionError(error);
+          if (nonRetryable) {
+            console.warn(`[Transcription] Chunk ${chunk.index} failed with non-retryable error (attempt ${attempts}): ${lastError}`);
+            if (isFatalAuthOrClientError(error)) {
+              fatalError = error;
+            }
+            break;
+          }
+          if (attempts < maxAttempts) {
+            const delayMs = Math.min(3000, attempts * 500);
+            console.warn(`[Transcription] Chunk ${chunk.index} failed (attempt ${attempts}/${maxAttempts}), retrying in ${delayMs}ms: ${lastError}`);
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          } else {
+            console.error(`[Transcription] Chunk ${chunk.index} failed after ${attempts} attempts: ${lastError}`);
+          }
         }
       }
 
@@ -163,19 +188,43 @@ export async function transcribeAudioInChunks(input: ChunkedTranscriptionInput):
     await prepared.cleanup();
   }
 
-  const merged = mergeChunkResults(results, prepared.durationSeconds, Number(input.chunkSeconds ?? process.env.TRANSCRIPTION_CHUNK_SECONDS ?? 90));
-  const language = results.find((result) => result.language)?.language;
-  const provider = results.find((result) => result.provider)?.provider || 'openai-whisper-chunked';
+  // Populate any unstarted chunks if execution was aborted due to fatal auth/client error
+  const processedIndexes = new Set(results.map((r) => r.index));
+  for (const chunk of prepared.chunks) {
+    if (!processedIndexes.has(chunk.index)) {
+      results.push({
+        index: chunk.index,
+        startSeconds: chunk.startSeconds,
+        endSeconds: chunk.endSeconds,
+        text: '',
+        segments: [],
+        attempts: 0,
+        error: fatalError instanceof Error ? fatalError.message : 'Transcription aborted due to fatal error in preceding chunk.',
+      });
+    }
+  }
+
+  const resolvedChunkSeconds = Number(
+    input.chunkSeconds
+      ?? (prepared.chunks[0] && prepared.chunks[1] ? prepared.chunks[1].startSeconds - prepared.chunks[0].startSeconds : undefined)
+      ?? process.env.TRANSCRIPTION_CHUNK_SECONDS
+      ?? 90,
+  );
+
+  const sortedResults = results.sort((a, b) => a.index - b.index);
+  const merged = mergeChunkResults(sortedResults, prepared.durationSeconds, resolvedChunkSeconds);
+  const language = sortedResults.find((result) => result.language)?.language;
+  const provider = sortedResults.find((result) => result.provider)?.provider || 'openai-whisper-chunked';
 
   return {
     ...merged,
     language,
     duration: prepared.durationSeconds,
     provider,
-    chunks: results.sort((a, b) => a.index - b.index),
-    partial: results.some((result) => Boolean(result.error)),
+    chunks: sortedResults,
+    partial: sortedResults.some((result) => Boolean(result.error)),
     preparationMs,
     chunkCount: prepared.chunks.length,
-    chunkSeconds: Number(input.chunkSeconds ?? process.env.TRANSCRIPTION_CHUNK_SECONDS ?? 90),
+    chunkSeconds: resolvedChunkSeconds,
   };
 }
