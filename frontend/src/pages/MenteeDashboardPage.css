@@ -760,6 +760,7 @@
   gap: 6px;
 }
 
+.leaderboard-past-trigger-btn,
 .leaderboard-info-trigger-btn {
   display: inline-flex;
   align-items: center;
@@ -773,12 +774,20 @@
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
+.leaderboard-past-trigger-btn:hover,
 .leaderboard-info-trigger-btn:hover {
   background: #f5edf1;
   color: #8f3f66;
   border-color: #8f3f66;
+}
+
+.leaderboard-past-trigger-btn {
+  color: #8f3f66;
+  background: #fdf2f7;
+  border-color: #ebdbe3;
 }
 
 .leaderboard-period-tabs {
@@ -1408,9 +1417,24 @@
   color: #b45309;
 }
 
+.rule-badge.monthly {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.rule-badge.alltime {
+  background: #fef08a;
+  color: #854d0e;
+}
+
 .rule-badge.tie {
   background: #ede9fe;
   color: #6d28d9;
+}
+
+.rule-badge.archive {
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .rule-name {
@@ -1544,6 +1568,238 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   PAST LEADERBOARDS & HISTORICAL ARCHIVE STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.past-leaderboard-modal-card {
+  max-width: 580px;
+}
+
+.past-period-type-selector {
+  padding: 10px 20px 0;
+  display: flex;
+}
+
+.past-periods-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px 20px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #dcd5d8 transparent;
+}
+
+.past-periods-chips-row::-webkit-scrollbar {
+  height: 4px;
+}
+
+.past-periods-chips-row::-webkit-scrollbar-thumb {
+  background: #dcd5d8;
+  border-radius: 4px;
+}
+
+.past-period-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 1px solid #ebdbe3;
+  border-radius: 20px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #70676d;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.past-period-chip:hover {
+  border-color: #8f3f66;
+  color: #8f3f66;
+  background: #fdf2f7;
+}
+
+.past-period-chip.selected {
+  background: #8f3f66;
+  color: #ffffff;
+  border-color: #8f3f66;
+  box-shadow: 0 2px 6px rgba(143, 63, 102, 0.25);
+}
+
+.past-period-chip.selected .chip-finalized-tag {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.chip-finalized-tag {
+  font-size: 0.64rem;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #f3edf0;
+  color: #70676d;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.past-empty-notice {
+  padding: 18px 20px;
+  font-size: 0.8rem;
+  color: #70676d;
+  text-align: center;
+  background: #faf8f9;
+  border-radius: 8px;
+  margin: 10px 20px;
+}
+
+.past-period-banner {
+  margin: 10px 20px;
+  padding: 10px 14px;
+  background: #fdf8fa;
+  border: 1px solid #ebdbe3;
+  border-left: 4px solid #8f3f66;
+  border-radius: 8px;
+}
+
+.past-period-banner-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.past-period-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.past-period-name {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #231e21;
+}
+
+.past-period-dates {
+  font-size: 0.74rem;
+  color: #70676d;
+}
+
+.past-period-status-pill {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #8f3f66;
+  background: #fdf2f7;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid #ebdbe3;
+}
+
+.past-period-note {
+  font-size: 0.72rem;
+  color: #70676d;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+.past-my-result-strip {
+  margin: 0 20px 8px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #ebdfe4;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.past-my-result-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.past-my-rank-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #fdf2f7;
+  border: 1px solid #ebdbe3;
+  color: #8f3f66;
+  font-weight: 800;
+  font-size: 0.86rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.past-my-result-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #231e21;
+}
+
+.past-my-result-sub {
+  font-size: 0.74rem;
+  color: #70676d;
+  margin-top: 1px;
+}
+
+.past-my-result-right {
+  flex-shrink: 0;
+}
+
+.past-total-participants {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #70676d;
+  background: #f5edf1;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.past-modal-list {
+  max-height: 340px;
+}
+
+.past-leaderboard-empty-state {
+  text-align: center;
+  padding: 36px 20px;
+  color: #70676d;
+}
+
+.past-leaderboard-empty-state h4 {
+  font-size: 0.95rem;
+  color: #231e21;
+  margin: 8px 0 4px;
+  font-weight: 700;
+}
+
+.past-leaderboard-empty-state p {
+  font-size: 0.78rem;
+  max-width: 380px;
+  margin: 0 auto;
+  line-height: 1.4;
+}
+
+.past-modal-footer {
+  padding: 12px 20px;
+  background: #faf8f9;
+  border-top: 1px solid #f0eaee;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    RESPONSIVE LAYOUTS (TABLETS & PHONES)
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1662,6 +1918,39 @@
   }
 
   .privacy-toggle-btn {
+    width: 100%;
+  }
+
+  .past-periods-chips-row {
+    padding: 10px 14px 4px;
+    gap: 6px;
+  }
+
+  .past-period-banner {
+    margin: 8px 14px;
+    padding: 8px 12px;
+  }
+
+  .past-my-result-strip {
+    margin: 0 14px 8px;
+    padding: 8px 12px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .past-my-result-right {
+    margin-top: 4px;
+  }
+
+  .past-modal-footer {
+    padding: 10px 14px;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 8px;
+  }
+
+  .past-modal-footer button {
     width: 100%;
   }
 }

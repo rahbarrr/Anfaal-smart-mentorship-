@@ -264,20 +264,36 @@ router.get('/growth-summary', requireAuth, async (req: AuthRequest, res: Respons
 router.get('/leaderboard', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const menteeId = (await resolveMenteeId(req)) || (req.query.menteeId as string | undefined) || '';
-    const period = req.query.period === 'alltime' ? 'alltime' : 'weekly';
+    const rawPeriod = String(req.query.period || 'weekly').toLowerCase();
+    const period = rawPeriod === 'alltime' ? 'alltime' : rawPeriod === 'monthly' ? 'monthly' : 'weekly';
     const weekOffset = Number(req.query.weekOffset || 0);
-    const timezone = (req.query.timezone as string) || 'Asia/Kolkata';
+    const monthOffset = Number(req.query.monthOffset || 0);
+    const timezone = (req.query.timezone as string) || DEFAULT_REMINDER_TIMEZONE;
 
     const { getSystemLeaderboard } = await import('../services/menteeGrowthService.js');
     const leaderboard = await getSystemLeaderboard(menteeId, {
       period,
       weekOffset,
+      monthOffset,
       timezone,
     });
 
     return res.json(leaderboard);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to load leaderboard';
+    return res.status(500).json({ message });
+  }
+});
+
+// ── 1.65 GET /api/daily-performance/leaderboard-periods ───────────────────────
+router.get('/leaderboard-periods', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const timezone = (req.query.timezone as string) || DEFAULT_REMINDER_TIMEZONE;
+    const { getHistoricalPeriodsSummary } = await import('../services/menteeGrowthService.js');
+    const periods = await getHistoricalPeriodsSummary(timezone);
+    return res.json(periods);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to load leaderboard periods';
     return res.status(500).json({ message });
   }
 });

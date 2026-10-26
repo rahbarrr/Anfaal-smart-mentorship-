@@ -4,6 +4,9 @@ import {
   filterEligibleMentees,
   getIsoWeekBoundaries,
   calculateWeeklyLeaderboardScore,
+  getCalendarMonthBoundaries,
+  calculateMonthlyLeaderboardScore,
+  getAvailableHistoricalPeriods,
   rankLeaderboardEntries,
   type MenteeCandidate,
   type UserCandidate,
@@ -254,3 +257,139 @@ test('LEADERBOARD RANKING: handles true ties by assigning identical rank numbers
   // Omar gets rank 3 (standard competition ranking: 1, 1, 3)
   assert.equal(ranked[2].rank, 3);
 });
+
+test('LEADERBOARD MONTHLY PERIOD: calculates calendar month boundaries accurately', () => {
+  // Current month: October 2026
+  const boundsCurrent = getCalendarMonthBoundaries('2026-10-26', 0);
+  assert.equal(boundsCurrent.startDate, '2026-10-01');
+  assert.equal(boundsCurrent.endDate, '2026-10-31');
+  assert.equal(boundsCurrent.monthYear, 'October 2026');
+  assert.ok(boundsCurrent.monthLabel.includes('This Month'));
+
+  // Previous month offset (-1): September 2026
+  const boundsPrev = getCalendarMonthBoundaries('2026-10-26', -1);
+  assert.equal(boundsPrev.startDate, '2026-09-01');
+  assert.equal(boundsPrev.endDate, '2026-09-30');
+  assert.equal(boundsPrev.monthYear, 'September 2026');
+
+  // Month offset (-2): August 2026
+  const boundsAug = getCalendarMonthBoundaries('2026-10-26', -2);
+  assert.equal(boundsAug.startDate, '2026-08-01');
+  assert.equal(boundsAug.endDate, '2026-08-31');
+  assert.equal(boundsAug.monthYear, 'August 2026');
+});
+
+test('LEADERBOARD MONTHLY SCORING: calculates monthly points with weekly consistency milestones', () => {
+  // 4 submissions in a single week -> 4 * 10 = 40 pts (no consistency bonus)
+  const score1 = calculateMonthlyLeaderboardScore([
+    '2026-10-05',
+    '2026-10-06',
+    '2026-10-07',
+    '2026-10-08',
+  ]);
+  assert.equal(score1.monthlyPoints, 40);
+  assert.equal(score1.monthlySubmissions, 4);
+  assert.equal(score1.weeklyMilestonesEarned, 0);
+
+  // 5 submissions in one week -> 5 * 10 + 50 = 100 pts (1 weekly milestone)
+  const score2 = calculateMonthlyLeaderboardScore([
+    '2026-10-05',
+    '2026-10-06',
+    '2026-10-07',
+    '2026-10-08',
+    '2026-10-09',
+  ]);
+  assert.equal(score2.monthlyPoints, 100);
+  assert.equal(score2.monthlySubmissions, 5);
+  assert.equal(score2.weeklyMilestonesEarned, 1);
+
+  // 12 submissions across 2 qualifying weeks -> 12 * 10 + (2 * 50) = 220 pts
+  const score3 = calculateMonthlyLeaderboardScore([
+    // Week 1: 5 submissions
+    '2026-10-05',
+    '2026-10-06',
+    '2026-10-07',
+    '2026-10-08',
+    '2026-10-09',
+    // Week 2: 7 submissions
+    '2026-10-12',
+    '2026-10-13',
+    '2026-10-14',
+    '2026-10-15',
+    '2026-10-16',
+    '2026-10-17',
+    '2026-10-18',
+  ]);
+  assert.equal(score3.monthlyPoints, 220);
+  assert.equal(score3.monthlySubmissions, 12);
+  assert.equal(score3.weeklyMilestonesEarned, 2);
+});
+
+test('LEADERBOARD MONTHLY RANKING: sorts and breaks ties for monthly period', () => {
+  const entries: RawLeaderboardEntry[] = [
+    {
+      menteeId: 'm1',
+      name: 'Yusuf',
+      isMe: false,
+      currentStreak: 10,
+      weeklyPoints: 20,
+      weeklySubmissions: 2,
+      monthlyPoints: 140,
+      monthlySubmissions: 9,
+      totalSubmissions: 30,
+      totalXp: 500,
+    },
+    {
+      menteeId: 'm2',
+      name: 'Fatima',
+      isMe: false,
+      currentStreak: 12,
+      weeklyPoints: 70,
+      weeklySubmissions: 7,
+      monthlyPoints: 220,
+      monthlySubmissions: 12,
+      totalSubmissions: 45,
+      totalXp: 850,
+    },
+    {
+      menteeId: 'm3',
+      name: 'Hamza',
+      isMe: true,
+      currentStreak: 5,
+      weeklyPoints: 30,
+      weeklySubmissions: 3,
+      monthlyPoints: 140, // Tied with Yusuf on points, but fewer submissions (7 vs 9)
+      monthlySubmissions: 7,
+      totalSubmissions: 20,
+      totalXp: 350,
+    },
+  ];
+
+  const ranked = rankLeaderboardEntries(entries, 'monthly');
+  assert.equal(ranked[0].menteeId, 'm2'); // Fatima 220 pts -> Rank 1
+  assert.equal(ranked[0].rank, 1);
+  assert.equal(ranked[1].menteeId, 'm1'); // Yusuf 140 pts, 9 submissions -> Rank 2
+  assert.equal(ranked[1].rank, 2);
+  assert.equal(ranked[2].menteeId, 'm3'); // Hamza 140 pts, 7 submissions -> Rank 3
+  assert.equal(ranked[2].rank, 3);
+});
+
+test('LEADERBOARD HISTORICAL PERIODS: generates completed past weekly and monthly options', () => {
+  const { weekly, monthly } = getAvailableHistoricalPeriods('2026-10-26');
+  assert.ok(weekly.length >= 2);
+  assert.ok(monthly.length >= 2);
+
+  // Past week #1 should be Oct 19-25, 2026 (offset -1)
+  assert.equal(weekly[0].offset, -1);
+  assert.equal(weekly[0].startDate, '2026-10-19');
+  assert.equal(weekly[0].endDate, '2026-10-25');
+  assert.equal(weekly[0].type, 'weekly');
+
+  // Past month #1 should be September 2026 (offset -1)
+  assert.equal(monthly[0].offset, -1);
+  assert.equal(monthly[0].startDate, '2026-09-01');
+  assert.equal(monthly[0].endDate, '2026-09-30');
+  assert.equal(monthly[0].label, 'September 2026');
+  assert.equal(monthly[0].type, 'monthly');
+});
+

@@ -1496,28 +1496,50 @@ export interface LeaderboardEntry {
   currentStreak: number;
   weeklyPoints: number;
   weeklySubmissions: number;
+  monthlyPoints?: number;
+  monthlySubmissions?: number;
   totalSubmissions: number;
   totalXp: number;
   isTopThree: boolean;
   isAnonymous?: boolean;
 }
 
+export interface HistoricalPeriodOption {
+  type: 'weekly' | 'monthly';
+  key: string;
+  label: string;
+  startDate: string;
+  endDate: string;
+  offset: number;
+}
+
+export interface HistoricalPeriodsResponse {
+  weekly: HistoricalPeriodOption[];
+  monthly: HistoricalPeriodOption[];
+}
+
 export interface LeaderboardData {
   period: {
-    type: 'weekly' | 'alltime';
+    type: 'weekly' | 'monthly' | 'alltime';
     label: string;
     startDate: string;
     endDate: string;
     timezone: string;
+    isHistorical?: boolean;
+    isFinalized?: boolean;
+    weekOffset?: number;
+    monthOffset?: number;
   };
   myRank: number;
   myWeeklyPoints: number;
+  myMonthlyPoints?: number;
   myLifetimeXp: number;
   totalEligibleMentees: number;
   entries: LeaderboardEntry[];
   topThree: LeaderboardEntry[];
   myEntry: LeaderboardEntry | null;
   optedOut: boolean;
+  hasData?: boolean;
   scoringRules: Array<{ rule: string; points: string; description: string }>;
 }
 
@@ -1531,16 +1553,28 @@ export async function getMenteeGrowthSummary(params?: { weekOffset?: number; men
 }
 
 export async function getLeaderboard(params?: {
-  period?: 'weekly' | 'alltime';
+  period?: 'weekly' | 'monthly' | 'alltime';
   weekOffset?: number;
+  monthOffset?: number;
   menteeId?: string;
+  timezone?: string;
 }): Promise<LeaderboardData> {
   const query = new URLSearchParams();
   if (params?.period) query.set('period', params.period);
   if (params?.weekOffset !== undefined) query.set('weekOffset', String(params.weekOffset));
+  if (params?.monthOffset !== undefined) query.set('monthOffset', String(params.monthOffset));
   if (params?.menteeId) query.set('menteeId', params.menteeId);
+  if (params?.timezone) query.set('timezone', params.timezone);
   const qs = query.toString() ? `?${query.toString()}` : '';
   const res = await apiFetch(`/daily-performance/leaderboard${qs}`);
+  return res.json();
+}
+
+export async function getLeaderboardPeriods(timezone?: string): Promise<HistoricalPeriodsResponse> {
+  const query = new URLSearchParams();
+  if (timezone) query.set('timezone', timezone);
+  const qs = query.toString() ? `?${query.toString()}` : '';
+  const res = await apiFetch(`/daily-performance/leaderboard-periods${qs}`);
   return res.json();
 }
 

@@ -23,13 +23,18 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
+  History,
+  Calendar,
 } from 'lucide-react';
 import {
   getMenteeGrowthSummary,
   getLeaderboard,
+  getLeaderboardPeriods,
   updateLeaderboardPrivacy,
   type MenteeGrowthSummary,
   type LeaderboardData,
+  type HistoricalPeriodOption,
+  type HistoricalPeriodsResponse,
 } from '../lib/api';
 import { formatSubmissionTimestamps } from '../lib/dateTime';
 import './MenteeDashboardPage.css';
@@ -59,7 +64,7 @@ export function MenteeDashboardPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Leaderboard interactive state
-  const [leaderboardPeriod, setLeaderboardPeriod] = useState<'weekly' | 'alltime'>('weekly');
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState<'weekly' | 'monthly' | 'alltime'>('weekly');
   const [customLeaderboardData, setCustomLeaderboardData] = useState<LeaderboardData | null>(null);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState<boolean>(false);
   const [fullLeaderboardOpen, setFullLeaderboardOpen] = useState<boolean>(false);
@@ -67,6 +72,16 @@ export function MenteeDashboardPage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState<boolean>(false);
   const [privacyToast, setPrivacyToast] = useState<string | null>(null);
+
+  // Past Leaderboards Archive State
+  const [pastLeaderboardOpen, setPastLeaderboardOpen] = useState<boolean>(false);
+  const [pastPeriodType, setPastPeriodType] = useState<'weekly' | 'monthly'>('weekly');
+  const [historicalPeriods, setHistoricalPeriods] = useState<HistoricalPeriodsResponse | null>(null);
+  const [selectedPastPeriod, setSelectedPastPeriod] = useState<HistoricalPeriodOption | null>(null);
+  const [pastLeaderboardData, setPastLeaderboardData] = useState<LeaderboardData | null>(null);
+  const [isLoadingPastPeriods, setIsLoadingPastPeriods] = useState<boolean>(false);
+  const [isLoadingPastLeaderboard, setIsLoadingPastLeaderboard] = useState<boolean>(false);
+  const [pastSearchQuery, setPastSearchQuery] = useState<string>('');
 
   useEffect(() => {
     let isMounted = true;
@@ -98,17 +113,83 @@ export function MenteeDashboardPage() {
     };
   }, [weekOffset]);
 
-  const handlePeriodChange = async (period: 'weekly' | 'alltime') => {
+  const handlePeriodChange = async (period: 'weekly' | 'monthly' | 'alltime') => {
     setLeaderboardPeriod(period);
     setIsLoadingLeaderboard(true);
     try {
-      const res = await getLeaderboard({ period, weekOffset });
+      const res = await getLeaderboard({
+        period,
+        weekOffset: period === 'weekly' ? weekOffset : 0,
+        monthOffset: 0,
+      });
       setCustomLeaderboardData(res);
     } catch (err) {
       console.error('Failed to change leaderboard period', err);
     } finally {
       setIsLoadingLeaderboard(false);
     }
+  };
+
+  const loadPastPeriodLeaderboard = async (option: HistoricalPeriodOption) => {
+    setIsLoadingPastLeaderboard(true);
+    try {
+      const res = await getLeaderboard({
+        period: option.type,
+        weekOffset: option.type === 'weekly' ? option.offset : undefined,
+        monthOffset: option.type === 'monthly' ? option.offset : undefined,
+      });
+      setPastLeaderboardData(res);
+    } catch (err) {
+      console.error('Failed to load past leaderboard data', err);
+    } finally {
+      setIsLoadingPastLeaderboard(false);
+    }
+  };
+
+  const handleOpenPastLeaderboard = async () => {
+    setPastLeaderboardOpen(true);
+    setPastSearchQuery('');
+    setIsLoadingPastPeriods(true);
+    try {
+      const periods = await getLeaderboardPeriods();
+      setHistoricalPeriods(periods);
+      const list = pastPeriodType === 'weekly' ? periods.weekly : periods.monthly;
+      const defaultOption = list[0] || (pastPeriodType === 'weekly' ? periods.monthly[0] : periods.weekly[0]) || null;
+      if (defaultOption) {
+        if (defaultOption.type !== pastPeriodType) {
+          setPastPeriodType(defaultOption.type);
+        }
+        setSelectedPastPeriod(defaultOption);
+        await loadPastPeriodLeaderboard(defaultOption);
+      } else {
+        setSelectedPastPeriod(null);
+        setPastLeaderboardData(null);
+      }
+    } catch (err) {
+      console.error('Failed to load past leaderboard periods', err);
+    } finally {
+      setIsLoadingPastPeriods(false);
+    }
+  };
+
+  const handleSwitchPastPeriodType = async (type: 'weekly' | 'monthly') => {
+    setPastPeriodType(type);
+    setPastSearchQuery('');
+    if (!historicalPeriods) return;
+    const list = type === 'weekly' ? historicalPeriods.weekly : historicalPeriods.monthly;
+    const firstOption = list[0] || null;
+    setSelectedPastPeriod(firstOption);
+    if (firstOption) {
+      await loadPastPeriodLeaderboard(firstOption);
+    } else {
+      setPastLeaderboardData(null);
+    }
+  };
+
+  const handleSelectPastPeriod = async (option: HistoricalPeriodOption) => {
+    setSelectedPastPeriod(option);
+    setPastSearchQuery('');
+    await loadPastPeriodLeaderboard(option);
   };
 
   const handleTogglePrivacy = async () => {
@@ -119,7 +200,11 @@ export function MenteeDashboardPage() {
     try {
       const nextOptOut = !currentBoard.optedOut;
       await updateLeaderboardPrivacy(nextOptOut);
-      const updated = await getLeaderboard({ period: leaderboardPeriod, weekOffset });
+      const updated = await getLeaderboard({
+        period: leaderboardPeriod,
+        weekOffset: leaderboardPeriod === 'weekly' ? weekOffset : 0,
+        monthOffset: 0,
+      });
       setCustomLeaderboardData(updated);
       setPrivacyToast(
         nextOptOut
@@ -145,6 +230,15 @@ export function MenteeDashboardPage() {
       e.name.toLowerCase().includes(q),
     );
   }, [activeLeaderboard, searchQuery]);
+
+  const filteredPastEntries = useMemo(() => {
+    if (!pastLeaderboardData?.entries) return [];
+    if (!pastSearchQuery.trim()) return pastLeaderboardData.entries;
+    const q = pastSearchQuery.toLowerCase().trim();
+    return pastLeaderboardData.entries.filter((e) =>
+      e.name.toLowerCase().includes(q),
+    );
+  }, [pastLeaderboardData, pastSearchQuery]);
 
   if (isLoading && !data) {
     return (
@@ -599,7 +693,9 @@ export function MenteeDashboardPage() {
                     <span className="leaderboard-period-badge">
                       {leaderboardPeriod === 'weekly'
                         ? activeLeaderboard?.period?.label || 'This Week'
-                        : 'All-Time'}
+                        : leaderboardPeriod === 'monthly'
+                          ? activeLeaderboard?.period?.label || 'This Month'
+                          : 'All-Time XP'}
                     </span>
                   </div>
                   <div style={{ fontSize: '0.74rem', color: '#70676d', marginTop: 2 }}>
@@ -609,6 +705,16 @@ export function MenteeDashboardPage() {
               </div>
 
               <div className="leaderboard-header-actions">
+                <button
+                  type="button"
+                  className="leaderboard-past-trigger-btn"
+                  onClick={() => void handleOpenPastLeaderboard()}
+                  title="View completed past weekly and monthly leaderboards"
+                  aria-label="View past leaderboards"
+                >
+                  <History size={14} />
+                  <span>Past Leaderboards</span>
+                </button>
                 <button
                   type="button"
                   className="leaderboard-info-trigger-btn"
@@ -632,6 +738,15 @@ export function MenteeDashboardPage() {
                 onClick={() => void handlePeriodChange('weekly')}
               >
                 This Week
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={leaderboardPeriod === 'monthly'}
+                className={`period-tab-btn ${leaderboardPeriod === 'monthly' ? 'active' : ''}`}
+                onClick={() => void handlePeriodChange('monthly')}
+              >
+                This Month
               </button>
               <button
                 type="button"
@@ -670,7 +785,9 @@ export function MenteeDashboardPage() {
                         <div className="podium-points">
                           {leaderboardPeriod === 'weekly'
                             ? `${topEntry.weeklyPoints} pts`
-                            : `${topEntry.totalXp} XP`}
+                            : leaderboardPeriod === 'monthly'
+                              ? `${topEntry.monthlyPoints ?? 0} pts`
+                              : `${topEntry.totalXp} XP`}
                         </div>
                         {topEntry.currentStreak > 0 && (
                           <div className="podium-streak" title={`${topEntry.currentStreak}-day active streak`}>
@@ -712,7 +829,9 @@ export function MenteeDashboardPage() {
                             <span className="leaderboard-xp">
                               {leaderboardPeriod === 'weekly'
                                 ? `${entry.weeklyPoints} pts`
-                                : `${entry.totalXp} XP`}
+                                : leaderboardPeriod === 'monthly'
+                                  ? `${entry.monthlyPoints ?? 0} pts`
+                                  : `${entry.totalXp} XP`}
                             </span>
                           </div>
                         </div>
@@ -730,7 +849,9 @@ export function MenteeDashboardPage() {
                         <div className="my-standing-sub">
                           {leaderboardPeriod === 'weekly'
                             ? `${activeLeaderboard.myWeeklyPoints} pts this week`
-                            : `${activeLeaderboard.myLifetimeXp} Lifetime XP`}
+                            : leaderboardPeriod === 'monthly'
+                              ? `${activeLeaderboard.myMonthlyPoints ?? 0} pts this month`
+                              : `${activeLeaderboard.myLifetimeXp} Lifetime XP`}
                           {activeLeaderboard.myEntry.currentStreak > 0 &&
                             ` • 🔥 ${activeLeaderboard.myEntry.currentStreak}d streak`}
                         </div>
@@ -763,7 +884,13 @@ export function MenteeDashboardPage() {
             ) : (
               <div className="leaderboard-empty-state">
                 <Trophy size={32} color="#ca8a04" style={{ margin: '0 auto 10px', opacity: 0.8 }} />
-                <h4>No submissions recorded yet for this week</h4>
+                <h4>
+                  {leaderboardPeriod === 'weekly'
+                    ? 'No submissions recorded yet for this week'
+                    : leaderboardPeriod === 'monthly'
+                      ? 'No submissions recorded yet for this month'
+                      : 'No mentee activity recorded yet'}
+                </h4>
                 <p>Be the first mentee to complete today's daily check-in and take the lead!</p>
                 <button
                   type="button"
@@ -904,7 +1031,9 @@ export function MenteeDashboardPage() {
                 <span className="val">
                   {leaderboardPeriod === 'weekly'
                     ? `${activeLeaderboard.myWeeklyPoints} pts`
-                    : `${activeLeaderboard.myLifetimeXp} XP`}
+                    : leaderboardPeriod === 'monthly'
+                      ? `${activeLeaderboard.myMonthlyPoints ?? 0} pts`
+                      : `${activeLeaderboard.myLifetimeXp} XP`}
                 </span>
               </div>
             </div>
@@ -921,10 +1050,17 @@ export function MenteeDashboardPage() {
                 </button>
                 <button
                   type="button"
+                  className={`period-tab-btn ${leaderboardPeriod === 'monthly' ? 'active' : ''}`}
+                  onClick={() => void handlePeriodChange('monthly')}
+                >
+                  This Month
+                </button>
+                <button
+                  type="button"
                   className={`period-tab-btn ${leaderboardPeriod === 'alltime' ? 'active' : ''}`}
                   onClick={() => void handlePeriodChange('alltime')}
                 >
-                  All-Time
+                  All-Time XP
                 </button>
               </div>
 
@@ -985,8 +1121,17 @@ export function MenteeDashboardPage() {
                           {entry.weeklySubmissions}/7d
                         </span>
                       )}
+                      {leaderboardPeriod === 'monthly' && (
+                        <span className="modal-days-badge" title="Days submitted this month">
+                          {entry.monthlySubmissions ?? 0}d
+                        </span>
+                      )}
                       <span className="modal-score-badge">
-                        {leaderboardPeriod === 'weekly' ? `${entry.weeklyPoints} pts` : `${entry.totalXp} XP`}
+                        {leaderboardPeriod === 'weekly'
+                          ? `${entry.weeklyPoints} pts`
+                          : leaderboardPeriod === 'monthly'
+                            ? `${entry.monthlyPoints ?? 0} pts`
+                            : `${entry.totalXp} XP`}
                       </span>
                     </div>
                   </div>
@@ -1037,6 +1182,264 @@ export function MenteeDashboardPage() {
         </div>
       )}
 
+      {/* ── Past Leaderboards Historical Archive Modal ───────────────────────── */}
+      {pastLeaderboardOpen && (
+        <div
+          className="leaderboard-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="past-leaderboard-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPastLeaderboardOpen(false);
+          }}
+        >
+          <div className="leaderboard-modal-card past-leaderboard-modal-card">
+            <div className="leaderboard-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="growth-card-icon" style={{ background: '#fdf2f7', color: '#8f3f66' }}>
+                  <History size={20} />
+                </div>
+                <div>
+                  <h3 id="past-leaderboard-title" style={{ margin: 0, fontSize: '1.15rem', color: '#231e21' }}>
+                    Past Leaderboards & Archive
+                  </h3>
+                  <div style={{ fontSize: '0.78rem', color: '#70676d' }}>
+                    Finalized rankings for completed reporting periods
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="leaderboard-modal-close-btn"
+                onClick={() => setPastLeaderboardOpen(false)}
+                aria-label="Close past leaderboards modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Period Type Selector: Weekly vs Monthly */}
+            <div className="past-period-type-selector">
+              <div className="leaderboard-period-tabs" style={{ margin: 0, flex: 1 }}>
+                <button
+                  type="button"
+                  className={`period-tab-btn ${pastPeriodType === 'weekly' ? 'active' : ''}`}
+                  onClick={() => void handleSwitchPastPeriodType('weekly')}
+                >
+                  Weekly Archives
+                </button>
+                <button
+                  type="button"
+                  className={`period-tab-btn ${pastPeriodType === 'monthly' ? 'active' : ''}`}
+                  onClick={() => void handleSwitchPastPeriodType('monthly')}
+                >
+                  Monthly Archives
+                </button>
+              </div>
+            </div>
+
+            {/* Completed Historical Periods List / Carousel */}
+            {isLoadingPastPeriods ? (
+              <div style={{ textAlign: 'center', padding: '24px 10px' }}>
+                <div className="anfaal-spinner" style={{ width: 22, height: 22, margin: '0 auto 8px' }} />
+                <span style={{ fontSize: '0.82rem', color: '#70676d' }}>Loading completed periods...</span>
+              </div>
+            ) : historicalPeriods &&
+              (pastPeriodType === 'weekly' ? historicalPeriods.weekly : historicalPeriods.monthly).length > 0 ? (
+              <div className="past-periods-chips-row" role="radiogroup" aria-label="Select completed period">
+                {(pastPeriodType === 'weekly' ? historicalPeriods.weekly : historicalPeriods.monthly).map((opt) => {
+                  const isSelected = selectedPastPeriod?.key === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      className={`past-period-chip ${isSelected ? 'selected' : ''}`}
+                      onClick={() => void handleSelectPastPeriod(opt)}
+                    >
+                      <Calendar size={13} />
+                      <span className="chip-label">{opt.label}</span>
+                      <span className="chip-finalized-tag">Final</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="past-empty-notice">
+                No completed {pastPeriodType} periods have elapsed yet in the reporting calendar.
+              </div>
+            )}
+
+            {/* Selected Period Meta Banner */}
+            {selectedPastPeriod && (
+              <div className="past-period-banner">
+                <div className="past-period-banner-top">
+                  <div className="past-period-title">
+                    <span className="past-period-name">{selectedPastPeriod.label}</span>
+                    <span className="past-period-dates">
+                      ({selectedPastPeriod.startDate} to {selectedPastPeriod.endDate})
+                    </span>
+                  </div>
+                  <span className="past-period-status-pill">
+                    🔒 Archived Final Standings
+                  </span>
+                </div>
+                <div className="past-period-note">
+                  Official immutable standings locked at period close. Subsequent daily check-ins do not modify this historical archive.
+                </div>
+              </div>
+            )}
+
+            {/* Mentee's Own Result Strip for this Period */}
+            {pastLeaderboardData && (
+              <div className="past-my-result-strip">
+                <div className="past-my-result-left">
+                  <div className="past-my-rank-badge">
+                    {pastLeaderboardData.myRank ? `#${pastLeaderboardData.myRank}` : '—'}
+                  </div>
+                  <div>
+                    <div className="past-my-result-title">
+                      Your Historical Standing
+                    </div>
+                    <div className="past-my-result-sub">
+                      {pastLeaderboardData.myRank ? (
+                        <>
+                          Final Points:{' '}
+                          <strong>
+                            {pastPeriodType === 'weekly'
+                              ? `${pastLeaderboardData.myWeeklyPoints} pts`
+                              : `${pastLeaderboardData.myMonthlyPoints ?? 0} pts`}
+                          </strong>
+                          {pastLeaderboardData.myEntry?.currentStreak
+                            ? ` • 🔥 ${pastLeaderboardData.myEntry.currentStreak}d streak`
+                            : ''}
+                        </>
+                      ) : (
+                        'You did not log any qualifying daily check-ins during this completed period.'
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="past-my-result-right">
+                  <span className="past-total-participants">
+                    {pastLeaderboardData.totalEligibleMentees} Mentees Evaluated
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Search within Past Leaderboard */}
+            {pastLeaderboardData && (
+              <div className="modal-search-box" style={{ margin: '8px 0 12px' }}>
+                <Search size={15} color="#8a8086" />
+                <input
+                  type="text"
+                  placeholder="Search historical standings by mentee name..."
+                  value={pastSearchQuery}
+                  onChange={(e) => setPastSearchQuery(e.target.value)}
+                  className="modal-search-input"
+                />
+                {pastSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setPastSearchQuery('')}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#8a8086' }}
+                    aria-label="Clear search"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Past Leaderboard Table / Rankings */}
+            <div className="modal-leaderboard-list past-modal-list">
+              {isLoadingPastLeaderboard ? (
+                <div style={{ textAlign: 'center', padding: '36px 10px' }}>
+                  <div className="anfaal-spinner" style={{ width: 24, height: 24, margin: '0 auto 8px' }} />
+                  <span style={{ fontSize: '0.82rem', color: '#70676d' }}>Loading archived rankings...</span>
+                </div>
+              ) : !pastLeaderboardData || !pastLeaderboardData.hasData || pastLeaderboardData.entries.length === 0 ? (
+                <div className="past-leaderboard-empty-state">
+                  <ShieldCheck size={36} color="#8f3f66" style={{ margin: '0 auto 10px', opacity: 0.8 }} />
+                  <h4>Historical rankings are not available for this period</h4>
+                  <p>
+                    To ensure absolute historical accuracy, Anfaal does not fabricate scores or approximate past rankings when source verification is unavailable.
+                  </p>
+                </div>
+              ) : filteredPastEntries.length > 0 ? (
+                filteredPastEntries.map((entry) => (
+                  <div
+                    key={entry.menteeId}
+                    className={`modal-leaderboard-row ${entry.isMe ? 'is-me' : ''}`}
+                  >
+                    <div className="modal-rank-col">
+                      <span
+                        className={`modal-rank-badge ${
+                          entry.rank === 1 ? 'gold' : entry.rank === 2 ? 'silver' : entry.rank === 3 ? 'bronze' : ''
+                        }`}
+                      >
+                        {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
+                      </span>
+                    </div>
+
+                    <div className="modal-name-col">
+                      <span className="modal-mentee-name">{entry.name}</span>
+                      {entry.isMe && <span className="leaderboard-you-tag">You</span>}
+                      {entry.isAnonymous && <span className="anonymous-indicator-tag">Private</span>}
+                    </div>
+
+                    <div className="modal-stats-col">
+                      {entry.currentStreak > 0 && (
+                        <span className="modal-streak-badge" title="Active check-in streak during period">
+                          🔥 {entry.currentStreak}d
+                        </span>
+                      )}
+                      {pastPeriodType === 'weekly' && (
+                        <span className="modal-days-badge" title="Days submitted in this week">
+                          {entry.weeklySubmissions}/7d
+                        </span>
+                      )}
+                      {pastPeriodType === 'monthly' && (
+                        <span className="modal-days-badge" title="Days submitted in this month">
+                          {entry.monthlySubmissions ?? 0}d
+                        </span>
+                      )}
+                      <span className="modal-score-badge">
+                        {pastPeriodType === 'weekly'
+                          ? `${entry.weeklyPoints} pts`
+                          : `${entry.monthlyPoints ?? 0} pts`}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '30px 10px', color: '#70676d' }}>
+                  No historical records match "{pastSearchQuery}"
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer with Close / Return Action */}
+            <div className="past-modal-footer">
+              <div style={{ fontSize: '0.74rem', color: '#70676d', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ShieldCheck size={14} color="#16a34a" />
+                <span>Verified Historical Snapshot · Immutable</span>
+              </div>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: '8px 18px', fontSize: '0.84rem' }}
+                onClick={() => setPastLeaderboardOpen(false)}
+              >
+                Back to Current Leaderboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Scoring Rules Explanation Modal ──────────────────────────────────── */}
       {scoringInfoOpen && (
         <div
@@ -1048,7 +1451,7 @@ export function MenteeDashboardPage() {
             if (e.target === e.currentTarget) setScoringInfoOpen(false);
           }}
         >
-          <div className="leaderboard-modal-card" style={{ maxWidth: 480 }}>
+          <div className="leaderboard-modal-card" style={{ maxWidth: 520 }}>
             <div className="leaderboard-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div className="growth-card-icon" style={{ background: '#fdf2f7', color: '#8f3f66' }}>
@@ -1095,11 +1498,21 @@ export function MenteeDashboardPage() {
               </div>
 
               <div className="rule-explanation-tile">
-                <div className="rule-badge streak">🔥 Habit</div>
+                <div className="rule-badge monthly">📅 Monthly</div>
                 <div>
-                  <div className="rule-name">Active Streak Multiplier</div>
+                  <div className="rule-name">This Month Rankings</div>
                   <div className="rule-desc">
-                    Consecutive daily check-ins build and preserve your streak. Streaks break ties when mentees have identical points.
+                    Calculated independently from daily check-ins (+10 pts each) and weekly consistency milestones (+50 pts each) achieved within the current calendar month. Starts fresh on the 1st of each month.
+                  </div>
+                </div>
+              </div>
+
+              <div className="rule-explanation-tile">
+                <div className="rule-badge alltime">⚡ All-Time</div>
+                <div>
+                  <div className="rule-name">All-Time XP</div>
+                  <div className="rule-desc">
+                    Reflects total lifetime earned XP across all completed daily check-ins, challenge milestones, and achievements. Never resets.
                   </div>
                 </div>
               </div>
@@ -1109,7 +1522,17 @@ export function MenteeDashboardPage() {
                 <div>
                   <div className="rule-name">Fair Tie-Breaking System</div>
                   <div className="rule-desc">
-                    Rankings are sorted by: 1) Points, 2) Number of weekly check-ins, 3) Current active streak, 4) Alphabetical order.
+                    Rankings are sorted by: 1) Points earned in period, 2) Total verified check-ins in period, 3) Current active streak, 4) Alphabetical order.
+                  </div>
+                </div>
+              </div>
+
+              <div className="rule-explanation-tile">
+                <div className="rule-badge archive">🔒 History</div>
+                <div>
+                  <div className="rule-name">Immutable Historical Snapshots</div>
+                  <div className="rule-desc">
+                    When each week or month concludes, final scores and standings are permanently frozen into Past Leaderboards so rankings remain stable and verifiable over time.
                   </div>
                 </div>
               </div>
