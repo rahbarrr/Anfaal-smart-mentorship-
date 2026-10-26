@@ -280,6 +280,347 @@ export function buildWeeklyCalendar(params: {
   };
 }
 
+// ─── System-Wide Leaderboard Types & Logic ────────────────────────────────────
+
+export interface MenteeCandidate {
+  _id: any;
+  name: string;
+  standard?: string;
+  makid?: string;
+  userId?: string;
+  status?: string;
+  deletedAt?: Date | null;
+  preferences?: { optOutLeaderboard?: boolean };
+  goals?: { careerGoal?: string; semesterGoal?: string };
+}
+
+export interface UserCandidate {
+  _id: any;
+  role: string;
+  status: string;
+  deletedAt?: Date | null;
+}
+
+export function filterEligibleMentees<T extends MenteeCandidate>(
+  mentees: T[],
+  users: UserCandidate[],
+): T[] {
+  const userMap = new Map<string, UserCandidate>();
+  for (const u of users) {
+    userMap.set(String(u._id), u);
+  }
+
+  const seenMenteeIds = new Set<string>();
+  const seenUserIds = new Set<string>();
+  const eligible: T[] = [];
+
+  for (const m of mentees) {
+    const menteeId = String(m._id);
+    if (seenMenteeIds.has(menteeId)) continue;
+    if (m.status !== 'active') continue;
+    if (m.deletedAt) continue;
+
+    if (m.userId) {
+      const uId = String(m.userId);
+      if (seenUserIds.has(uId)) continue;
+
+      const user = userMap.get(uId);
+      if (user) {
+        if (user.role === 'ADMIN' || user.role === 'MENTOR') continue;
+        if (user.status === 'disabled' || user.deletedAt) continue;
+      }
+      seenUserIds.add(uId);
+    }
+
+    seenMenteeIds.add(menteeId);
+    eligible.push(m);
+  }
+
+  return eligible;
+}
+
+export function getIsoWeekBoundaries(
+  todayStr: string,
+  weekOffset = 0,
+): { startDate: string; endDate: string; weekLabel: string } {
+  const today = new Date(todayStr + 'T12:00:00Z');
+  const dayOfWeek = today.getUTCDay();
+  // Monday is 1, Sunday is 0
+  const diffToMonday = (dayOfWeek + 6) % 7;
+  const targetMonday = new Date(today);
+  targetMonday.setUTCDate(today.getUTCDate() - diffToMonday + weekOffset * 7);
+
+  const targetSunday = new Date(targetMonday);
+  targetSunday.setUTCDate(targetMonday.getUTCDate() + 6);
+
+  const startDate = targetMonday.toISOString().split('T')[0];
+  const endDate = targetSunday.toISOString().split('T')[0];
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const startMonth = monthNames[targetMonday.getUTCMonth()];
+  const startDay = targetMonday.getUTCDate();
+  const endMonth = monthNames[targetSunday.getUTCMonth()];
+  const endDay = targetSunday.getUTCDate();
+
+  const labelSuffix =
+    startMonth === endMonth
+      ? `${startMonth} ${startDay} – ${endDay}`
+      : `${startMonth} ${startDay} – ${endMonth} ${endDay}`;
+
+  const weekLabel = weekOffset === 0 ? `This Week (${labelSuffix})` : `Week of ${labelSuffix}`;
+
+  return { startDate, endDate, weekLabel };
+}
+
+export function calculateWeeklyLeaderboardScore(weeklyUniqueDates: string[]): {
+  weeklyPoints: number;
+  weeklySubmissions: number;
+  hasConsistencyBonus: boolean;
+} {
+  const weeklySubmissions = weeklyUniqueDates.length;
+  const hasConsistencyBonus = weeklySubmissions >= 5;
+  const weeklyPoints =
+    weeklySubmissions * XP_RULES.PER_CHECKIN +
+    (hasConsistencyBonus ? XP_RULES.WEEKLY_CONSISTENCY_BONUS : 0);
+
+  return {
+    weeklyPoints,
+    weeklySubmissions,
+    hasConsistencyBonus,
+  };
+}
+
+export interface RawLeaderboardEntry {
+  menteeId: string;
+  name: string;
+  isMe: boolean;
+  currentStreak: number;
+  weeklyPoints: number;
+  weeklySubmissions: number;
+  totalSubmissions: number;
+  totalXp: number;
+  isAnonymous?: boolean;
+}
+
+export interface LeaderboardEntry extends RawLeaderboardEntry {
+  rank: number;
+  isTopThree: boolean;
+}
+
+export function rankLeaderboardEntries(
+  entries: RawLeaderboardEntry[],
+  period: 'weekly' | 'alltime' = 'weekly',
+): LeaderboardEntry[] {
+  const sorted = [...entries].sort((a, b) => {
+    if (period === 'weekly') {
+      if (b.weeklyPoints !== a.weeklyPoints) return b.weeklyPoints - a.weeklyPoints;
+      if (b.weeklySubmissions !== a.weeklySubmissions) return b.weeklySubmissions - a.weeklySubmissions;
+      if (b.currentStreak !== a.currentStreak) return b.currentStreak - a.currentStreak;
+      return a.name.localeCompare(b.name);
+    } else {
+      if (b.totalXp !== a.totalXp) return b.totalXp - a.totalXp;
+      if (b.currentStreak !== a.currentStreak) return b.currentStreak - a.currentStreak;
+      if (b.totalSubmissions !== a.totalSubmissions) return b.totalSubmissions - a.totalSubmissions;
+      return a.name.localeCompare(b.name);
+    }
+  });
+
+  let currentRank = 1;
+  const ranked: LeaderboardEntry[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      const isTie =
+        period === 'weekly'
+          ? prev.weeklyPoints === curr.weeklyPoints &&
+            prev.weeklySubmissions === curr.weeklySubmissions &&
+            prev.currentStreak === curr.currentStreak
+          : prev.totalXp === curr.totalXp &&
+            prev.currentStreak === curr.currentStreak &&
+            prev.totalSubmissions === curr.totalSubmissions;
+
+      if (!isTie) {
+        currentRank = i + 1;
+      }
+    }
+
+    ranked.push({
+      ...sorted[i],
+      rank: currentRank,
+      isTopThree: currentRank <= 3,
+    });
+  }
+
+  return ranked;
+}
+
+export interface SystemLeaderboard {
+  period: {
+    type: 'weekly' | 'alltime';
+    label: string;
+    startDate: string;
+    endDate: string;
+    timezone: string;
+  };
+  myRank: number;
+  myWeeklyPoints: number;
+  myLifetimeXp: number;
+  totalEligibleMentees: number;
+  entries: LeaderboardEntry[];
+  topThree: LeaderboardEntry[];
+  myEntry: LeaderboardEntry | null;
+  optedOut: boolean;
+  scoringRules: Array<{ rule: string; points: string; description: string }>;
+}
+
+export async function getSystemLeaderboard(
+  viewerMenteeId: string,
+  options: {
+    period?: 'weekly' | 'alltime';
+    weekOffset?: number;
+    timezone?: string;
+  } = {},
+): Promise<SystemLeaderboard> {
+  const period = options.period || 'weekly';
+  const timezone = options.timezone || 'Asia/Kolkata';
+  const weekOffset = options.weekOffset || 0;
+  const todayStr = getLocalTodayString(timezone);
+
+  const { startDate, endDate, weekLabel } = getIsoWeekBoundaries(todayStr, weekOffset);
+
+  // 1. Fetch active mentees (soft-delete plugin ensures deletedAt: null)
+  const rawMentees = await Mentee.find(
+    { status: 'active' },
+    { name: 1, userId: 1, standard: 1, makid: 1, preferences: 1, goals: 1 },
+  ).lean();
+
+  // 2. Fetch associated users to enforce access-control & exclude admin/mentors
+  const userIds = rawMentees.map((m) => m.userId).filter(Boolean);
+  const rawUsers = await User.find(
+    { _id: { $in: userIds } },
+    { role: 1, status: 1 },
+  ).lean();
+
+  // 3. Filter only real eligible active mentees
+  const eligibleMentees = filterEligibleMentees(rawMentees, rawUsers);
+  const eligibleIds = eligibleMentees.map((m) => String(m._id));
+
+  // 4. Batch query performances for all eligible mentees
+  const performances = await DailyPerformance.find(
+    { menteeId: { $in: eligibleIds } },
+    { menteeId: 1, date: 1 },
+  ).lean();
+
+  const menteeDatesMap = new Map<string, string[]>();
+  for (const p of performances) {
+    const list = menteeDatesMap.get(p.menteeId) || [];
+    list.push(p.date);
+    menteeDatesMap.set(p.menteeId, list);
+  }
+
+  // Find viewer mentee opt-out status
+  const viewerMenteeDoc = eligibleMentees.find((m) => String(m._id) === viewerMenteeId);
+  const viewerOptedOut = Boolean(viewerMenteeDoc?.preferences?.optOutLeaderboard);
+
+  // 5. Build raw leaderboard entries
+  const rawEntries: RawLeaderboardEntry[] = eligibleMentees.map((m) => {
+    const pId = String(m._id);
+    const isMe = pId === viewerMenteeId;
+    const allDates = [...new Set(menteeDatesMap.get(pId) || [])].sort();
+    const weeklyDates = allDates.filter((d) => d >= startDate && d <= endDate);
+
+    const { weeklyPoints, weeklySubmissions } = calculateWeeklyLeaderboardScore(weeklyDates);
+    const streak = calculateStreaks(allDates, todayStr);
+    const hasGoal = Boolean(m.goals?.careerGoal || m.goals?.semesterGoal);
+    const totalXp = calculateTotalXp({
+      submissionCount: allDates.length,
+      uniqueSortedDates: allDates,
+      bestStreak: streak.bestStreak,
+      hasGoalSet: hasGoal,
+    });
+
+    const isOptedOut = Boolean(m.preferences?.optOutLeaderboard);
+    let displayName = m.name;
+    if (isOptedOut) {
+      displayName = isMe ? `${m.name} (Private)` : 'Anonymous Learner';
+    }
+
+    return {
+      menteeId: pId,
+      name: displayName,
+      isMe,
+      currentStreak: streak.currentStreak,
+      weeklyPoints,
+      weeklySubmissions,
+      totalSubmissions: allDates.length,
+      totalXp,
+      isAnonymous: isOptedOut,
+    };
+  });
+
+  // 6. Rank entries
+  const ranked = rankLeaderboardEntries(rawEntries, period);
+  const myEntry = ranked.find((e) => e.isMe) || null;
+  const topThree = ranked.slice(0, 3);
+
+  const scoringRules = [
+    {
+      rule: 'Daily Check-in',
+      points: '+10 pts',
+      description: 'Awarded for each verified daily performance submission.',
+    },
+    {
+      rule: 'Weekly Consistency Milestone',
+      points: '+50 pts',
+      description: 'Earned when logging 5 or more days within the Monday–Sunday week.',
+    },
+    {
+      rule: 'Active Habit Streak',
+      points: 'Bonus Multiplier',
+      description: 'Maintaining consecutive days builds streak XP and unlocks achievements.',
+    },
+  ];
+
+  return {
+    period: {
+      type: period,
+      label: period === 'weekly' ? weekLabel : 'All-Time Rankings',
+      startDate,
+      endDate,
+      timezone,
+    },
+    myRank: myEntry?.rank ?? 0,
+    myWeeklyPoints: myEntry?.weeklyPoints ?? 0,
+    myLifetimeXp: myEntry?.totalXp ?? 0,
+    totalEligibleMentees: ranked.length,
+    entries: ranked,
+    topThree,
+    myEntry,
+    optedOut: viewerOptedOut,
+    scoringRules,
+  };
+}
+
+export async function setMenteeLeaderboardPrivacy(
+  menteeId: string,
+  optOut: boolean,
+): Promise<{ success: boolean; optedOut: boolean }> {
+  const mentee = await Mentee.findById(menteeId);
+  if (!mentee) {
+    throw new Error('Mentee profile not found');
+  }
+
+  const preferences = (mentee as any).preferences || {};
+  preferences.optOutLeaderboard = Boolean(optOut);
+  (mentee as any).preferences = preferences;
+  mentee.markModified('preferences');
+  await mentee.save();
+
+  return { success: true, optedOut: Boolean(optOut) };
+}
+
 // ─── Main Mentee Growth Summary Service ───────────────────────────────────────
 
 export async function getMenteeGrowthSummary(
@@ -462,105 +803,28 @@ export async function getMenteeGrowthSummary(
     academic: mentee.academic || null,
   };
 
-  // 10. Cohort Leaderboard (Authorized Mentorship Cohort Only)
-  let cohortLeaderboard = {
-    hasCohort: false,
-    mentorName: '',
-    myRank: 1,
-    totalMentees: 1,
-    entries: [] as Array<{
-      rank: number;
-      menteeId: string;
-      name: string;
-      isMe: boolean;
-      currentStreak: number;
-      totalSubmissions: number;
-      totalXp: number;
-    }>,
+  // 10. System-Wide Eligible Leaderboard (Admin-Managed Scope)
+  const systemLeaderboard = await getSystemLeaderboard(menteeId, {
+    period: 'weekly',
+    weekOffset,
+    timezone,
+  });
+
+  const cohortLeaderboard = {
+    hasCohort: true,
+    mentorName: 'Anfaal Mentorship',
+    myRank: systemLeaderboard.myRank,
+    totalMentees: systemLeaderboard.totalEligibleMentees,
+    entries: systemLeaderboard.entries.map((e) => ({
+      rank: e.rank,
+      menteeId: e.menteeId,
+      name: e.name,
+      isMe: e.isMe,
+      currentStreak: e.currentStreak,
+      totalSubmissions: e.weeklySubmissions,
+      totalXp: e.weeklyPoints,
+    })),
   };
-
-  const activeAssignment = await Mentorship.findOne({
-    menteeId,
-    status: 'active',
-  }).lean();
-
-  if (activeAssignment) {
-    const mentorProfile = await Mentor.findById(activeAssignment.mentorId).lean();
-    let mentorUserName = 'Mentor';
-    if (mentorProfile) {
-      const mentorUser = await User.findById(mentorProfile.userId).lean();
-      if (mentorUser) mentorUserName = mentorUser.name;
-    }
-
-    // Find all mentees in the same mentorship cohort
-    const cohortAssignments = await Mentorship.find({
-      mentorId: activeAssignment.mentorId,
-      status: 'active',
-    }).lean();
-
-    const peerMenteeIds = cohortAssignments.map((a) => a.menteeId);
-    const peerMentees = await Mentee.find(
-      { _id: { $in: peerMenteeIds } },
-      { name: 1, goals: 1 },
-    ).lean();
-
-    // Fetch submissions for all peers to compute real participation rankings
-    const peerPerformances = await DailyPerformance.find(
-      { menteeId: { $in: peerMenteeIds } },
-      { menteeId: 1, date: 1 },
-    ).lean();
-
-    const peerDatesMap = new Map<string, string[]>();
-    for (const p of peerPerformances) {
-      const list = peerDatesMap.get(p.menteeId) || [];
-      list.push(p.date);
-      peerDatesMap.set(p.menteeId, list);
-    }
-
-    const entries = peerMentees.map((peer) => {
-      const pId = String(peer._id);
-      const dates = [...new Set(peerDatesMap.get(pId) || [])].sort();
-      const pStreak = calculateStreaks(dates, todayStr);
-      const pHasGoal = Boolean(peer.goals?.careerGoal || peer.goals?.semesterGoal);
-      const pXp = calculateTotalXp({
-        submissionCount: dates.length,
-        uniqueSortedDates: dates,
-        bestStreak: pStreak.bestStreak,
-        hasGoalSet: pHasGoal,
-      });
-
-      return {
-        menteeId: pId,
-        name: peer.name,
-        isMe: pId === menteeId,
-        currentStreak: pStreak.currentStreak,
-        totalSubmissions: dates.length,
-        totalXp: pXp,
-      };
-    });
-
-    // Sort by totalXp desc, then currentStreak desc, then name asc
-    entries.sort((a, b) => {
-      if (b.totalXp !== a.totalXp) return b.totalXp - a.totalXp;
-      if (b.currentStreak !== a.currentStreak) return b.currentStreak - a.currentStreak;
-      return a.name.localeCompare(b.name);
-    });
-
-    const rankedEntries = entries.map((entry, idx) => ({
-      ...entry,
-      rank: idx + 1,
-    }));
-
-    const myEntry = rankedEntries.find((e) => e.isMe);
-
-    cohortLeaderboard = {
-      hasCohort: true,
-      mentorName: mentorUserName,
-      myRank: myEntry?.rank ?? 1,
-      totalMentees: rankedEntries.length,
-      entries: rankedEntries,
-    };
-  }
 
   // 11. Recent Activity Timeline
   const recentActivities: Array<{
@@ -641,6 +905,7 @@ export async function getMenteeGrowthSummary(
     badges,
     weeklyChallenges,
     goals: goalsData,
+    leaderboard: systemLeaderboard,
     cohortLeaderboard,
     recentActivities: recentActivities.slice(0, 5),
   };

@@ -1462,6 +1462,7 @@ export interface MenteeGrowthSummary {
     shortTermGoals: ShortTermGoal[];
     academic: Record<string, unknown> | null;
   };
+  leaderboard?: LeaderboardData;
   cohortLeaderboard: {
     hasCohort: boolean;
     mentorName: string;
@@ -1487,12 +1488,68 @@ export interface MenteeGrowthSummary {
   }>;
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  menteeId: string;
+  name: string;
+  isMe: boolean;
+  currentStreak: number;
+  weeklyPoints: number;
+  weeklySubmissions: number;
+  totalSubmissions: number;
+  totalXp: number;
+  isTopThree: boolean;
+  isAnonymous?: boolean;
+}
+
+export interface LeaderboardData {
+  period: {
+    type: 'weekly' | 'alltime';
+    label: string;
+    startDate: string;
+    endDate: string;
+    timezone: string;
+  };
+  myRank: number;
+  myWeeklyPoints: number;
+  myLifetimeXp: number;
+  totalEligibleMentees: number;
+  entries: LeaderboardEntry[];
+  topThree: LeaderboardEntry[];
+  myEntry: LeaderboardEntry | null;
+  optedOut: boolean;
+  scoringRules: Array<{ rule: string; points: string; description: string }>;
+}
+
 export async function getMenteeGrowthSummary(params?: { weekOffset?: number; menteeId?: string }): Promise<MenteeGrowthSummary> {
   const query = new URLSearchParams();
   if (params?.weekOffset !== undefined) query.set('weekOffset', String(params.weekOffset));
   if (params?.menteeId) query.set('menteeId', params.menteeId);
   const qs = query.toString() ? `?${query.toString()}` : '';
   const res = await apiFetch(`/daily-performance/growth-summary${qs}`);
+  return res.json();
+}
+
+export async function getLeaderboard(params?: {
+  period?: 'weekly' | 'alltime';
+  weekOffset?: number;
+  menteeId?: string;
+}): Promise<LeaderboardData> {
+  const query = new URLSearchParams();
+  if (params?.period) query.set('period', params.period);
+  if (params?.weekOffset !== undefined) query.set('weekOffset', String(params.weekOffset));
+  if (params?.menteeId) query.set('menteeId', params.menteeId);
+  const qs = query.toString() ? `?${query.toString()}` : '';
+  const res = await apiFetch(`/daily-performance/leaderboard${qs}`);
+  return res.json();
+}
+
+export async function updateLeaderboardPrivacy(optOut: boolean): Promise<{ success: boolean; optedOut: boolean }> {
+  const res = await apiFetch('/daily-performance/leaderboard-privacy', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ optOut }),
+  });
   return res.json();
 }
 

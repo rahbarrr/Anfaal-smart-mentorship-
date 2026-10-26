@@ -130,6 +130,10 @@ export interface MenteeDocument {
     }
   >;
   lastProfileUpdate?: Date;
+  preferences?: {
+    optOutLeaderboard?: boolean;
+    [key: string]: unknown;
+  };
   createdAt: Date;
   updatedAt?: Date;
 }

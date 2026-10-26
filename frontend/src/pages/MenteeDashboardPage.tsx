@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CalendarCheck,
@@ -9,7 +9,6 @@ import {
   Zap,
   Trophy,
   Target,
-  Users,
   Award,
   ChevronLeft,
   ChevronRight,
@@ -18,8 +17,20 @@ import {
   Compass,
   AlertCircle,
   Activity,
+  HelpCircle,
+  X,
+  Search,
+  Eye,
+  EyeOff,
+  ShieldCheck,
 } from 'lucide-react';
-import { getMenteeGrowthSummary, type MenteeGrowthSummary } from '../lib/api';
+import {
+  getMenteeGrowthSummary,
+  getLeaderboard,
+  updateLeaderboardPrivacy,
+  type MenteeGrowthSummary,
+  type LeaderboardData,
+} from '../lib/api';
 import { formatSubmissionTimestamps } from '../lib/dateTime';
 import './MenteeDashboardPage.css';
 
@@ -47,25 +58,93 @@ export function MenteeDashboardPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const fetchGrowthData = useCallback(async (offset: number) => {
-    try {
-      setLoadError(null);
-      const res = await getMenteeGrowthSummary({ weekOffset: offset });
-      setData(res);
-    } catch (error) {
-      setLoadError(
-        error instanceof Error
-          ? error.message
-          : 'Unable to load your mentorship growth dashboard.',
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  // Leaderboard interactive state
+  const [leaderboardPeriod, setLeaderboardPeriod] = useState<'weekly' | 'alltime'>('weekly');
+  const [customLeaderboardData, setCustomLeaderboardData] = useState<LeaderboardData | null>(null);
+  const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState<boolean>(false);
+  const [fullLeaderboardOpen, setFullLeaderboardOpen] = useState<boolean>(false);
+  const [scoringInfoOpen, setScoringInfoOpen] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState<boolean>(false);
+  const [privacyToast, setPrivacyToast] = useState<string | null>(null);
 
   useEffect(() => {
-    void fetchGrowthData(weekOffset);
-  }, [weekOffset, fetchGrowthData]);
+    let isMounted = true;
+    void (async () => {
+      try {
+        const res = await getMenteeGrowthSummary({ weekOffset });
+        if (!isMounted) return;
+        setData(res);
+        setLoadError(null);
+        if (res.leaderboard) {
+          setCustomLeaderboardData(res.leaderboard);
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load your mentorship growth dashboard.',
+        );
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [weekOffset]);
+
+  const handlePeriodChange = async (period: 'weekly' | 'alltime') => {
+    setLeaderboardPeriod(period);
+    setIsLoadingLeaderboard(true);
+    try {
+      const res = await getLeaderboard({ period, weekOffset });
+      setCustomLeaderboardData(res);
+    } catch (err) {
+      console.error('Failed to change leaderboard period', err);
+    } finally {
+      setIsLoadingLeaderboard(false);
+    }
+  };
+
+  const handleTogglePrivacy = async () => {
+    const currentBoard = customLeaderboardData || data?.leaderboard;
+    if (!currentBoard) return;
+    setIsUpdatingPrivacy(true);
+    setPrivacyToast(null);
+    try {
+      const nextOptOut = !currentBoard.optedOut;
+      await updateLeaderboardPrivacy(nextOptOut);
+      const updated = await getLeaderboard({ period: leaderboardPeriod, weekOffset });
+      setCustomLeaderboardData(updated);
+      setPrivacyToast(
+        nextOptOut
+          ? 'Your name is now masked as "Anonymous Learner" on the public leaderboard.'
+          : 'Your profile name is now visible to peers on the leaderboard.',
+      );
+      setTimeout(() => setPrivacyToast(null), 4000);
+    } catch (err) {
+      console.error('Failed to update privacy preference', err);
+    } finally {
+      setIsUpdatingPrivacy(false);
+    }
+  };
+
+  const activeLeaderboard: LeaderboardData | undefined =
+    customLeaderboardData || data?.leaderboard;
+
+  const filteredEntries = useMemo(() => {
+    if (!activeLeaderboard?.entries) return [];
+    if (!searchQuery.trim()) return activeLeaderboard.entries;
+    const q = searchQuery.toLowerCase().trim();
+    return activeLeaderboard.entries.filter((e) =>
+      e.name.toLowerCase().includes(q),
+    );
+  }, [activeLeaderboard, searchQuery]);
 
   if (isLoading && !data) {
     return (
@@ -89,7 +168,6 @@ export function MenteeDashboardPage() {
   const badges = data?.badges || [];
   const weeklyChallenges = data?.weeklyChallenges || [];
   const goals = data?.goals;
-  const leaderboard = data?.cohortLeaderboard;
   const recentActivities = data?.recentActivities || [];
 
   const moodInfo = todayRecord ? MOOD_MAP[todayRecord.dayRating] || { emoji: '🙂', label: 'Good' } : null;
@@ -447,7 +525,7 @@ export function MenteeDashboardPage() {
                   <h5 style={{ fontSize: '0.82rem', textTransform: 'uppercase', color: '#70676d', margin: '10px 0 8px 0', letterSpacing: '0.04em' }}>
                     Action Milestones
                   </h5>
-                  {goals.shortTermGoals.slice(0, 3).map((g: any, i: number) => (
+                  {goals.shortTermGoals.slice(0, 3).map((g, i: number) => (
                     <div key={g.id || i} style={{ marginBottom: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 600 }}>
                         <span>{g.title}</span>
@@ -506,62 +584,195 @@ export function MenteeDashboardPage() {
           </section>
         </div>
 
-        {/* Right Column: Cohort Leaderboard & Achievements */}
+        {/* Right Column: Leaderboard & Achievements */}
         <div className="growth-column">
-          {/* Cohort Leaderboard */}
-          <section className="growth-card" aria-label="Cohort Leaderboard">
-            <div className="growth-card-header">
+          {/* Leaderboard Card */}
+          <section className="growth-card leaderboard-main-card" aria-label="Mentee Leaderboard">
+            <div className="growth-card-header leaderboard-card-header">
               <div className="growth-card-title-wrap">
                 <div className="growth-card-icon" style={{ background: '#fef9c3', color: '#a16207' }}>
-                  <Users size={18} />
+                  <Trophy size={18} />
                 </div>
                 <div>
-                  <h3 className="growth-card-title">Cohort Leaderboard</h3>
-                  <div style={{ fontSize: '0.74rem', color: '#70676d' }}>
-                    {leaderboard?.mentorName ? `${leaderboard.mentorName}'s Mentorship Group` : 'Mentorship Cohort'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <h3 className="growth-card-title">Leaderboard</h3>
+                    <span className="leaderboard-period-badge">
+                      {leaderboardPeriod === 'weekly'
+                        ? activeLeaderboard?.period?.label || 'This Week'
+                        : 'All-Time'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#70676d', marginTop: 2 }}>
+                    Eligible active mentees in the Anfaal mentorship network
                   </div>
                 </div>
+              </div>
+
+              <div className="leaderboard-header-actions">
+                <button
+                  type="button"
+                  className="leaderboard-info-trigger-btn"
+                  onClick={() => setScoringInfoOpen(true)}
+                  title="How leaderboard scoring works"
+                  aria-label="How leaderboard scoring works"
+                >
+                  <HelpCircle size={15} />
+                  <span>Rules</span>
+                </button>
               </div>
             </div>
 
-            {leaderboard?.entries && leaderboard.entries.length > 0 ? (
-              <div className="leaderboard-entries-list">
-                {leaderboard.entries.slice(0, 6).map((entry) => (
-                  <div
-                    key={entry.menteeId}
-                    className={`leaderboard-row ${entry.isMe ? 'is-current-user' : ''}`}
-                  >
-                    <div className="leaderboard-left">
-                      <div
-                        className={`leaderboard-rank-badge ${
-                          entry.rank === 1 ? 'top-1' : entry.rank === 2 ? 'top-2' : entry.rank === 3 ? 'top-3' : ''
-                        }`}
-                      >
-                        {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : entry.rank}
-                      </div>
-                      <div className="leaderboard-name-box">
-                        <span className="leaderboard-name">{entry.name}</span>
-                        {entry.isMe && <span className="leaderboard-you-tag">You</span>}
-                      </div>
-                    </div>
+            {/* Period Switcher Tabs */}
+            <div className="leaderboard-period-tabs" role="tablist" aria-label="Ranking period selection">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={leaderboardPeriod === 'weekly'}
+                className={`period-tab-btn ${leaderboardPeriod === 'weekly' ? 'active' : ''}`}
+                onClick={() => void handlePeriodChange('weekly')}
+              >
+                This Week
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={leaderboardPeriod === 'alltime'}
+                className={`period-tab-btn ${leaderboardPeriod === 'alltime' ? 'active' : ''}`}
+                onClick={() => void handlePeriodChange('alltime')}
+              >
+                All-Time XP
+              </button>
+            </div>
 
-                    <div className="leaderboard-right">
-                      {entry.currentStreak > 0 && (
-                        <span className="leaderboard-streak" title="Active check-in streak">
-                          🔥 {entry.currentStreak}d
-                        </span>
-                      )}
-                      <span className="leaderboard-xp">{entry.totalXp} XP</span>
-                    </div>
+            {isLoadingLeaderboard ? (
+              <div style={{ textAlign: 'center', padding: '30px 10px' }}>
+                <div className="anfaal-spinner" style={{ width: 24, height: 24, margin: '0 auto 8px' }} />
+                <span style={{ fontSize: '0.82rem', color: '#70676d' }}>Updating standings...</span>
+              </div>
+            ) : activeLeaderboard?.entries && activeLeaderboard.entries.length > 0 ? (
+              <div>
+                {/* 1. Top 3 Podium Showcase */}
+                {activeLeaderboard.topThree && activeLeaderboard.topThree.length > 0 && (
+                  <div className="leaderboard-podium-showcase" aria-label="Top 3 Mentees">
+                    {activeLeaderboard.topThree.map((topEntry) => (
+                      <div
+                        key={topEntry.menteeId}
+                        className={`podium-card rank-${topEntry.rank} ${topEntry.isMe ? 'is-me' : ''}`}
+                      >
+                        <div className="podium-medal-badge">
+                          {topEntry.rank === 1 ? '🥇' : topEntry.rank === 2 ? '🥈' : '🥉'}
+                        </div>
+                        <div className="podium-rank-label">Rank #{topEntry.rank}</div>
+                        <div className="podium-name" title={topEntry.name}>
+                          {topEntry.name}
+                        </div>
+                        {topEntry.isMe && <span className="leaderboard-you-tag">You</span>}
+                        <div className="podium-points">
+                          {leaderboardPeriod === 'weekly'
+                            ? `${topEntry.weeklyPoints} pts`
+                            : `${topEntry.totalXp} XP`}
+                        </div>
+                        {topEntry.currentStreak > 0 && (
+                          <div className="podium-streak" title={`${topEntry.currentStreak}-day active streak`}>
+                            🔥 {topEntry.currentStreak}d
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-                <p style={{ fontSize: '0.72rem', color: '#8a8086', margin: '8px 0 0 0', textAlign: 'center' }}>
-                  💡 Ranks celebrate consistent daily habits & active participation.
-                </p>
+                )}
+
+                {/* 2. Compact Ranked List (Next positions: Ranks 4 to 6) */}
+                {activeLeaderboard.entries.filter((e) => e.rank > 3).slice(0, 4).length > 0 && (
+                  <div className="leaderboard-entries-list">
+                    {activeLeaderboard.entries
+                      .filter((e) => e.rank > 3)
+                      .slice(0, 4)
+                      .map((entry) => (
+                        <div
+                          key={entry.menteeId}
+                          className={`leaderboard-row ${entry.isMe ? 'is-current-user' : ''}`}
+                        >
+                          <div className="leaderboard-left">
+                            <div className="leaderboard-rank-badge">
+                              {entry.rank}
+                            </div>
+                            <div className="leaderboard-name-box">
+                              <span className="leaderboard-name">{entry.name}</span>
+                              {entry.isMe && <span className="leaderboard-you-tag">You</span>}
+                            </div>
+                          </div>
+
+                          <div className="leaderboard-right">
+                            {entry.currentStreak > 0 && (
+                              <span className="leaderboard-streak" title="Active check-in streak">
+                                🔥 {entry.currentStreak}d
+                              </span>
+                            )}
+                            <span className="leaderboard-xp">
+                              {leaderboardPeriod === 'weekly'
+                                ? `${entry.weeklyPoints} pts`
+                                : `${entry.totalXp} XP`}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {/* 3. Signed-In Mentee Outside Visible List Standing Banner */}
+                {activeLeaderboard.myEntry && activeLeaderboard.myRank > 7 && (
+                  <div className="leaderboard-my-standing-banner">
+                    <div className="my-standing-left">
+                      <div className="my-standing-badge">#{activeLeaderboard.myRank}</div>
+                      <div>
+                        <div className="my-standing-title">Your Current Standing</div>
+                        <div className="my-standing-sub">
+                          {leaderboardPeriod === 'weekly'
+                            ? `${activeLeaderboard.myWeeklyPoints} pts this week`
+                            : `${activeLeaderboard.myLifetimeXp} Lifetime XP`}
+                          {activeLeaderboard.myEntry.currentStreak > 0 &&
+                            ` • 🔥 ${activeLeaderboard.myEntry.currentStreak}d streak`}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      className="my-standing-action-btn"
+                      onClick={() => navigate('/mentee/daily')}
+                    >
+                      + Log Check-in
+                    </button>
+                  </div>
+                )}
+
+                {/* 4. Action bar with View Full Standings */}
+                <div className="leaderboard-card-footer">
+                  <button
+                    type="button"
+                    className="view-full-leaderboard-btn"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setFullLeaderboardOpen(true);
+                    }}
+                  >
+                    <span>View Full Standings ({activeLeaderboard.totalEligibleMentees} Mentees)</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
               </div>
             ) : (
-              <div style={{ textAlign: 'center', padding: '16px', color: '#70676d', fontSize: '0.86rem' }}>
-                Cohort ranking will populate as fellow mentees record their progress.
+              <div className="leaderboard-empty-state">
+                <Trophy size={32} color="#ca8a04" style={{ margin: '0 auto 10px', opacity: 0.8 }} />
+                <h4>No submissions recorded yet for this week</h4>
+                <p>Be the first mentee to complete today's daily check-in and take the lead!</p>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ marginTop: 12, padding: '8px 16px', fontSize: '0.85rem' }}
+                  onClick={() => navigate('/mentee/daily')}
+                >
+                  + Complete Today's Check-in
+                </button>
               </div>
             )}
           </section>
@@ -641,6 +852,289 @@ export function MenteeDashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Full Leaderboard Modal Dialog ───────────────────────────────────── */}
+      {fullLeaderboardOpen && activeLeaderboard && (
+        <div
+          className="leaderboard-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="full-leaderboard-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setFullLeaderboardOpen(false);
+          }}
+        >
+          <div className="leaderboard-modal-card">
+            <div className="leaderboard-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="growth-card-icon" style={{ background: '#fef3c7', color: '#b45309' }}>
+                  <Trophy size={20} />
+                </div>
+                <div>
+                  <h3 id="full-leaderboard-title" style={{ margin: 0, fontSize: '1.15rem', color: '#231e21' }}>
+                    Anfaal Mentee Leaderboard
+                  </h3>
+                  <div style={{ fontSize: '0.78rem', color: '#70676d' }}>
+                    {activeLeaderboard.period?.label} · Verified Participation Rankings
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="leaderboard-modal-close-btn"
+                onClick={() => setFullLeaderboardOpen(false)}
+                aria-label="Close leaderboard modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Quick summary strip */}
+            <div className="modal-summary-strip">
+              <div className="modal-summary-pill">
+                <span className="lbl">Active Mentees</span>
+                <span className="val">{activeLeaderboard.totalEligibleMentees}</span>
+              </div>
+              <div className="modal-summary-pill">
+                <span className="lbl">Your Rank</span>
+                <span className="val highlight">#{activeLeaderboard.myRank || '—'}</span>
+              </div>
+              <div className="modal-summary-pill">
+                <span className="lbl">Your Score</span>
+                <span className="val">
+                  {leaderboardPeriod === 'weekly'
+                    ? `${activeLeaderboard.myWeeklyPoints} pts`
+                    : `${activeLeaderboard.myLifetimeXp} XP`}
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Controls: Period Switch & Search */}
+            <div className="modal-controls-row">
+              <div className="leaderboard-period-tabs" style={{ margin: 0 }}>
+                <button
+                  type="button"
+                  className={`period-tab-btn ${leaderboardPeriod === 'weekly' ? 'active' : ''}`}
+                  onClick={() => void handlePeriodChange('weekly')}
+                >
+                  This Week
+                </button>
+                <button
+                  type="button"
+                  className={`period-tab-btn ${leaderboardPeriod === 'alltime' ? 'active' : ''}`}
+                  onClick={() => void handlePeriodChange('alltime')}
+                >
+                  All-Time
+                </button>
+              </div>
+
+              <div className="modal-search-box">
+                <Search size={15} color="#8a8086" />
+                <input
+                  type="text"
+                  placeholder="Search mentee name..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="modal-search-input"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#8a8086' }}
+                    aria-label="Clear search"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Full Ranked Table / List */}
+            <div className="modal-leaderboard-list">
+              {filteredEntries.length > 0 ? (
+                filteredEntries.map((entry) => (
+                  <div
+                    key={entry.menteeId}
+                    className={`modal-leaderboard-row ${entry.isMe ? 'is-me' : ''}`}
+                  >
+                    <div className="modal-rank-col">
+                      <span
+                        className={`modal-rank-badge ${
+                          entry.rank === 1 ? 'gold' : entry.rank === 2 ? 'silver' : entry.rank === 3 ? 'bronze' : ''
+                        }`}
+                      >
+                        {entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : `#${entry.rank}`}
+                      </span>
+                    </div>
+
+                    <div className="modal-name-col">
+                      <span className="modal-mentee-name">{entry.name}</span>
+                      {entry.isMe && <span className="leaderboard-you-tag">You</span>}
+                      {entry.isAnonymous && <span className="anonymous-indicator-tag">Private</span>}
+                    </div>
+
+                    <div className="modal-stats-col">
+                      {entry.currentStreak > 0 && (
+                        <span className="modal-streak-badge" title="Active check-in streak">
+                          🔥 {entry.currentStreak}d
+                        </span>
+                      )}
+                      {leaderboardPeriod === 'weekly' && (
+                        <span className="modal-days-badge" title="Days submitted this week">
+                          {entry.weeklySubmissions}/7d
+                        </span>
+                      )}
+                      <span className="modal-score-badge">
+                        {leaderboardPeriod === 'weekly' ? `${entry.weeklyPoints} pts` : `${entry.totalXp} XP`}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ textAlign: 'center', padding: '30px 10px', color: '#70676d' }}>
+                  No mentees found matching "{searchQuery}"
+                </div>
+              )}
+            </div>
+
+            {/* Privacy Opt-Out Toggle Box */}
+            <div className="modal-privacy-box">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                {activeLeaderboard.optedOut ? <EyeOff size={18} color="#8f3f66" /> : <Eye size={18} color="#15803d" />}
+                <div>
+                  <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#231e21' }}>
+                    Leaderboard Privacy
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: '#70676d' }}>
+                    {activeLeaderboard.optedOut
+                      ? 'You are appearing anonymously as "Anonymous Learner" to fellow mentees.'
+                      : 'Your real name is currently visible on the public leaderboard.'}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className={`privacy-toggle-btn ${activeLeaderboard.optedOut ? 'is-opted-out' : ''}`}
+                onClick={() => void handleTogglePrivacy()}
+                disabled={isUpdatingPrivacy}
+              >
+                {isUpdatingPrivacy
+                  ? 'Saving...'
+                  : activeLeaderboard.optedOut
+                    ? 'Show My Real Name'
+                    : 'Appear Anonymously'}
+              </button>
+            </div>
+
+            {privacyToast && (
+              <div className="modal-privacy-toast">
+                ✓ {privacyToast}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Scoring Rules Explanation Modal ──────────────────────────────────── */}
+      {scoringInfoOpen && (
+        <div
+          className="leaderboard-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="scoring-rules-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setScoringInfoOpen(false);
+          }}
+        >
+          <div className="leaderboard-modal-card" style={{ maxWidth: 480 }}>
+            <div className="leaderboard-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div className="growth-card-icon" style={{ background: '#fdf2f7', color: '#8f3f66' }}>
+                  <HelpCircle size={20} />
+                </div>
+                <div>
+                  <h3 id="scoring-rules-title" style={{ margin: 0, fontSize: '1.1rem', color: '#231e21' }}>
+                    How Leaderboard Scoring Works
+                  </h3>
+                  <div style={{ fontSize: '0.76rem', color: '#70676d' }}>
+                    Fair, transparent, verified participation rules
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="leaderboard-modal-close-btn"
+                onClick={() => setScoringInfoOpen(false)}
+                aria-label="Close scoring rules modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="scoring-rules-body">
+              <div className="rule-explanation-tile">
+                <div className="rule-badge">+10 pts</div>
+                <div>
+                  <div className="rule-name">Daily Performance Check-in</div>
+                  <div className="rule-desc">
+                    Awarded for each verified daily check-in (maximum 1 per calendar day). Simply opening the dashboard does not award points.
+                  </div>
+                </div>
+              </div>
+
+              <div className="rule-explanation-tile">
+                <div className="rule-badge milestone">+50 pts</div>
+                <div>
+                  <div className="rule-name">Weekly Consistency Milestone</div>
+                  <div className="rule-desc">
+                    Earned automatically when you log 5 or more daily check-ins during the current Monday–Sunday week.
+                  </div>
+                </div>
+              </div>
+
+              <div className="rule-explanation-tile">
+                <div className="rule-badge streak">🔥 Habit</div>
+                <div>
+                  <div className="rule-name">Active Streak Multiplier</div>
+                  <div className="rule-desc">
+                    Consecutive daily check-ins build and preserve your streak. Streaks break ties when mentees have identical points.
+                  </div>
+                </div>
+              </div>
+
+              <div className="rule-explanation-tile">
+                <div className="rule-badge tie">⚖️ Ties</div>
+                <div>
+                  <div className="rule-name">Fair Tie-Breaking System</div>
+                  <div className="rule-desc">
+                    Rankings are sorted by: 1) Points, 2) Number of weekly check-ins, 3) Current active streak, 4) Alphabetical order.
+                  </div>
+                </div>
+              </div>
+
+              <div className="rule-privacy-note">
+                <ShieldCheck size={16} color="var(--primary)" />
+                <span>
+                  Academic marks, mentor notes, and private reflections are <strong>never</strong> used as leaderboard scoring inputs.
+                </span>
+              </div>
+            </div>
+
+            <div style={{ textAlign: 'right', marginTop: 14, padding: '0 20px 16px' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: '8px 20px', fontSize: '0.88rem' }}
+                onClick={() => setScoringInfoOpen(false)}
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
