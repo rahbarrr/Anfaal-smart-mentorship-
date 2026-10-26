@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { mergeChunkResults, transcribeAudioInChunks } from './chunkedTranscriptionService.js';
+import { mergeChunkResults, transcribeAudioInChunks, deduplicateWordOverlap } from './chunkedTranscriptionService.js';
 import {
   TranscriptionApiError,
   NonRetryableTranscriptionError,
@@ -381,4 +381,92 @@ test('ERROR CLASSIFICATION: isFatalAuthOrClientError detects auth errors for fas
   assert.equal(isFatalAuthOrClientError(new TranscriptionApiError('forbidden', { status: 403 })), true);
   assert.equal(isFatalAuthOrClientError(new TranscriptionApiError('rate limit', { status: 429 })), false);
   assert.equal(isFatalAuthOrClientError(new Error('Transcription API key is not configured')), true);
+});
+
+// ── Boundary Deduplication & Spoken Word Preservation Tests ──
+test('CHUNKED BOUNDARY: deduplicateWordOverlap removes overlapping words at boundary in English and Hinglish', () => {
+  // Exact boundary overlap in English
+  const prev1 = 'We discussed chapter four and we solved the problem';
+  const next1 = 'solved the problem together in thirty minutes';
+  assert.equal(deduplicateWordOverlap(prev1, next1), 'together in thirty minutes');
+
+  // Exact boundary overlap in Hinglish
+  const prev2 = 'Humne organic chemistry revise kiya aur notes banaye';
+  const next2 = 'aur notes banaye kal test ke liye ready rehna';
+  assert.equal(deduplicateWordOverlap(prev2, next2), 'kal test ke liye ready rehna');
+
+  // No overlap
+  const prev3 = 'Assalamu Alaikum Arif';
+  const next3 = 'Wa Alaikum Assalam mentor';
+  assert.equal(deduplicateWordOverlap(prev3, next3), 'Wa Alaikum Assalam mentor');
+
+  // Complete duplicate
+  const prev4 = 'hello world';
+  const next4 = 'hello world';
+  assert.equal(deduplicateWordOverlap(prev4, next4), '');
+});
+
+test('CHUNKED BOUNDARY: merges chunks without losing words when previous chunk ends before logical boundary', () => {
+  const result = mergeChunkResults(
+    [
+      {
+        index: 0,
+        startSeconds: 0,
+        endSeconds: 45,
+        text: 'Chalo aage badhte hain.',
+        segments: [{ start: 35.0, end: 41.0, text: 'Chalo aage badhte hain.', speaker: 'Unknown' }],
+        attempts: 1,
+      },
+      {
+        index: 1,
+        startSeconds: 44,
+        endSeconds: 90,
+        text: 'aur yeh formula zaroor yaad rakhna agle exam ke liye.',
+        segments: [{ start: -1.5, end: 5.0, text: 'aur yeh formula zaroor yaad rakhna agle exam ke liye.', speaker: 'Unknown' }], // 44 + (-1.5) = 42.5s
+        attempts: 1,
+      },
+    ],
+    90,
+    45,
+  );
+
+  assert.equal(result.segments.length, 2);
+  assert.equal(result.segments[0].text, 'Chalo aage badhte hain.');
+  assert.equal(result.segments[1].text, 'aur yeh formula zaroor yaad rakhna agle exam ke liye.');
+  assert.ok(result.segments[1].start >= 41.0);
+  assert.ok(result.text.includes('aur yeh formula zaroor yaad rakhna'));
+});
+
+test('CHUNKED BOUNDARY: preserves float timestamps and handles Unknown speaker in merged result', () => {
+  const result = mergeChunkResults(
+    [
+      {
+        index: 0,
+        startSeconds: 0,
+        endSeconds: 45,
+        text: 'First chunk speech',
+        segments: [{ start: 2.34, end: 15.67, text: 'First chunk speech', speaker: 'Unknown' }],
+        attempts: 1,
+      },
+      {
+        index: 1,
+        startSeconds: 44,
+        endSeconds: 90,
+        text: 'Second chunk speech',
+        segments: [{ start: 5.25, end: 18.89, text: 'Second chunk speech', speaker: 'Unknown' }],
+        attempts: 1,
+      },
+    ],
+    90,
+    45,
+  );
+
+  assert.equal(result.segments[0].start, 2.34);
+  assert.equal(result.segments[0].end, 15.67);
+  assert.equal(result.segments[0].speaker, 'Unknown');
+  assert.equal(result.segments[1].start, 49.25);
+  assert.equal(result.segments[1].end, 62.89);
+  assert.equal(result.segments[1].speaker, 'Unknown');
+  assert.ok(result.text.includes('[00:02.34] Unknown: First chunk speech'));
+  assert.ok(result.text.includes('[00:49.25] Unknown: Second chunk speech'));
 });

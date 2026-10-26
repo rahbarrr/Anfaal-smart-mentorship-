@@ -242,6 +242,9 @@ export async function processCallProcessingJob(
             'stageStatus.transcription': 'COMPLETED',
             'timings.transcriptionMs': transcriptionMs,
           });
+          if ((result as any).isMock || result.provider?.toLowerCase().includes('mock')) {
+            console.warn(`[CALL_TRANSCRIPTION_MOCK_NOTICE] callId=${callId} Mock transcription was used in development (ALLOW_MOCK_TRANSCRIPTION=true). Real Whisper transcription was not invoked.`);
+          }
           console.info(`[CALL_TRANSCRIPTION_SUCCESS] callId=${callId} durationMs=${transcriptionMs}`);
         } catch (transcriptionErr) {
           currentStage = 'transcription';

@@ -11,6 +11,8 @@ export interface TranscriptInput {
   mimetype: string;
   audioUrl?: string;
   allowEmpty?: boolean;
+  language?: string;
+  prompt?: string;
 }
 
 export interface TranscriptionResult {
@@ -20,6 +22,8 @@ export interface TranscriptionResult {
   segments?: TranscriptSegment[];
   provider?: string;
   confidenceWarning?: boolean;
+  timestampsUnavailable?: boolean;
+  isMock?: boolean;
 }
 
 export interface TranscriptionService {
@@ -74,85 +78,103 @@ export function isFatalAuthOrClientError(error: unknown): boolean {
   return /Whisper API responded with (401|403)|API key is not configured|API key is missing|unauthorized|forbidden/i.test(message);
 }
 
+export function formatTimestamp(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return '[00:00]';
+  const minutes = Math.floor(seconds / 60);
+  const remainingSecs = seconds - minutes * 60;
+  const wholeSecs = Math.floor(remainingSecs);
+  const centiseconds = Math.round((remainingSecs - wholeSecs) * 100);
+  if (centiseconds > 0) {
+    return `[${String(minutes).padStart(2, '0')}:${String(wholeSecs).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}]`;
+  }
+  return `[${String(minutes).padStart(2, '0')}:${String(wholeSecs).padStart(2, '0')}]`;
+}
+
 export class MockTranscriptionService implements TranscriptionService {
   async transcribe(input: TranscriptInput): Promise<TranscriptionResult> {
+    console.warn(
+      '[Transcription] [MOCK_ACTIVE] MockTranscriptionService is generating demo transcript. This is for development testing only.',
+    );
+
+    // Realistic demo segments without alternating Mentor/Mentee labels.
+    // Speaker is marked as 'Unknown' until real speaker diarization is available.
     const mockSegments: TranscriptSegment[] = [
       {
-        start: 2,
-        end: 7,
-        speaker: 'Mentor',
+        start: 2.25,
+        end: 7.5,
+        speaker: 'Unknown',
         text: 'Assalamu Alaikum Arif. How was your week, and how are your study preparations going?',
       },
       {
-        start: 8,
-        end: 18,
-        speaker: 'Mentee',
+        start: 8.1,
+        end: 18.4,
+        speaker: 'Unknown',
         text: 'Wa Alaikum Assalam sir. It was good overall. I completed most of my weekly goals, but I had some difficulty managing my mathematics preparation.',
       },
       {
-        start: 19,
-        end: 29,
-        speaker: 'Mentor',
+        start: 19.0,
+        end: 29.2,
+        speaker: 'Unknown',
         text: 'I see. Which specific topic in mathematics gave you trouble? Was it trigonometry or algebra?',
       },
       {
-        start: 30,
-        end: 42,
-        speaker: 'Mentee',
+        start: 30.0,
+        end: 42.15,
+        speaker: 'Unknown',
         text: 'It was quadratic equations and word problems. I was spending too much time on each problem and getting stuck on the formulas.',
       },
       {
-        start: 43,
-        end: 55,
-        speaker: 'Mentor',
+        start: 43.0,
+        end: 55.4,
+        speaker: 'Unknown',
         text: 'That is quite normal at this stage. How about your Quran and Islamic reading routine? Were you able to maintain daily consistency?',
       },
       {
-        start: 56,
-        end: 67,
-        speaker: 'Mentee',
+        start: 56.2,
+        end: 67.0,
+        speaker: 'Unknown',
         text: 'Alhamdulillah, yes. I recited Surah Al-Kahf on Friday and read 2 pages after Fajr prayer every day this week.',
       },
       {
-        start: 68,
-        end: 80,
-        speaker: 'Mentor',
+        start: 68.3,
+        end: 80.5,
+        speaker: 'Unknown',
         text: 'MashaAllah, that is wonderful consistency. Now regarding math, let us agree on an action plan. Can you practice 5 quadratic problems every evening using the step-by-step formula sheet?',
       },
       {
-        start: 81,
-        end: 92,
-        speaker: 'Mentee',
+        start: 81.1,
+        end: 92.4,
+        speaker: 'Unknown',
         text: 'Yes sir, I will do that and mark the questions where I get stuck so we can review them in our next session.',
       },
       {
-        start: 93,
-        end: 104,
-        speaker: 'Mentor',
+        start: 93.0,
+        end: 104.2,
+        speaker: 'Unknown',
         text: 'Excellent. Also, think about the career options we discussed earlier in computer science and engineering. We will spend 15 minutes on that next week. Keep up the great work!',
       },
       {
-        start: 105,
-        end: 110,
-        speaker: 'Mentee',
+        start: 105.0,
+        end: 110.0,
+        speaker: 'Unknown',
         text: 'JazakAllah Khair sir. See you next week!',
       },
     ];
 
     const formattedLines = mockSegments.map((s) => {
-      const minutes = Math.floor(s.start / 60);
-      const seconds = Math.floor(s.start % 60);
-      const timeStr = `[${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}]`;
+      const timeStr = formatTimestamp(s.start);
       return `${timeStr} ${s.speaker ? `${s.speaker}: ` : ''}${s.text}`;
     });
 
     return {
       text: formattedLines.join('\n\n'),
-      language: 'en',
+      language: input.language || 'en',
       duration: 110,
       segments: mockSegments,
-      provider: 'mock-whisper-diarization',
-      confidenceWarning: false,
+      provider: 'mock-transcription',
+      confidenceWarning: true,
+      timestampsUnavailable: false,
+      isMock: true,
     };
   }
 }
@@ -233,7 +255,8 @@ function buildWhisperFileName(originalname: string, mimeType?: string): string {
 }
 
 export class RealTranscriptionService implements TranscriptionService {
-  async transcribe({ buffer, originalname, mimetype, allowEmpty }: TranscriptInput): Promise<TranscriptionResult> {
+  async transcribe(input: TranscriptInput): Promise<TranscriptionResult> {
+    const { buffer, originalname, mimetype, allowEmpty, language, prompt } = input;
     const isProduction = process.env.NODE_ENV === 'production';
     const apiKey = process.env.TRANSCRIPTION_API_KEY || process.env.OPENAI_API_KEY;
     const allowMock = !isProduction && process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
@@ -250,10 +273,16 @@ export class RealTranscriptionService implements TranscriptionService {
 
     if (!apiKey) {
       if (allowMock) {
-        console.warn('[Transcription] No API key found. Falling back to mock transcription because ALLOW_MOCK_TRANSCRIPTION=true');
-        return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype, allowEmpty });
+        console.warn(
+          '[Transcription] [DEVELOPMENT MOCK] No OPENAI_API_KEY configured. Explicitly using MockTranscriptionService (ALLOW_MOCK_TRANSCRIPTION=true). Mock transcription will never be permitted in production.',
+        );
+        return new MockTranscriptionService().transcribe(input);
       }
-      throw new NonRetryableTranscriptionError('Transcription API key is not configured. Real transcription required in production (OPENAI_API_KEY).');
+      throw new NonRetryableTranscriptionError(
+        isProduction
+          ? 'Transcription API key is not configured. Real transcription required in production (OPENAI_API_KEY).'
+          : 'Transcription API key is not configured. Configure OPENAI_API_KEY or set ALLOW_MOCK_TRANSCRIPTION=true for local development.',
+      );
     }
 
     try {
@@ -266,6 +295,19 @@ export class RealTranscriptionService implements TranscriptionService {
       body.append('file', blob, safeFileName);
       body.append('model', process.env.OPENAI_TRANSCRIPTION_MODEL ?? 'whisper-1');
       body.append('response_format', 'verbose_json');
+
+      // Preserve language and code-switching:
+      // If a specific language is explicitly requested, pass it.
+      // Otherwise do NOT force 'en' so Whisper can auto-detect Hindi, English, Urdu or multilingual audio.
+      if (language) {
+        body.append('language', language);
+      }
+
+      // Supply a guidance prompt to preserve Hindi, English, and Hinglish verbatim without translating.
+      const defaultMultilingualPrompt =
+        'Mentorship call conversation in English, Hindi, and Hinglish. Please transcribe faithfully in the original spoken language (including Romanized Hinglish or Devanagari Hindi as spoken). Do not translate into English.';
+      const transcriptionPrompt = prompt || process.env.TRANSCRIPTION_PROMPT || defaultMultilingualPrompt;
+      body.append('prompt', transcriptionPrompt);
 
       const timeoutMs = Number(process.env.OPENAI_TIMEOUT_MS || process.env.TRANSCRIPTION_TIMEOUT_MS || 60000);
       const signal = AbortSignal.timeout(Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 60000);
@@ -314,63 +356,59 @@ export class RealTranscriptionService implements TranscriptionService {
             segments: [],
             provider: 'openai-whisper-verbose',
             confidenceWarning: true,
+            timestampsUnavailable: true,
+            isMock: false,
           };
         }
         throw new NonRetryableTranscriptionError('No transcript text returned from Whisper');
       }
 
-      // Convert Whisper segments with speaker alternation (Speaker 1 / Speaker 2 or Mentor / Mentee)
       let segments: TranscriptSegment[] = [];
-      if (Array.isArray(payload.segments) && payload.segments.length > 0) {
-        segments = payload.segments.map((seg, idx) => {
-          const speaker = idx % 2 === 0 ? 'Mentor' : 'Mentee';
-          return {
-            start: Math.round(seg.start),
-            end: Math.round(seg.end),
-            text: seg.text.trim(),
-            speaker,
-          };
-        });
-      } else {
-        // Fallback: split by sentences and assign timestamps
-        const sentences = rawText.split(/(?<=[.!?])\s+/).filter(Boolean);
-        let currTime = 0;
-        segments = sentences.map((sent, idx) => {
-          const segDuration = Math.max(3, Math.round(sent.length / 15));
-          const seg = {
-            start: currTime,
-            end: currTime + segDuration,
-            text: sent,
-            speaker: idx % 2 === 0 ? 'Mentor' : 'Mentee',
-          };
-          currTime += segDuration;
-          return seg;
-        });
-      }
+      let timestampsUnavailable = false;
+      let formattedText = rawText;
 
-      // Build structured formatted text with timestamps
-      const formattedLines = segments.map((s) => {
-        const minutes = Math.floor(s.start / 60);
-        const seconds = Math.floor(s.start % 60);
-        const timeStr = `[${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}]`;
-        return `${timeStr} ${s.speaker ? `${s.speaker}: ` : ''}${s.text}`;
-      });
+      if (Array.isArray(payload.segments) && payload.segments.length > 0) {
+        // Preserve actual float timestamps returned by the API without rounding to whole seconds.
+        // Never assign automatic alternating Mentor/Mentee labels. Use 'Unknown' until reliable diarization is available.
+        segments = payload.segments.map((seg) => {
+          const rawStart = typeof seg.start === 'number' && Number.isFinite(seg.start) ? seg.start : 0;
+          const rawEnd = typeof seg.end === 'number' && Number.isFinite(seg.end) ? seg.end : rawStart;
+          return {
+            start: Number(rawStart.toFixed(2)),
+            end: Number(rawEnd.toFixed(2)),
+            text: seg.text.trim(),
+            speaker: 'Unknown',
+          };
+        });
+
+        const formattedLines = segments.map((s) => {
+          const timeStr = formatTimestamp(s.start);
+          return `${timeStr} Unknown: ${s.text}`;
+        });
+        formattedText = formattedLines.join('\n\n');
+      } else {
+        // Do NOT generate misleading timestamps by estimating sentence duration when the API does not return segments.
+        // Preserve the full transcript text directly and mark unavailable timestamps appropriately.
+        segments = [];
+        timestampsUnavailable = true;
+        formattedText = rawText;
+      }
 
       return {
-        text: formattedLines.join('\n\n'),
+        text: formattedText,
         language: payload.language || 'en',
-        duration: payload.duration || segments[segments.length - 1]?.end || 0,
+        duration: payload.duration ?? (segments[segments.length - 1]?.end ?? 0),
         segments,
         provider: 'openai-whisper-verbose',
-        confidenceWarning: rawText.length < 50,
+        confidenceWarning: rawText.length < 50 || timestampsUnavailable,
+        timestampsUnavailable,
+        isMock: false,
       };
     } catch (err) {
+      // NEVER silently fall back to mock transcription when real transcription fails!
+      // A failed transcription job must report meaningful errors instead of presenting demo text.
       if (err instanceof NonRetryableTranscriptionError || err instanceof TranscriptionApiError) {
         throw err;
-      }
-      if (allowMock) {
-        console.warn('[Transcription] Whisper error, falling back to mock because ALLOW_MOCK_TRANSCRIPTION=true:', err instanceof Error ? err.message : err);
-        return new MockTranscriptionService().transcribe({ buffer, originalname, mimetype, allowEmpty });
       }
       const isTimeout = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError' || /timeout/i.test(err.message));
       if (isTimeout) {
@@ -387,11 +425,21 @@ export class RealTranscriptionService implements TranscriptionService {
 export function createTranscriptionService(): TranscriptionService {
   const isProduction = process.env.NODE_ENV === 'production';
   const hasKey = Boolean(process.env.OPENAI_API_KEY || process.env.TRANSCRIPTION_API_KEY);
-  const allowMock = !isProduction && process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
+  const requestedMock = process.env.ALLOW_MOCK_TRANSCRIPTION === 'true';
 
-  if (!hasKey && allowMock) {
+  if (requestedMock && isProduction) {
+    throw new NonRetryableTranscriptionError(
+      'CRITICAL: ALLOW_MOCK_TRANSCRIPTION=true is strictly forbidden in production. Real transcription provider must be configured.',
+    );
+  }
+
+  if (requestedMock && !hasKey) {
+    console.warn(
+      '[Transcription] [MOCK_ENABLED] ALLOW_MOCK_TRANSCRIPTION=true is active in non-production. Using MockTranscriptionService.',
+    );
     return new MockTranscriptionService();
   }
 
   return new RealTranscriptionService();
 }
+

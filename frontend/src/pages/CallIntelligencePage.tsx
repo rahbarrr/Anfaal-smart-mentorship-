@@ -101,6 +101,8 @@ type CallData = {
     text?: string;
     segments?: TranscriptSegment[];
     duration?: number;
+    provider?: string;
+    language?: string;
   };
   aiSummary?: AiSummary;
   summary?: string;
@@ -122,16 +124,24 @@ type CallData = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatSeconds(s: number): string {
+  if (s == null || Number.isNaN(s)) return '--:--';
   const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, '0')}`;
+  const sec = s % 60;
+  const secInt = Math.floor(sec);
+  const frac = Math.round((sec - secInt) * 100);
+  if (frac > 0) {
+    return `${m}:${secInt.toString().padStart(2, '0')}.${frac.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${secInt.toString().padStart(2, '0')}`;
 }
 
 function SpeakerBadge({ speaker }: { speaker?: string }) {
   if (!speaker) return null;
   const isMentor = /mentor|speaker\s*1|speaker\s*a/i.test(speaker);
+  const isUnknown = /unknown|unassigned/i.test(speaker);
+  const badgeClass = isMentor ? 'speaker-mentor' : isUnknown ? 'speaker-unknown' : 'speaker-mentee';
   return (
-    <span className={`speaker-badge ${isMentor ? 'speaker-mentor' : 'speaker-mentee'}`}>
+    <span className={`speaker-badge ${badgeClass}`}>
       {speaker}
     </span>
   );
@@ -211,7 +221,7 @@ export function CallIntelligencePage() {
 
   const [call, setCall] = useState<CallData | null>(null);
   const [job, setJob] = useState<JobStatus | null>(null);
-  const [transcript, setTranscript] = useState<{ text: string; segments: TranscriptSegment[] }>({ text: '', segments: [] });
+  const [transcript, setTranscript] = useState<{ text: string; segments: TranscriptSegment[]; isMock?: boolean; provider?: string }>({ text: '', segments: [] });
   const [editedSummary, setEditedSummary] = useState<AiSummary | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -257,7 +267,18 @@ export function CallIntelligencePage() {
           ? transcriptRes.segments
           : (loadedCall?.transcription?.segments ?? []);
 
-      setTranscript({ text: transcriptText, segments: transcriptSegments });
+      const isMock = Boolean(
+        (transcriptRes as any)?.isMock ||
+        (transcriptRes as any)?.provider?.toLowerCase().includes('mock') ||
+        loadedCall?.transcription?.provider?.toLowerCase().includes('mock')
+      );
+
+      setTranscript({
+        text: transcriptText,
+        segments: transcriptSegments,
+        isMock,
+        provider: (transcriptRes as any)?.provider || loadedCall?.transcription?.provider,
+      });
 
       // Fetch short-lived presigned audio URL
       if (
@@ -885,6 +906,25 @@ export function CallIntelligencePage() {
             </div>
           ) : (
             <>
+              {transcript.isMock && (
+                <div style={{
+                  background: '#fef3c7',
+                  border: '1px solid #fde68a',
+                  color: '#92400e',
+                  borderRadius: 8,
+                  padding: '12px 16px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  fontSize: '0.875rem'
+                }}>
+                  <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong>Development Mode Notice:</strong> This transcript was generated using mock transcription (<code>ALLOW_MOCK_TRANSCRIPTION=true</code>). Real transcription API was not invoked.
+                  </div>
+                </div>
+              )}
               {/* Segment-level transcript */}
               {transcript.segments.length > 0 ? (
                 <div className="transcript-container">
@@ -894,15 +934,20 @@ export function CallIntelligencePage() {
                   </div>
                   {transcriptOpen && (
                     <div className="transcript-segments">
-                      {transcript.segments.map((seg, i) => (
-                        <div key={i} className={`transcript-segment ${seg.speaker?.toLowerCase().includes('mentor') || seg.speaker === 'Speaker 1' ? 'segment-mentor' : 'segment-mentee'}`}>
-                          <div className="segment-meta">
-                            <SpeakerBadge speaker={seg.speaker} />
-                            <span className="segment-time">{formatSeconds(seg.start)}</span>
+                      {transcript.segments.map((seg, i) => {
+                        const isMentor = seg.speaker?.toLowerCase().includes('mentor') || seg.speaker === 'Speaker 1';
+                        const isUnknown = !seg.speaker || /unknown|unassigned/i.test(seg.speaker);
+                        const segmentClass = isMentor ? 'segment-mentor' : isUnknown ? 'segment-unassigned' : 'segment-mentee';
+                        return (
+                          <div key={i} className={`transcript-segment ${segmentClass}`}>
+                            <div className="segment-meta">
+                              <SpeakerBadge speaker={seg.speaker} />
+                              <span className="segment-time">{formatSeconds(seg.start)}</span>
+                            </div>
+                            <p className="segment-text">{seg.text}</p>
                           </div>
-                          <p className="segment-text">{seg.text}</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
