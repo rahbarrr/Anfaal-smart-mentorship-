@@ -118,6 +118,8 @@ export function DailyPerformanceFormPage() {
 
   // Day Overall
   const [dayRating, setDayRating] = useState<number>(4);
+  const [mentorCallRating, setMentorCallRating] = useState<number | undefined>(undefined);
+  const [mentorCallFeedback, setMentorCallFeedback] = useState('');
 
   // Reflection & Challenges
   const [dailyReflection, setDailyReflection] = useState('');
@@ -165,6 +167,8 @@ export function DailyPerformanceFormPage() {
     setPages(record.quran?.pages ? String(record.quran.pages) : '');
     setReadingMinutes(record.readingMinutes ?? 0);
     setDayRating(record.dayRating ?? 4);
+    setMentorCallRating(record.mentorCallRating ?? undefined);
+    setMentorCallFeedback(record.mentorCallFeedback ?? '');
     setDailyReflection(record.dailyReflection ?? '');
     setFacedDifficulty(Boolean(record.facedDifficulty));
     setDifficultyNote(record.difficultyNote ?? '');
@@ -205,6 +209,8 @@ export function DailyPerformanceFormPage() {
       },
       readingMinutes: Number(readingMinutes),
       dayRating,
+      mentorCallRating: mentorCallRating ?? null,
+      mentorCallFeedback: mentorCallRating !== undefined ? mentorCallFeedback.trim() || null : null,
       dailyReflection: dailyReflection.trim() || undefined,
       facedDifficulty,
       difficultyNote: facedDifficulty ? difficultyNote.trim() : undefined,
@@ -616,6 +622,25 @@ export function DailyPerformanceFormPage() {
                 );
               })}
             </div>
+          </div>
+
+          {/* Optional mentor call rating */}
+          <div className="daily-form-card">
+            <div className="daily-card-header">
+              <h3 className="daily-card-title">
+                How was today&apos;s mentor call? <span className="muted" style={{ fontSize: '0.82rem', fontWeight: 500 }}>(Optional)</span>
+              </h3>
+            </div>
+            <p className="daily-card-desc">Rate your experience if you spoke with your mentor today. You can skip this without affecting your submission.</p>
+            <div className="daily-chips-row" role="radiogroup" aria-label="Mentor call rating">
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button type="button" key={rating} className={`daily-preset-chip ${mentorCallRating === rating ? 'active' : ''}`} aria-pressed={mentorCallRating === rating} onClick={() => setMentorCallRating(mentorCallRating === rating ? undefined : rating)}>
+                  {rating} / 5
+                </button>
+              ))}
+              {mentorCallRating !== undefined && <button type="button" className="daily-preset-chip" onClick={() => { setMentorCallRating(undefined); setMentorCallFeedback(''); }}>Clear</button>}
+            </div>
+            {mentorCallRating !== undefined && <textarea className="input" rows={2} maxLength={1000} placeholder="Optional feedback for your mentor…" value={mentorCallFeedback} onChange={(event) => setMentorCallFeedback(event.target.value)} style={{ width: '100%', marginTop: 12 }} />}
           </div>
 
           {/* Section F: Optional Daily Reflection */}
