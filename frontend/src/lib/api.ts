@@ -29,7 +29,8 @@ type ChatContact = { id: string; name: string; email?: string; role: string };
 type ChatMessage = { id: string; conversationId?: string; senderId: string; text: string; createdAt?: string };
 type ProxyAssignmentRecord = { id: string; menteeId: string; primaryMentorId: string; proxyMentorId: string; startDate: string; endDate: string; reason?: string };
 type BinRecord = { type: string; id: string; label: string; deletedAt?: string; deletedBy?: string; deletionReason?: string };
-type AiMentorMessage = { role: 'user' | 'assistant'; content: string; createdAt?: string };
+export type AiMentorMessage = { role: 'user' | 'assistant'; content: string; createdAt?: string };
+export type AiMentorStatus = { dailyLimit: number; promptsUsedToday: number; promptsRemaining: number };
 type GrowthDailyRecord = {
   studyMinutes: number;
   readingMinutes: number;
@@ -103,7 +104,8 @@ export async function getProxyAssignments(token: string): Promise<{ assignments:
 export async function createProxyAssignment(token: string, body: unknown): Promise<{ assignment: ProxyAssignmentRecord }> { return (await apiFetch('/admin/proxy-assignments', { method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${token}` } })).json(); }
 export async function getBin(token: string): Promise<{ items: BinRecord[] }> { return (await apiFetch('/admin/bin', { headers: { Authorization: `Bearer ${token}` } })).json(); }
 export async function restoreBinItem(token: string, type: string, id: string): Promise<{ record: Record<string, unknown> }> { return (await apiFetch(`/admin/bin/${encodeURIComponent(type)}/${encodeURIComponent(id)}/restore`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })).json(); }
-export async function sendAiMentorMessage(token: string, message: string, sessionId?: string): Promise<{ sessionId: string; message: AiMentorMessage }> { return (await apiFetch('/ai-mentor/chat', { method: 'POST', body: JSON.stringify({ message, sessionId }), headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getAiMentorStatus(token: string): Promise<AiMentorStatus> { return (await apiFetch('/ai-mentor/status', { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function sendAiMentorMessage(token: string, message: string, sessionId?: string): Promise<{ sessionId: string; message: AiMentorMessage; dailyLimit?: number; promptsUsedToday?: number; promptsRemaining?: number }> { return (await apiFetch('/ai-mentor/chat', { method: 'POST', body: JSON.stringify({ message, sessionId }), headers: { Authorization: `Bearer ${token}` } })).json(); }
 export async function getAiMentorSession(token: string, sessionId: string): Promise<{ messages: AiMentorMessage[] }> { return (await apiFetch(`/ai-mentor/sessions/${encodeURIComponent(sessionId)}`, { headers: { Authorization: `Bearer ${token}` } })).json(); }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
