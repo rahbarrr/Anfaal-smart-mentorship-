@@ -2621,6 +2621,7 @@ tr:last-child td { border-bottom: none; }
 }
 .segment-mentor  { background: rgba(79,70,229,0.04); border-left-color: var(--primary); }
 .segment-mentee  { background: rgba(22,163,74,0.04); border-left-color: #16a34a; }
+.segment-unassigned { background: rgba(100,116,139,0.04); border-left-color: #94a3b8; }
 .segment-meta { display: flex; align-items: center; gap: 0.5rem; }
 .speaker-badge {
   font-size: 0.72rem;
@@ -2631,6 +2632,7 @@ tr:last-child td { border-bottom: none; }
 }
 .speaker-mentor { background: rgba(79,70,229,0.1); color: var(--primary); }
 .speaker-mentee { background: rgba(22,163,74,0.1); color: #16a34a; }
+.speaker-unknown { background: rgba(100,116,139,0.12); color: #64748b; }
 .segment-time { font-size: 0.75rem; color: var(--text-tertiary, #aaa); font-family: monospace; }
 .segment-text { font-size: 0.9rem; color: var(--text-primary); line-height: 1.6; margin: 0; }
 .transcript-plain { padding: 1.25rem; }

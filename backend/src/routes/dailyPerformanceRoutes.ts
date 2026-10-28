@@ -9,17 +9,22 @@ import { Mentorship } from '../models/Mentorship.js';
 import { createDailyPerformanceAiService } from '../services/dailyPerformanceAiService.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { notifyMentorsForMentee } from '../services/notificationService.js';
+import { getLocalTodayString } from '../services/menteeGrowthService.js';
+import { isValidTimezone, DEFAULT_REMINDER_TIMEZONE } from '../services/reminderSchedulerService.js';
 
 const router = Router();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getTodayString(): string {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+export function getAuthoritativeReportingDate(requestedTimezone?: string): string {
+  const tz = requestedTimezone && isValidTimezone(requestedTimezone)
+    ? requestedTimezone
+    : DEFAULT_REMINDER_TIMEZONE;
+  return getLocalTodayString(tz);
+}
+
+function getTodayString(timezone?: string): string {
+  return getAuthoritativeReportingDate(timezone);
 }
 
 async function resolveMenteeId(req: AuthRequest): Promise<string | null> {
@@ -99,7 +104,7 @@ async function authorizeMenteeAccess(
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const performanceSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be formatted as YYYY-MM-DD'),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be formatted as YYYY-MM-DD').optional(),
   studyMinutes: z.number().min(0),
   quran: z
     .object({
@@ -146,7 +151,35 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
       }
     }
 
-    const targetDate = parsed.data.date || getTodayString();
+    const requestedTz = (req.query.timezone as string) || (req.body?.timezone as string) || DEFAULT_REMINDER_TIMEZONE;
+    const authoritativeDate = getAuthoritativeReportingDate(requestedTz);
+
+    // Mentees (and all non-admin users) are strictly locked to the authoritative reporting date.
+    // Client-provided dates are verified. Backdated and future-dated requests are rejected.
+    const submittedDate = parsed.data.date;
+    if (req.user?.role !== 'ADMIN') {
+      if (submittedDate && submittedDate !== authoritativeDate) {
+        if (submittedDate < authoritativeDate) {
+          return res.status(400).json({
+            message: 'You can record your progress for today only. Previous days can no longer be submitted.',
+            code: 'BACKDATED_SUBMISSION_NOT_ALLOWED',
+            eligibleDate: authoritativeDate,
+            submittedDate,
+          });
+        }
+        if (submittedDate > authoritativeDate) {
+          return res.status(400).json({
+            message: 'Future-dated progress submissions are not allowed. You can only record progress for today.',
+            code: 'FUTURE_SUBMISSION_NOT_ALLOWED',
+            eligibleDate: authoritativeDate,
+            submittedDate,
+          });
+        }
+      }
+    }
+
+    // Authoritative date is the single source of truth for mentee submissions
+    const targetDate = (req.user?.role === 'ADMIN' && submittedDate) ? submittedDate : authoritativeDate;
 
     // Prevent accidental duplicate submissions
     const existing = await DailyPerformance.findOne({ menteeId, date: targetDate });
@@ -227,6 +260,61 @@ router.get('/growth-summary', requireAuth, async (req: AuthRequest, res: Respons
   }
 });
 
+// ── 1.6 GET /api/daily-performance/leaderboard ────────────────────────────────
+router.get('/leaderboard', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const menteeId = (await resolveMenteeId(req)) || (req.query.menteeId as string | undefined) || '';
+    const rawPeriod = String(req.query.period || 'weekly').toLowerCase();
+    const period = rawPeriod === 'alltime' ? 'alltime' : rawPeriod === 'monthly' ? 'monthly' : 'weekly';
+    const weekOffset = Number(req.query.weekOffset || 0);
+    const monthOffset = Number(req.query.monthOffset || 0);
+    const timezone = (req.query.timezone as string) || DEFAULT_REMINDER_TIMEZONE;
+
+    const { getSystemLeaderboard } = await import('../services/menteeGrowthService.js');
+    const leaderboard = await getSystemLeaderboard(menteeId, {
+      period,
+      weekOffset,
+      monthOffset,
+      timezone,
+    });
+
+    return res.json(leaderboard);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to load leaderboard';
+    return res.status(500).json({ message });
+  }
+});
+
+// ── 1.65 GET /api/daily-performance/leaderboard-periods ───────────────────────
+router.get('/leaderboard-periods', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const timezone = (req.query.timezone as string) || DEFAULT_REMINDER_TIMEZONE;
+    const { getHistoricalPeriodsSummary } = await import('../services/menteeGrowthService.js');
+    const periods = await getHistoricalPeriodsSummary(timezone);
+    return res.json(periods);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to load leaderboard periods';
+    return res.status(500).json({ message });
+  }
+});
+
+// ── 1.7 PATCH /api/daily-performance/leaderboard-privacy ──────────────────────
+router.patch('/leaderboard-privacy', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const menteeId = await resolveMenteeId(req);
+    if (!menteeId) {
+      return res.status(403).json({ message: 'Only mentees can modify their leaderboard privacy' });
+    }
+    const optOut = Boolean(req.body?.optOut);
+    const { setMenteeLeaderboardPrivacy } = await import('../services/menteeGrowthService.js');
+    const result = await setMenteeLeaderboardPrivacy(menteeId, optOut);
+    return res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unable to update leaderboard privacy';
+    return res.status(500).json({ message });
+  }
+});
+
 // ── 2. GET /api/daily-performance/today ────────────────────────────────────────
 router.get('/today', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
@@ -236,7 +324,8 @@ router.get('/today', requireAuth, async (req: AuthRequest, res: Response) => {
     }
     const menteeId = auth.menteeId;
 
-    const date = (req.query.date as string) || getTodayString();
+    const timezone = (req.query.timezone as string) || DEFAULT_REMINDER_TIMEZONE;
+    const date = (req.query.date as string) || getTodayString(timezone);
     const record = await DailyPerformance.findOne({ menteeId, date }).lean();
     const enrichedRecord = record
       ? {
@@ -425,6 +514,15 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
       const menteeId = await resolveMenteeId(req);
       if (record.menteeId !== menteeId) {
         return res.status(403).json({ message: 'You can only edit your own performance records.' });
+      }
+      const authoritativeDate = getAuthoritativeReportingDate();
+      if (record.date !== authoritativeDate) {
+        return res.status(400).json({
+          message: 'Previous days can no longer be edited or submitted. You can only update today’s progress.',
+          code: 'PAST_RECORD_EDIT_NOT_ALLOWED',
+          eligibleDate: authoritativeDate,
+          recordDate: record.date,
+        });
       }
     } else if (req.user?.role !== 'ADMIN') {
       return res.status(403).json({ message: 'Access denied: You cannot edit this record.' });

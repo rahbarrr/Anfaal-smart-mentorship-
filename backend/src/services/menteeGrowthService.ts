@@ -4,6 +4,7 @@ import { Mentorship } from '../models/Mentorship.js';
 import { Mentor } from '../models/Mentor.js';
 import { User } from '../models/User.js';
 import { Call } from '../models/Call.js';
+import { LeaderboardSnapshot } from '../models/LeaderboardSnapshot.js';
 
 // ─── Gamification Rules Constants ─────────────────────────────────────────────
 export const XP_RULES = {
@@ -280,6 +281,694 @@ export function buildWeeklyCalendar(params: {
   };
 }
 
+// ─── System-Wide Leaderboard Types & Logic ────────────────────────────────────
+
+export interface MenteeCandidate {
+  _id: any;
+  name: string;
+  standard?: string;
+  makid?: string;
+  userId?: string;
+  status?: string;
+  deletedAt?: Date | null;
+  preferences?: { optOutLeaderboard?: boolean };
+  goals?: { careerGoal?: string; semesterGoal?: string };
+}
+
+export interface UserCandidate {
+  _id: any;
+  role: string;
+  status: string;
+  deletedAt?: Date | null;
+}
+
+export function filterEligibleMentees<T extends MenteeCandidate>(
+  mentees: T[],
+  users: UserCandidate[],
+): T[] {
+  const userMap = new Map<string, UserCandidate>();
+  for (const u of users) {
+    userMap.set(String(u._id), u);
+  }
+
+  const seenMenteeIds = new Set<string>();
+  const seenUserIds = new Set<string>();
+  const eligible: T[] = [];
+
+  for (const m of mentees) {
+    const menteeId = String(m._id);
+    if (seenMenteeIds.has(menteeId)) continue;
+    if (m.status !== 'active') continue;
+    if (m.deletedAt) continue;
+
+    if (m.userId) {
+      const uId = String(m.userId);
+      if (seenUserIds.has(uId)) continue;
+
+      const user = userMap.get(uId);
+      if (user) {
+        if (user.role === 'ADMIN' || user.role === 'MENTOR') continue;
+        if (user.status === 'disabled' || user.deletedAt) continue;
+      }
+      seenUserIds.add(uId);
+    }
+
+    seenMenteeIds.add(menteeId);
+    eligible.push(m);
+  }
+
+  return eligible;
+}
+
+export function getIsoWeekBoundaries(
+  todayStr: string,
+  weekOffset = 0,
+): { startDate: string; endDate: string; weekLabel: string } {
+  const today = new Date(todayStr + 'T12:00:00Z');
+  const dayOfWeek = today.getUTCDay();
+  // Monday is 1, Sunday is 0
+  const diffToMonday = (dayOfWeek + 6) % 7;
+  const targetMonday = new Date(today);
+  targetMonday.setUTCDate(today.getUTCDate() - diffToMonday + weekOffset * 7);
+
+  const targetSunday = new Date(targetMonday);
+  targetSunday.setUTCDate(targetMonday.getUTCDate() + 6);
+
+  const startDate = targetMonday.toISOString().split('T')[0];
+  const endDate = targetSunday.toISOString().split('T')[0];
+
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const startMonth = monthNames[targetMonday.getUTCMonth()];
+  const startDay = targetMonday.getUTCDate();
+  const endMonth = monthNames[targetSunday.getUTCMonth()];
+  const endDay = targetSunday.getUTCDate();
+
+  const labelSuffix =
+    startMonth === endMonth
+      ? `${startMonth} ${startDay} – ${endDay}`
+      : `${startMonth} ${startDay} – ${endMonth} ${endDay}`;
+
+  const weekLabel = weekOffset === 0 ? `This Week (${labelSuffix})` : `Week of ${labelSuffix}`;
+
+  return { startDate, endDate, weekLabel };
+}
+
+export function getCalendarMonthBoundaries(
+  referenceDateStr: string,
+  monthOffset = 0,
+): { startDate: string; endDate: string; monthLabel: string; monthYear: string } {
+  const parts = referenceDateStr.split('-');
+  const refYear = parseInt(parts[0], 10) || new Date().getFullYear();
+  const refMonth = (parseInt(parts[1], 10) || new Date().getMonth() + 1) - 1;
+
+  const targetDate = new Date(Date.UTC(refYear, refMonth + monthOffset, 1));
+  const year = targetDate.getUTCFullYear();
+  const month = targetDate.getUTCMonth();
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const monthName = monthNames[month];
+  const monthYear = `${monthName} ${year}`;
+
+  const startMonthStr = String(month + 1).padStart(2, '0');
+  const startDate = `${year}-${startMonthStr}-01`;
+
+  const lastDayDate = new Date(Date.UTC(year, month + 1, 0));
+  const endDay = String(lastDayDate.getUTCDate()).padStart(2, '0');
+  const endDate = `${year}-${startMonthStr}-${endDay}`;
+
+  const monthLabel = monthOffset === 0 ? `This Month (${monthYear})` : monthYear;
+
+  return { startDate, endDate, monthLabel, monthYear };
+}
+
+export function calculateWeeklyLeaderboardScore(weeklyUniqueDates: string[]): {
+  weeklyPoints: number;
+  weeklySubmissions: number;
+  hasConsistencyBonus: boolean;
+} {
+  const weeklySubmissions = weeklyUniqueDates.length;
+  const hasConsistencyBonus = weeklySubmissions >= 5;
+  const weeklyPoints =
+    weeklySubmissions * XP_RULES.PER_CHECKIN +
+    (hasConsistencyBonus ? XP_RULES.WEEKLY_CONSISTENCY_BONUS : 0);
+
+  return {
+    weeklyPoints,
+    weeklySubmissions,
+    hasConsistencyBonus,
+  };
+}
+
+export function calculateMonthlyLeaderboardScore(monthlyUniqueDates: string[]): {
+  monthlyPoints: number;
+  monthlySubmissions: number;
+  weeklyMilestonesEarned: number;
+} {
+  const monthlySubmissions = monthlyUniqueDates.length;
+  const weekMap = new Map<string, number>();
+  for (const date of monthlyUniqueDates) {
+    const weekKey = getWeekKey(date);
+    weekMap.set(weekKey, (weekMap.get(weekKey) || 0) + 1);
+  }
+
+  let weeklyMilestonesEarned = 0;
+  for (const count of weekMap.values()) {
+    if (count >= 5) {
+      weeklyMilestonesEarned++;
+    }
+  }
+
+  const monthlyPoints =
+    monthlySubmissions * XP_RULES.PER_CHECKIN +
+    weeklyMilestonesEarned * XP_RULES.WEEKLY_CONSISTENCY_BONUS;
+
+  return {
+    monthlyPoints,
+    monthlySubmissions,
+    weeklyMilestonesEarned,
+  };
+}
+
+export interface HistoricalPeriodOption {
+  type: 'weekly' | 'monthly';
+  key: string;
+  label: string;
+  startDate: string;
+  endDate: string;
+  offset: number;
+}
+
+export function getAvailableHistoricalPeriods(
+  todayStr: string,
+  earliestDateStr?: string,
+): { weekly: HistoricalPeriodOption[]; monthly: HistoricalPeriodOption[] } {
+  const weekly: HistoricalPeriodOption[] = [];
+  for (let offset = -1; offset >= -12; offset--) {
+    const bounds = getIsoWeekBoundaries(todayStr, offset);
+    if (earliestDateStr && bounds.endDate < earliestDateStr && weekly.length >= 2) {
+      break;
+    }
+    const label = bounds.weekLabel.replace(/^Week of /, '');
+    weekly.push({
+      type: 'weekly',
+      key: `${bounds.startDate}_${bounds.endDate}`,
+      label,
+      startDate: bounds.startDate,
+      endDate: bounds.endDate,
+      offset,
+    });
+  }
+
+  const monthly: HistoricalPeriodOption[] = [];
+  for (let offset = -1; offset >= -12; offset--) {
+    const bounds = getCalendarMonthBoundaries(todayStr, offset);
+    if (earliestDateStr && bounds.endDate < earliestDateStr && monthly.length >= 2) {
+      break;
+    }
+    monthly.push({
+      type: 'monthly',
+      key: `${bounds.startDate.slice(0, 7)}`,
+      label: bounds.monthYear,
+      startDate: bounds.startDate,
+      endDate: bounds.endDate,
+      offset,
+    });
+  }
+
+  return { weekly, monthly };
+}
+
+export async function getHistoricalPeriodsSummary(timezone = 'Asia/Kolkata') {
+  const todayStr = getLocalTodayString(timezone);
+  const earliestRecord = await DailyPerformance.findOne({}, { date: 1 })
+    .sort({ date: 1 })
+    .lean();
+  const earliestDateStr = earliestRecord?.date;
+  return getAvailableHistoricalPeriods(todayStr, earliestDateStr);
+}
+
+export interface RawLeaderboardEntry {
+  menteeId: string;
+  name: string;
+  isMe: boolean;
+  currentStreak: number;
+  weeklyPoints: number;
+  weeklySubmissions: number;
+  monthlyPoints?: number;
+  monthlySubmissions?: number;
+  totalSubmissions: number;
+  totalXp: number;
+  isAnonymous?: boolean;
+}
+
+export interface LeaderboardEntry extends RawLeaderboardEntry {
+  rank: number;
+  isTopThree: boolean;
+}
+
+export function rankLeaderboardEntries(
+  entries: RawLeaderboardEntry[],
+  period: 'weekly' | 'monthly' | 'alltime' = 'weekly',
+): LeaderboardEntry[] {
+  const sorted = [...entries].sort((a, b) => {
+    if (period === 'weekly') {
+      if (b.weeklyPoints !== a.weeklyPoints) return b.weeklyPoints - a.weeklyPoints;
+      if (b.weeklySubmissions !== a.weeklySubmissions) return b.weeklySubmissions - a.weeklySubmissions;
+      if (b.currentStreak !== a.currentStreak) return b.currentStreak - a.currentStreak;
+      return a.name.localeCompare(b.name);
+    } else if (period === 'monthly') {
+      const bPts = b.monthlyPoints ?? 0;
+      const aPts = a.monthlyPoints ?? 0;
+      if (bPts !== aPts) return bPts - aPts;
+      const bSubs = b.monthlySubmissions ?? 0;
+      const aSubs = a.monthlySubmissions ?? 0;
+      if (bSubs !== aSubs) return bSubs - aSubs;
+      if (b.currentStreak !== a.currentStreak) return b.currentStreak - a.currentStreak;
+      return a.name.localeCompare(b.name);
+    } else {
+      if (b.totalXp !== a.totalXp) return b.totalXp - a.totalXp;
+      if (b.currentStreak !== a.currentStreak) return b.currentStreak - a.currentStreak;
+      if (b.totalSubmissions !== a.totalSubmissions) return b.totalSubmissions - a.totalSubmissions;
+      return a.name.localeCompare(b.name);
+    }
+  });
+
+  let currentRank = 1;
+  const ranked: LeaderboardEntry[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0) {
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      let isTie = false;
+      if (period === 'weekly') {
+        isTie =
+          prev.weeklyPoints === curr.weeklyPoints &&
+          prev.weeklySubmissions === curr.weeklySubmissions &&
+          prev.currentStreak === curr.currentStreak;
+      } else if (period === 'monthly') {
+        isTie =
+          (prev.monthlyPoints ?? 0) === (curr.monthlyPoints ?? 0) &&
+          (prev.monthlySubmissions ?? 0) === (curr.monthlySubmissions ?? 0) &&
+          prev.currentStreak === curr.currentStreak;
+      } else {
+        isTie =
+          prev.totalXp === curr.totalXp &&
+          prev.currentStreak === curr.currentStreak &&
+          prev.totalSubmissions === curr.totalSubmissions;
+      }
+
+      if (!isTie) {
+        currentRank = i + 1;
+      }
+    }
+
+    ranked.push({
+      ...sorted[i],
+      rank: currentRank,
+      isTopThree: currentRank <= 3,
+    });
+  }
+
+  return ranked;
+}
+
+export interface SystemLeaderboard {
+  period: {
+    type: 'weekly' | 'monthly' | 'alltime';
+    label: string;
+    startDate: string;
+    endDate: string;
+    timezone: string;
+    isHistorical?: boolean;
+    isFinalized?: boolean;
+    weekOffset?: number;
+    monthOffset?: number;
+  };
+  myRank: number;
+  myWeeklyPoints: number;
+  myMonthlyPoints?: number;
+  myLifetimeXp: number;
+  totalEligibleMentees: number;
+  entries: LeaderboardEntry[];
+  topThree: LeaderboardEntry[];
+  myEntry: LeaderboardEntry | null;
+  optedOut: boolean;
+  hasData?: boolean;
+  scoringRules: Array<{ rule: string; points: string; description: string }>;
+}
+
+export async function getSystemLeaderboard(
+  viewerMenteeId: string,
+  options: {
+    period?: 'weekly' | 'monthly' | 'alltime';
+    weekOffset?: number;
+    monthOffset?: number;
+    timezone?: string;
+  } = {},
+): Promise<SystemLeaderboard> {
+  const period = options.period || 'weekly';
+  const timezone = options.timezone || 'Asia/Kolkata';
+  const weekOffset = options.weekOffset || 0;
+  const monthOffset = options.monthOffset || 0;
+  const todayStr = getLocalTodayString(timezone);
+
+  const isHistorical =
+    (period === 'weekly' && weekOffset < 0) ||
+    (period === 'monthly' && monthOffset < 0);
+
+  let startDate = '';
+  let endDate = '';
+  let periodLabel = '';
+  let periodKey = '';
+
+  if (period === 'weekly') {
+    const boundaries = getIsoWeekBoundaries(todayStr, weekOffset);
+    startDate = boundaries.startDate;
+    endDate = boundaries.endDate;
+    periodLabel = weekOffset === 0 ? boundaries.weekLabel : boundaries.weekLabel.replace(/^Week of /, 'Week: ');
+    periodKey = `${startDate}_${endDate}`;
+  } else if (period === 'monthly') {
+    const boundaries = getCalendarMonthBoundaries(todayStr, monthOffset);
+    startDate = boundaries.startDate;
+    endDate = boundaries.endDate;
+    periodLabel = monthOffset === 0 ? boundaries.monthLabel : boundaries.monthYear;
+    periodKey = startDate.slice(0, 7);
+  } else {
+    startDate = '2026-01-01';
+    endDate = todayStr;
+    periodLabel = 'All-Time XP Rankings';
+    periodKey = 'alltime';
+  }
+
+  // Check if historical finalized snapshot exists in DB
+  if (isHistorical && (period === 'weekly' || period === 'monthly')) {
+    const existingSnapshot = await LeaderboardSnapshot.findOne({
+      periodType: period,
+      periodKey,
+    }).lean();
+
+    if (existingSnapshot) {
+      const viewerMentee = await Mentee.findById(viewerMenteeId, { preferences: 1 }).lean();
+      const viewerOptedOut = Boolean(viewerMentee?.preferences?.optOutLeaderboard);
+
+      const ranked: LeaderboardEntry[] = existingSnapshot.entries.map((entry) => {
+        const isMe = entry.menteeId === viewerMenteeId;
+        let displayName = entry.name;
+        if (entry.isAnonymous) {
+          displayName = isMe ? `${entry.name} (Private)` : 'Anonymous Learner';
+        }
+        return {
+          menteeId: entry.menteeId,
+          name: displayName,
+          isMe,
+          currentStreak: entry.streak,
+          weeklyPoints: period === 'weekly' ? entry.points : 0,
+          weeklySubmissions: period === 'weekly' ? entry.checkInDays : 0,
+          monthlyPoints: period === 'monthly' ? entry.points : 0,
+          monthlySubmissions: period === 'monthly' ? entry.checkInDays : 0,
+          totalSubmissions: entry.checkInDays,
+          totalXp: entry.totalXp,
+          rank: entry.rank,
+          isTopThree: entry.isTopThree,
+          isAnonymous: entry.isAnonymous,
+        };
+      });
+
+      const myEntry = ranked.find((e) => e.isMe) || null;
+      const topThree = ranked.slice(0, 3);
+      const hasData = existingSnapshot.totalSubmissions > 0;
+
+      const scoringRules = [
+        {
+          rule: 'Daily Check-in',
+          points: '+10 pts',
+          description: `Awarded for each verified daily performance submission during ${periodLabel}.`,
+        },
+        {
+          rule: 'Consistency Milestone',
+          points: '+50 pts',
+          description: 'Awarded for maintaining 5+ daily check-ins during qualifying calendar weeks.',
+        },
+        {
+          rule: 'Habit Streak',
+          points: 'Bonus Multiplier',
+          description: 'Preserved streaks broke ties and scaled final rankings.',
+        },
+      ];
+
+      return {
+        period: {
+          type: period,
+          label: periodLabel,
+          startDate,
+          endDate,
+          timezone,
+          isHistorical: true,
+          isFinalized: true,
+          weekOffset: period === 'weekly' ? weekOffset : undefined,
+          monthOffset: period === 'monthly' ? monthOffset : undefined,
+        },
+        myRank: myEntry?.rank ?? 0,
+        myWeeklyPoints: myEntry?.weeklyPoints ?? 0,
+        myMonthlyPoints: myEntry?.monthlyPoints ?? 0,
+        myLifetimeXp: myEntry?.totalXp ?? 0,
+        totalEligibleMentees: ranked.length,
+        entries: ranked,
+        topThree,
+        myEntry,
+        optedOut: viewerOptedOut,
+        hasData,
+        scoringRules,
+      };
+    }
+  }
+
+  // Live calculation (and on-demand finalization for completed past periods without snapshot)
+  const rawMentees = await Mentee.find(
+    { status: 'active' },
+    { name: 1, userId: 1, standard: 1, makid: 1, preferences: 1, goals: 1 },
+  ).lean();
+
+  const userIds = rawMentees.map((m) => m.userId).filter(Boolean);
+  const rawUsers = await User.find(
+    { _id: { $in: userIds } },
+    { role: 1, status: 1 },
+  ).lean();
+
+  const eligibleMentees = filterEligibleMentees(rawMentees, rawUsers);
+  const eligibleIds = eligibleMentees.map((m) => String(m._id));
+
+  const performances = await DailyPerformance.find(
+    { menteeId: { $in: eligibleIds } },
+    { menteeId: 1, date: 1 },
+  ).lean();
+
+  const menteeDatesMap = new Map<string, string[]>();
+  for (const p of performances) {
+    const list = menteeDatesMap.get(p.menteeId) || [];
+    list.push(p.date);
+    menteeDatesMap.set(p.menteeId, list);
+  }
+
+  const viewerMenteeDoc = eligibleMentees.find((m) => String(m._id) === viewerMenteeId);
+  const viewerOptedOut = Boolean(viewerMenteeDoc?.preferences?.optOutLeaderboard);
+
+  let totalPeriodSubmissions = 0;
+
+  const rawEntries: RawLeaderboardEntry[] = eligibleMentees.map((m) => {
+    const pId = String(m._id);
+    const isMe = pId === viewerMenteeId;
+    const allDates = [...new Set(menteeDatesMap.get(pId) || [])].sort();
+    const periodDates = allDates.filter((d) => d >= startDate && d <= endDate);
+
+    totalPeriodSubmissions += periodDates.length;
+
+    const { weeklyPoints, weeklySubmissions } = calculateWeeklyLeaderboardScore(
+      period === 'weekly' ? periodDates : allDates.filter((d) => {
+        const wb = getIsoWeekBoundaries(todayStr, 0);
+        return d >= wb.startDate && d <= wb.endDate;
+      }),
+    );
+
+    const { monthlyPoints, monthlySubmissions } = calculateMonthlyLeaderboardScore(
+      period === 'monthly' ? periodDates : allDates.filter((d) => {
+        const mb = getCalendarMonthBoundaries(todayStr, 0);
+        return d >= mb.startDate && d <= mb.endDate;
+      }),
+    );
+
+    const streak = calculateStreaks(allDates, isHistorical ? endDate : todayStr);
+    const hasGoal = Boolean(m.goals?.careerGoal || m.goals?.semesterGoal);
+    const totalXp = calculateTotalXp({
+      submissionCount: allDates.length,
+      uniqueSortedDates: allDates,
+      bestStreak: streak.bestStreak,
+      hasGoalSet: hasGoal,
+    });
+
+    const isOptedOut = Boolean(m.preferences?.optOutLeaderboard);
+    let displayName = m.name;
+    if (isOptedOut) {
+      displayName = isMe ? `${m.name} (Private)` : 'Anonymous Learner';
+    }
+
+    return {
+      menteeId: pId,
+      name: displayName,
+      isMe,
+      currentStreak: streak.currentStreak,
+      weeklyPoints,
+      weeklySubmissions,
+      monthlyPoints,
+      monthlySubmissions,
+      totalSubmissions: allDates.length,
+      totalXp,
+      isAnonymous: isOptedOut,
+    };
+  });
+
+  const ranked = rankLeaderboardEntries(rawEntries, period);
+  const myEntry = ranked.find((e) => e.isMe) || null;
+  const topThree = ranked.slice(0, 3);
+  const hasData = period === 'alltime' ? ranked.some((e) => e.totalXp > 0) : totalPeriodSubmissions > 0;
+
+  // If this was a completed historical period without a saved snapshot, persist it now for permanent stability
+  if (isHistorical && (period === 'weekly' || period === 'monthly')) {
+    const snapshotEntries = ranked.map((r) => {
+      const origMentee = eligibleMentees.find((em) => String(em._id) === r.menteeId);
+      return {
+        menteeId: r.menteeId,
+        name: origMentee?.name || r.name,
+        rank: r.rank,
+        points: period === 'weekly' ? r.weeklyPoints : (r.monthlyPoints ?? 0),
+        checkInDays: period === 'weekly' ? r.weeklySubmissions : (r.monthlySubmissions ?? 0),
+        streak: r.currentStreak,
+        totalXp: r.totalXp,
+        isTopThree: r.isTopThree,
+        isAnonymous: Boolean(r.isAnonymous),
+      };
+    });
+
+    void LeaderboardSnapshot.create({
+      periodType: period,
+      periodKey,
+      label: periodLabel,
+      startDate,
+      endDate,
+      totalEligibleMentees: ranked.length,
+      totalSubmissions: totalPeriodSubmissions,
+      entries: snapshotEntries,
+      finalizedAt: new Date(),
+    }).catch((err: any) => {
+      if (err?.code !== 11000) {
+        console.warn('[Leaderboard] Snapshot persistence notice:', err?.message);
+      }
+    });
+  }
+
+  const scoringRules =
+    period === 'monthly'
+      ? [
+          {
+            rule: 'Daily Check-in',
+            points: '+10 pts',
+            description: 'Awarded for each verified daily performance submission during this calendar month.',
+          },
+          {
+            rule: 'Weekly Consistency Milestone',
+            points: '+50 pts each',
+            description: 'Awarded for each calendar week in this month where you log 5 or more check-ins.',
+          },
+          {
+            rule: 'Active Habit Streak',
+            points: 'Bonus Multiplier',
+            description: 'Maintaining consecutive days builds streak XP and breaks ties in rankings.',
+          },
+        ]
+      : period === 'weekly'
+        ? [
+            {
+              rule: 'Daily Check-in',
+              points: '+10 pts',
+              description: 'Awarded for each verified daily performance submission this week.',
+            },
+            {
+              rule: 'Weekly Consistency Milestone',
+              points: '+50 pts',
+              description: 'Earned when logging 5 or more days within the Monday–Sunday week.',
+            },
+            {
+              rule: 'Active Habit Streak',
+              points: 'Bonus Multiplier',
+              description: 'Maintaining consecutive days builds streak XP and unlocks achievements.',
+            },
+          ]
+        : [
+            {
+              rule: 'Verified Daily Check-ins',
+              points: '+10 XP per day',
+              description: 'Awarded for every verified daily submission since joining Anfaal.',
+            },
+            {
+              rule: 'Consistency Milestones',
+              points: '+50 XP per week',
+              description: 'Accumulated for every week completed with 5 or more check-ins.',
+            },
+            {
+              rule: 'Habit Streak Milestones',
+              points: 'Up to +250 XP',
+              description: 'Unlocked at 3, 7, 14, and 30-day continuous streaks.',
+            },
+          ];
+
+  return {
+    period: {
+      type: period,
+      label: periodLabel,
+      startDate,
+      endDate,
+      timezone,
+      isHistorical: Boolean(isHistorical),
+      isFinalized: Boolean(isHistorical),
+      weekOffset: period === 'weekly' ? weekOffset : undefined,
+      monthOffset: period === 'monthly' ? monthOffset : undefined,
+    },
+    myRank: myEntry?.rank ?? 0,
+    myWeeklyPoints: myEntry?.weeklyPoints ?? 0,
+    myMonthlyPoints: myEntry?.monthlyPoints ?? 0,
+    myLifetimeXp: myEntry?.totalXp ?? 0,
+    totalEligibleMentees: ranked.length,
+    entries: ranked,
+    topThree,
+    myEntry,
+    optedOut: viewerOptedOut,
+    hasData,
+    scoringRules,
+  };
+}
+
+export async function setMenteeLeaderboardPrivacy(
+  menteeId: string,
+  optOut: boolean,
+): Promise<{ success: boolean; optedOut: boolean }> {
+  const mentee = await Mentee.findById(menteeId);
+  if (!mentee) {
+    throw new Error('Mentee profile not found');
+  }
+
+  const preferences = (mentee as any).preferences || {};
+  preferences.optOutLeaderboard = Boolean(optOut);
+  (mentee as any).preferences = preferences;
+  mentee.markModified('preferences');
+  await mentee.save();
+
+  return { success: true, optedOut: Boolean(optOut) };
+}
+
 // ─── Main Mentee Growth Summary Service ───────────────────────────────────────
 
 export async function getMenteeGrowthSummary(
@@ -462,105 +1151,28 @@ export async function getMenteeGrowthSummary(
     academic: mentee.academic || null,
   };
 
-  // 10. Cohort Leaderboard (Authorized Mentorship Cohort Only)
-  let cohortLeaderboard = {
-    hasCohort: false,
-    mentorName: '',
-    myRank: 1,
-    totalMentees: 1,
-    entries: [] as Array<{
-      rank: number;
-      menteeId: string;
-      name: string;
-      isMe: boolean;
-      currentStreak: number;
-      totalSubmissions: number;
-      totalXp: number;
-    }>,
+  // 10. System-Wide Eligible Leaderboard (Admin-Managed Scope)
+  const systemLeaderboard = await getSystemLeaderboard(menteeId, {
+    period: 'weekly',
+    weekOffset,
+    timezone,
+  });
+
+  const cohortLeaderboard = {
+    hasCohort: true,
+    mentorName: 'Anfaal Mentorship',
+    myRank: systemLeaderboard.myRank,
+    totalMentees: systemLeaderboard.totalEligibleMentees,
+    entries: systemLeaderboard.entries.map((e) => ({
+      rank: e.rank,
+      menteeId: e.menteeId,
+      name: e.name,
+      isMe: e.isMe,
+      currentStreak: e.currentStreak,
+      totalSubmissions: e.weeklySubmissions,
+      totalXp: e.weeklyPoints,
+    })),
   };
-
-  const activeAssignment = await Mentorship.findOne({
-    menteeId,
-    status: 'active',
-  }).lean();
-
-  if (activeAssignment) {
-    const mentorProfile = await Mentor.findById(activeAssignment.mentorId).lean();
-    let mentorUserName = 'Mentor';
-    if (mentorProfile) {
-      const mentorUser = await User.findById(mentorProfile.userId).lean();
-      if (mentorUser) mentorUserName = mentorUser.name;
-    }
-
-    // Find all mentees in the same mentorship cohort
-    const cohortAssignments = await Mentorship.find({
-      mentorId: activeAssignment.mentorId,
-      status: 'active',
-    }).lean();
-
-    const peerMenteeIds = cohortAssignments.map((a) => a.menteeId);
-    const peerMentees = await Mentee.find(
-      { _id: { $in: peerMenteeIds } },
-      { name: 1, goals: 1 },
-    ).lean();
-
-    // Fetch submissions for all peers to compute real participation rankings
-    const peerPerformances = await DailyPerformance.find(
-      { menteeId: { $in: peerMenteeIds } },
-      { menteeId: 1, date: 1 },
-    ).lean();
-
-    const peerDatesMap = new Map<string, string[]>();
-    for (const p of peerPerformances) {
-      const list = peerDatesMap.get(p.menteeId) || [];
-      list.push(p.date);
-      peerDatesMap.set(p.menteeId, list);
-    }
-
-    const entries = peerMentees.map((peer) => {
-      const pId = String(peer._id);
-      const dates = [...new Set(peerDatesMap.get(pId) || [])].sort();
-      const pStreak = calculateStreaks(dates, todayStr);
-      const pHasGoal = Boolean(peer.goals?.careerGoal || peer.goals?.semesterGoal);
-      const pXp = calculateTotalXp({
-        submissionCount: dates.length,
-        uniqueSortedDates: dates,
-        bestStreak: pStreak.bestStreak,
-        hasGoalSet: pHasGoal,
-      });
-
-      return {
-        menteeId: pId,
-        name: peer.name,
-        isMe: pId === menteeId,
-        currentStreak: pStreak.currentStreak,
-        totalSubmissions: dates.length,
-        totalXp: pXp,
-      };
-    });
-
-    // Sort by totalXp desc, then currentStreak desc, then name asc
-    entries.sort((a, b) => {
-      if (b.totalXp !== a.totalXp) return b.totalXp - a.totalXp;
-      if (b.currentStreak !== a.currentStreak) return b.currentStreak - a.currentStreak;
-      return a.name.localeCompare(b.name);
-    });
-
-    const rankedEntries = entries.map((entry, idx) => ({
-      ...entry,
-      rank: idx + 1,
-    }));
-
-    const myEntry = rankedEntries.find((e) => e.isMe);
-
-    cohortLeaderboard = {
-      hasCohort: true,
-      mentorName: mentorUserName,
-      myRank: myEntry?.rank ?? 1,
-      totalMentees: rankedEntries.length,
-      entries: rankedEntries,
-    };
-  }
 
   // 11. Recent Activity Timeline
   const recentActivities: Array<{
@@ -641,6 +1253,7 @@ export async function getMenteeGrowthSummary(
     badges,
     weeklyChallenges,
     goals: goalsData,
+    leaderboard: systemLeaderboard,
     cohortLeaderboard,
     recentActivities: recentActivities.slice(0, 5),
   };

@@ -505,3 +505,58 @@
 .daily-spinner {
   animation: dailySpin 0.9s linear infinite;
 }
+
+/* ── Locked Reporting Date Display ────────────────────────────────────────── */
+.daily-locked-date-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.daily-locked-date-badge-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #fbf9fa;
+  border: 1.5px solid var(--border, #dcd5d8);
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary, #1e1e1e);
+  letter-spacing: 0.01em;
+  user-select: none;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+.daily-locked-date-icon {
+  color: var(--primary, #8f3f66);
+  flex-shrink: 0;
+}
+
+.daily-locked-date-value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.daily-today-pill {
+  background: rgba(143, 63, 102, 0.1);
+  color: var(--primary, #8f3f66);
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.daily-locked-date-info {
+  margin: 10px 0 0 0;
+  font-size: 0.88rem;
+  color: var(--text-secondary, #666);
+  line-height: 1.45;
+}
+
