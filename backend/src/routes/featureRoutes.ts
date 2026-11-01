@@ -6,6 +6,8 @@ import { Mentee } from '../models/Mentee.js';
 import { Mentor } from '../models/Mentor.js';
 import { Mentorship } from '../models/Mentorship.js';
 import { User } from '../models/User.js';
+import { Attendance } from '../models/Attendance.js';
+import { recordManualAttendance } from '../services/attendanceService.js';
 import { emitChatMessage } from '../realtime/chatRuntime.js';
 import { maskDeletedCallParts } from '../services/callVisibility.js';
 
@@ -48,21 +50,54 @@ async function mentorStorageId(user: AuthRequest['user']) {
 }
 
 router.get('/attendance', requireAuth, async (req: AuthRequest, res: Response) => {
-  const query: Record<string, unknown> = { month: String(req.query.month || new Date().toISOString().slice(0, 7)) };
-  if (req.user?.role !== 'ADMIN') query.menteeId = { $in: await assignedMenteeIds(req.user) };
-  const records = await collection('attendance').find({ ...query, deletedAt: null }).sort({ date: -1 }).toArray();
-  return res.json({ records: serializeMany(records) });
+  const query: Record<string, unknown> = {};
+  if (req.query.month && req.query.month !== 'all') {
+    query.month = String(req.query.month);
+  } else if (!req.query.month) {
+    query.month = new Date().toISOString().slice(0, 7);
+  }
+  if (req.query.menteeId) {
+    query.menteeId = String(req.query.menteeId);
+  }
+
+  if (req.user?.role !== 'ADMIN') {
+    const allowedMenteeIds = await assignedMenteeIds(req.user);
+    if (query.menteeId) {
+      if (!allowedMenteeIds.includes(String(query.menteeId))) {
+        return res.status(403).json({ message: 'You do not have access to this mentee.' });
+      }
+    } else {
+      query.menteeId = { $in: allowedMenteeIds };
+    }
+  }
+
+  const records = await Attendance.find(query).sort({ date: -1 }).lean();
+  return res.json({ records: serializeMany(records as unknown as FeatureDocument[]) });
 });
 
 router.post('/attendance', requireAuth, async (req: AuthRequest, res: Response) => {
+  // Requirement 5: Restrict attendance modification to authorized users (Mentor and Admin only).
+  // Do not allow mentees to modify their own attendance records.
+  if (req.user?.role !== 'ADMIN' && req.user?.role !== 'MENTOR') {
+    return res.status(403).json({ message: 'Only mentors and administrators can record or correct attendance.' });
+  }
+
   const menteeId = String(req.body.menteeId || '');
   const date = dateOnly(req.body.date);
   const status = req.body.status === 'PRESENT' || req.body.status === 'ABSENT' ? req.body.status : '';
   if (!validObjectId(menteeId) || !date || !status) return res.status(400).json({ message: 'Mentee, date, and status are required.' });
   if (!(await canAccessMentee(req.user, menteeId))) return res.status(403).json({ message: 'You do not have access to this mentee.' });
-  const record = { menteeId, date, status, source: String(req.body.source || 'MANUAL'), notes: String(req.body.notes || ''), month: date.slice(0, 7), createdBy: req.user!.id, updatedAt: new Date() };
-  const result = await collection('attendance').findOneAndUpdate({ menteeId, date }, { $set: record }, { upsert: true, returnDocument: 'after' });
-  return res.json({ record: serialize(result as FeatureDocument) });
+
+  const record = await recordManualAttendance({
+    menteeId,
+    date,
+    status,
+    source: req.body.source ? String(req.body.source) : undefined,
+    notes: req.body.notes ? String(req.body.notes) : undefined,
+    userId: req.user!.id,
+  });
+
+  return res.json({ record: serialize(record as unknown as FeatureDocument) });
 });
 
 router.get('/announcements', requireAuth, async (req: AuthRequest, res: Response) => {
@@ -173,7 +208,26 @@ router.post('/calls/manual-summary', requireAuth, async (req: AuthRequest, res: 
   if (!validObjectId(menteeId) || summary.length < 10) return res.status(400).json({ message: 'Mentee and a meaningful summary are required.' });
   if (!(await canAccessMentee(req.user, menteeId))) return res.status(403).json({ message: 'You do not have access to this mentee.' });
   const call = await Call.create({ mentorId: await mentorStorageId(req.user), menteeId, date: new Date(`${date}T12:00:00.000Z`), duration: 0, recordingStatus: 'pending', processingStatus: 'completed', reviewStatus: 'Approved', aiStatus: 'completed', summary, mentorNotes: summary, aiSummary: { status: 'COMPLETED', shortSummary: summary, generatedAt: new Date() } });
-  await collection('attendance').updateOne({ menteeId, date }, { $set: { menteeId, date, month: date.slice(0, 7), status: 'PRESENT', source: req.body.callType || 'WHATSAPP_CALL', createdBy: req.user!.id, updatedAt: new Date() } }, { upsert: true });
+  await Attendance.findOneAndUpdate(
+    { menteeId, date },
+    {
+      $set: {
+        menteeId,
+        date,
+        month: date.slice(0, 7),
+        status: 'PRESENT',
+        source: req.body.callType || 'WHATSAPP_CALL',
+        updatedBy: req.user!.id,
+        updatedAt: new Date(),
+      },
+      $setOnInsert: {
+        isManual: false,
+        createdBy: req.user!.id,
+        createdAt: new Date(),
+      },
+    },
+    { upsert: true, new: true },
+  );
   return res.status(201).json({ call });
 });
 

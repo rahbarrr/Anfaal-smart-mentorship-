@@ -21,7 +21,20 @@ export type LoginResponse = {
   user: AuthUser;
 };
 
-type AttendanceRecord = { id: string; menteeId: string; date: string; status: 'PRESENT' | 'ABSENT'; source: string; notes?: string };
+export type AttendanceRecord = {
+  id: string;
+  menteeId: string;
+  date: string;
+  month?: string;
+  status: 'PRESENT' | 'ABSENT';
+  source: string;
+  notes?: string;
+  isManual?: boolean;
+  manuallyCorrectedAt?: string;
+  manuallyCorrectedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
 type AnnouncementRecord = { id: string; title: string; body: string; audience: string; priority?: string; pinned?: boolean; read?: boolean; publishedAt?: { _seconds?: number } | string };
 type CallSummaryRecord = { id: string; date: string; summary: { overview: string } };
 type ConversationRecord = { id: string; participantIds: string[]; lastMessage?: string; updatedAt?: string };
@@ -89,7 +102,16 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
 }
 
 // Product features: kept on the regular Render API boundary.
-export async function getAttendance(token: string, params: { month?: string } = {}): Promise<{ records: AttendanceRecord[] }> { const q = params.month ? `?month=${encodeURIComponent(params.month)}` : ''; return (await apiFetch(`/attendance${q}`, { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getAttendance(
+  token: string,
+  params: { month?: string; menteeId?: string } = {},
+): Promise<{ records: AttendanceRecord[] }> {
+  const query = new URLSearchParams();
+  if (params.month) query.set('month', params.month);
+  if (params.menteeId) query.set('menteeId', params.menteeId);
+  const q = query.toString() ? `?${query.toString()}` : '';
+  return (await apiFetch(`/attendance${q}`, { headers: { Authorization: `Bearer ${token}` } })).json();
+}
 export async function saveAttendance(token: string, body: unknown): Promise<{ record: AttendanceRecord }> { return (await apiFetch('/attendance', { method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${token}` } })).json(); }
 export async function getAnnouncements(token: string): Promise<{ announcements: AnnouncementRecord[] }> { return (await apiFetch('/announcements', { headers: { Authorization: `Bearer ${token}` } })).json(); }
 export async function createAnnouncement(token: string, body: unknown): Promise<{ announcement: AnnouncementRecord }> { return (await apiFetch('/announcements', { method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${token}` } })).json(); }

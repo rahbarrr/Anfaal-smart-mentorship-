@@ -339,4 +339,25 @@ export interface DailyReminderSettingDocument {
   updatedAt: Date;
 }
 
+export type AttendanceStatus = 'PRESENT' | 'ABSENT';
+
+export interface AttendanceDocument {
+  _id: string;
+  menteeId: string;
+  date: string; // 'YYYY-MM-DD'
+  month: string; // 'YYYY-MM'
+  status: AttendanceStatus;
+  source: string; // 'Daily Progress' | 'MANUAL' | 'MANUAL_CORRECTION' | 'WHATSAPP_CALL' | etc.
+  notes?: string;
+  isManual?: boolean;
+  manuallyCorrectedAt?: Date;
+  manuallyCorrectedBy?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+}
+
+
 

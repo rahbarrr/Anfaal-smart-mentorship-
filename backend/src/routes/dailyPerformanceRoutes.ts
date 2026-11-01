@@ -9,6 +9,7 @@ import { Mentorship } from '../models/Mentorship.js';
 import { createDailyPerformanceAiService } from '../services/dailyPerformanceAiService.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { notifyMentorsForMentee, createNotification } from '../services/notificationService.js';
+import { recordAutomaticDailyAttendance } from '../services/attendanceService.js';
 import { getLocalTodayString } from '../services/menteeGrowthService.js';
 import { isValidTimezone, DEFAULT_REMINDER_TIMEZONE } from '../services/reminderSchedulerService.js';
 
@@ -207,6 +208,15 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
       needsMentorHelp: parsed.data.needsMentorHelp,
       mentorHelpNote: parsed.data.needsMentorHelp ? parsed.data.mentorHelpNote?.trim() : undefined,
     });
+
+    // ── Automatic Attendance Generation ───────────────────────────────────────
+    // Automatically marks mentee as Present in the Attendance module for this reporting date.
+    // Idempotent and failsafe: submission persists even if attendance logging has an issue.
+    try {
+      await recordAutomaticDailyAttendance(menteeId, targetDate, req.user?.id);
+    } catch (attErr) {
+      console.error('[DailyPerformance] Error generating automatic attendance:', attErr);
+    }
 
     // Notify mentee and assigned mentor(s) asynchronously
     void (async () => {
