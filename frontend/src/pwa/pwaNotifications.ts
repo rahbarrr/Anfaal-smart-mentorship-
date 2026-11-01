@@ -73,31 +73,36 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
  * If key differs or subscription is expired/corrupted, re-subscribes cleanly.
  */
 export async function syncPushSubscription(token: string): Promise<PushSubscription | null> {
-  if (!token || !isPushSupported()) return null;
-  if (Notification.permission !== 'granted') return null;
+  if (!token || !isPushSupported()) {
+    console.info('[Anfaal Push] Push not supported or no auth token.');
+    return null;
+  }
+  if (Notification.permission !== 'granted') {
+    console.info('[Anfaal Push] Notification permission not granted yet:', Notification.permission);
+    return null;
+  }
 
   try {
-    let swReg: ServiceWorkerRegistration | null | undefined = await navigator.serviceWorker.getRegistration('/');
-    if (!swReg || !swReg.active) {
-      swReg = await registerServiceWorker();
-    }
-    if (!swReg || !swReg.pushManager) {
-      const readyReg = await Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise<ServiceWorkerRegistration | null>((resolve) =>
-          setTimeout(() => resolve(null), 3500),
-        ),
-      ]);
-      if (readyReg) {
-        swReg = readyReg;
-      }
-    }
+    console.info('[Anfaal Push] Initializing push subscription sync...');
+
+    // 1. Ensure service worker registration is initiated
+    await registerServiceWorker().catch(() => undefined);
+
+    // 2. Await fully active service worker
+    const swReg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<ServiceWorkerRegistration | null>((resolve) =>
+        setTimeout(() => resolve(null), 5000),
+      ),
+    ]);
+
     if (!swReg || !swReg.pushManager) {
       console.warn('[Anfaal Push] PushManager not ready on service worker.');
       return null;
     }
 
-    // 1. Fetch current backend VAPID public key
+    // 3. Fetch current backend VAPID public key
+    console.info('[Anfaal Push] Fetching VAPID public key from backend...');
     const { publicKey } = await getVapidPublicKey();
     if (!publicKey) {
       console.warn('[Anfaal Push] VAPID public key not available from backend.');
@@ -106,7 +111,7 @@ export async function syncPushSubscription(token: string): Promise<PushSubscript
 
     const expectedAppServerKey = urlBase64ToUint8Array(publicKey);
 
-    // 2. Inspect existing subscription
+    // 4. Inspect existing subscription
     let subscription = await swReg.pushManager.getSubscription();
 
     // Check if existing subscription has matching key
@@ -125,19 +130,24 @@ export async function syncPushSubscription(token: string): Promise<PushSubscript
         console.info('[Anfaal Push] VAPID key changed or mismatched; refreshing subscription...');
         await subscription.unsubscribe().catch(() => undefined);
         subscription = null;
+      } else {
+        console.info('[Anfaal Push] Existing subscription matches current VAPID key.');
       }
     }
 
-    // 3. Create fresh subscription if needed
+    // 5. Create fresh subscription if needed
     if (!subscription) {
+      console.info('[Anfaal Push] Subscribing device with PushManager...');
       subscription = await swReg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: expectedAppServerKey as unknown as BufferSource,
       });
+      console.info('[Anfaal Push] Push subscription created on device successfully.');
     }
 
-    // 4. Save subscription with backend for the current user
+    // 6. Save subscription with backend for the current user
     if (subscription) {
+      console.info('[Anfaal Push] Registering push subscription with backend database...');
       await registerPushSubscription(token, subscription);
       console.info('[Anfaal Push] Push subscription successfully synchronized for user.');
     }

@@ -293,9 +293,9 @@ export function NotificationCenter() {
         return;
       }
       const res = await sendTestPushNotification(token, {
-        title: 'Daily Progress Reminder',
-        message: "You haven't submitted your daily progress today. Open Anfaal and complete your daily update.",
-        link: '/mentee/daily',
+        title: 'Anfaal Test Notification',
+        message: 'Background push notifications are working correctly!',
+        link: '/',
       });
       setTestPushResult(res.message);
       void loadNotifications();

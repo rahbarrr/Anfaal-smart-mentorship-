@@ -194,7 +194,10 @@ export async function sendDirectPushToUser(
     tag?: string;
   },
 ) {
+  // Step 1: Subscriptions found for user
   const subscriptions = await PushSubscription.find({ userId }).lean();
+  console.info(`[NotificationService] [Step 1] Subscriptions found for user ${userId}: ${subscriptions?.length || 0}`);
+
   if (!subscriptions || subscriptions.length === 0) {
     return {
       attempted: 0,
@@ -204,7 +207,7 @@ export async function sendDirectPushToUser(
     };
   }
 
-  const targetUrl = payload.url || '/mentee/daily';
+  const targetUrl = payload.url || '/';
   const pushPayload = JSON.stringify({
     title: payload.title,
     body: payload.body,
@@ -229,6 +232,8 @@ export async function sendDirectPushToUser(
   const results: Array<{ endpoint: string; status: number; success: boolean; error?: string }> = [];
 
   for (const sub of subscriptions) {
+    // Step 2: Push request sent to push service
+    console.info(`[NotificationService] [Step 2] Sending push request to push service: ${sub.endpoint.slice(0, 45)}... with title: "${payload.title}"`);
     try {
       const res = await webpush.sendNotification(
         {
@@ -244,13 +249,110 @@ export async function sendDirectPushToUser(
           urgency: 'high',
         },
       );
+      // Step 3: Push service response received
+      console.info(`[NotificationService] [Step 3] Push service response received: status code ${res.statusCode} for ${sub.endpoint.slice(0, 45)}...`);
       results.push({
         endpoint: sub.endpoint.slice(0, 45) + '...',
         status: res.statusCode,
         success: true,
       });
-      console.info(`[NotificationService] Direct push delivered to ${sub.endpoint.slice(0, 35)}... (status: ${res.statusCode})`);
     } catch (err: any) {
+      console.error(`[NotificationService] [Step 3 Failed] Push service error for ${sub.endpoint.slice(0, 45)}...:`, err.statusCode, err.message);
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        console.warn(`[NotificationService] Pruning expired/invalid subscription: ${sub.endpoint.slice(0, 45)}...`);
+        await PushSubscription.deleteOne({ endpoint: sub.endpoint }).catch(() => undefined);
+      }
+      results.push({
+        endpoint: sub.endpoint.slice(0, 45) + '...',
+        status: err.statusCode || 500,
+        success: false,
+        error: err.message || 'Push delivery failed',
+      });
+    }
+  }
+
+  return {
+    attempted: subscriptions.length,
+    successful: results.filter((r) => r.success).length,
+    failed: results.filter((r) => !r.success).length,
+    results,
+  };
+}
+
+/**
+ * Dispatches a direct Web Push notification to all active devices in the database.
+ * Used for admin testing and diagnostic verification.
+ */
+export async function sendDirectPushToAll(payload: {
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+}) {
+  // Step 1: Subscriptions found across all users
+  const subscriptions = await PushSubscription.find({}).lean();
+  console.info(`[NotificationService] [Step 1] Total subscriptions found in system: ${subscriptions?.length || 0}`);
+
+  if (!subscriptions || subscriptions.length === 0) {
+    return {
+      attempted: 0,
+      successful: 0,
+      failed: 0,
+      results: [],
+    };
+  }
+
+  const targetUrl = payload.url || '/';
+  const pushPayload = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    message: payload.body,
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    url: targetUrl,
+    link: targetUrl,
+    tag: payload.tag || `broadcast-push-${Date.now()}`,
+    type: 'BROADCAST_PUSH',
+    timestamp: Date.now(),
+    data: {
+      url: targetUrl,
+      link: targetUrl,
+      title: payload.title,
+      body: payload.body,
+      message: payload.body,
+      timestamp: Date.now(),
+    },
+  });
+
+  const results: Array<{ endpoint: string; status: number; success: boolean; error?: string }> = [];
+
+  for (const sub of subscriptions) {
+    // Step 2: Push request sent to push service
+    console.info(`[NotificationService] [Step 2] Sending push request to push service: ${sub.endpoint.slice(0, 45)}... (User: ${sub.userId})`);
+    try {
+      const res = await webpush.sendNotification(
+        {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.keys.p256dh,
+            auth: sub.keys.auth,
+          },
+        },
+        pushPayload,
+        {
+          TTL: 86400,
+          urgency: 'high',
+        },
+      );
+      // Step 3: Push service response received
+      console.info(`[NotificationService] [Step 3] Push service response received: status code ${res.statusCode} for ${sub.endpoint.slice(0, 45)}...`);
+      results.push({
+        endpoint: sub.endpoint.slice(0, 45) + '...',
+        status: res.statusCode,
+        success: true,
+      });
+    } catch (err: any) {
+      console.error(`[NotificationService] [Step 3 Failed] Push service error for ${sub.endpoint.slice(0, 45)}...:`, err.statusCode, err.message);
       if (err.statusCode === 404 || err.statusCode === 410) {
         await PushSubscription.deleteOne({ endpoint: sub.endpoint }).catch(() => undefined);
       }
@@ -260,7 +362,6 @@ export async function sendDirectPushToUser(
         success: false,
         error: err.message || 'Push delivery failed',
       });
-      console.error(`[NotificationService] Direct push failed for ${sub.endpoint.slice(0, 35)}...:`, err.statusCode, err.message);
     }
   }
 

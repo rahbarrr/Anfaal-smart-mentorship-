@@ -3,7 +3,7 @@ import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { Notification } from '../models/Notification.js';
 import { PushSubscription } from '../models/PushSubscription.js';
 import { NotificationPreference } from '../models/NotificationPreference.js';
-import { getVapidPublicKey, createNotification, sendDirectPushToUser } from '../services/notificationService.js';
+import { getVapidPublicKey, createNotification, sendDirectPushToUser, sendDirectPushToAll } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -230,41 +230,52 @@ router.post('/test-push', requireAuth, async (req: AuthRequest, res: Response) =
     const callerId = req.user!.id;
     const isCallerAdmin = req.user!.role === 'ADMIN';
 
-    // Admin can specify a target userId; others send to their own registered devices
+    const broadcast = req.body.broadcast === true || req.body.target === 'all';
     const targetUserId = (isCallerAdmin && req.body.userId) ? req.body.userId : callerId;
-    const title = req.body.title || 'Daily Progress Reminder';
+    const title = req.body.title || 'Anfaal Test Notification';
     const message =
       req.body.message ||
-      "You haven't submitted your daily progress today. Open Anfaal and complete your daily update.";
-    const link = req.body.link || '/mentee/daily';
+      'Background push notifications are working correctly!';
+    const link = req.body.link || '/';
 
-    // 1. Create in-app notification so user sees it in their notification list
-    const notification = await createNotification({
-      userId: targetUserId,
-      type: 'DAILY_REMINDER',
-      category: 'dailyReminders',
-      title,
-      message,
-      link,
-      idempotencyKey: `test-push:${targetUserId}:${Date.now()}`,
-    });
+    console.info(`[NotificationRoutes] POST /test-push initiated by ${req.user!.email} (${req.user!.role}). Broadcast: ${broadcast}`);
 
-    // 2. Send direct push notification with high urgency and 24h TTL
-    const directResult = await sendDirectPushToUser(targetUserId, {
-      title,
-      body: message,
-      url: link,
-      tag: `test-push-${Date.now()}`,
-    });
+    let directResult;
+    if (broadcast && isCallerAdmin) {
+      directResult = await sendDirectPushToAll({
+        title,
+        body: message,
+        url: link,
+        tag: `test-push-broadcast-${Date.now()}`,
+      });
+    } else {
+      // 1. Create in-app notification so user sees it in their notification list
+      void createNotification({
+        userId: targetUserId,
+        type: 'DAILY_REMINDER',
+        category: 'dailyReminders',
+        title,
+        message,
+        link,
+        idempotencyKey: `test-push:${targetUserId}:${Date.now()}`,
+      }).catch((err) => console.error('[NotificationRoutes] in-app notification create error:', err));
+
+      // 2. Send direct push notification with high urgency and 24h TTL
+      directResult = await sendDirectPushToUser(targetUserId, {
+        title,
+        body: message,
+        url: link,
+        tag: `test-push-${Date.now()}`,
+      });
+    }
 
     res.json({
       success: directResult.successful > 0,
       message:
         directResult.attempted === 0
-          ? 'No active device subscriptions found for this user. Please enable notifications on your device first.'
+          ? 'No active device subscriptions found. Please open Anfaal on your device, ensure notifications are allowed, and verify the service worker is active.'
           : `Push notification dispatched to ${directResult.successful} of ${directResult.attempted} device(s).`,
-      targetUserId,
-      notificationId: notification?._id?.toString(),
+      targetUserId: broadcast ? 'all' : targetUserId,
       summary: directResult,
     });
   } catch (error: any) {
@@ -277,16 +288,20 @@ router.post('/test-push', requireAuth, async (req: AuthRequest, res: Response) =
 router.get('/status', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const [subscriptions, prefs] = await Promise.all([
+    const isCallerAdmin = req.user!.role === 'ADMIN';
+
+    const [userSubscriptions, allSubscriptionsCount, prefs] = await Promise.all([
       PushSubscription.find({ userId }).select('endpoint userAgent createdAt').lean(),
+      isCallerAdmin ? PushSubscription.countDocuments() : Promise.resolve(0),
       NotificationPreference.findOne({ userId }).lean(),
     ]);
 
     res.json({
       vapidConfigured: Boolean(getVapidPublicKey()),
       pushEnabled: prefs ? prefs.pushEnabled : true,
-      registeredDevices: subscriptions.length,
-      devices: subscriptions.map((s) => ({
+      registeredDevices: userSubscriptions.length,
+      totalSystemDevices: allSubscriptionsCount,
+      devices: userSubscriptions.map((s) => ({
         endpointSnippet: s.endpoint.slice(0, 45) + '...',
         userAgent: s.userAgent || 'Unknown',
         createdAt: s.createdAt,

@@ -1392,7 +1392,7 @@ export async function registerPushSubscription(
 
 export async function sendTestPushNotification(
   token: string,
-  payload?: { title?: string; message?: string; link?: string; userId?: string },
+  payload?: { title?: string; message?: string; link?: string; userId?: string; broadcast?: boolean },
 ): Promise<{ success: boolean; message: string; summary?: any }> {
   const res = await fetch(`${API_BASE_URL}/notifications/test-push`, {
     method: 'POST',
@@ -1410,6 +1410,7 @@ export async function getPushDiagnosticStatus(token: string): Promise<{
   vapidConfigured: boolean;
   pushEnabled: boolean;
   registeredDevices: number;
+  totalSystemDevices?: number;
   devices: Array<{ endpointSnippet: string; userAgent: string; createdAt?: string }>;
 }> {
   const res = await fetch(`${API_BASE_URL}/notifications/status`, {

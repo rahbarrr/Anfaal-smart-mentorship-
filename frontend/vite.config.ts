@@ -11,9 +11,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // "prompt": a new service worker waits until the user chooses to update,
-      // so we never reload the page while someone is typing or uploading a call.
-      registerType: 'prompt',
+      // "autoUpdate": activates new service worker immediately so push notifications
+      // and background handlers take effect without manual reload
+      registerType: 'autoUpdate',
       injectRegister: false, // registered manually in src/pwa/ (see usePwa.ts)
       includeAssets: ['favicon.svg', 'icons/apple-touch-icon.png', 'sw-push.js'],
       manifest: {
@@ -38,10 +38,9 @@ export default defineConfig({
         // Precache ONLY the static app shell (hashed JS/CSS/HTML/icons/fonts).
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         cleanupOutdatedCaches: true,
-        // Never skipWaiting/clientsClaim automatically: updates are user-approved
-        // via the "Update now" banner (SKIP_WAITING message).
-        skipWaiting: false,
-        clientsClaim: false,
+        // Immediate activation so background push events always invoke latest code
+        skipWaiting: true,
+        clientsClaim: true,
         // SPA routing: serve the cached shell for navigations, but never for the API.
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /\/sw\.js$/, /\/manifest\.webmanifest$/],

@@ -3,16 +3,28 @@
 // Handles: background push delivery, rich notification payloads, click focus/navigation
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Immediate activation so that push handling is always active without manual user reload
+self.addEventListener('install', () => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener('push', (event) => {
+  console.info('[Anfaal SW-Push] [Step 4] Service worker received push event at', new Date().toISOString());
   let payload = {};
 
   if (event.data) {
     try {
       payload = event.data.json();
+      console.info('[Anfaal SW-Push] Parsed JSON push payload:', payload);
     } catch {
       try {
         const text = event.data.text();
-        payload = { title: 'Anfaal Notification', body: text, message: text };
+        payload = { title: 'Anfaal Test Notification', body: text, message: text };
+        console.info('[Anfaal SW-Push] Parsed text push payload:', text);
       } catch {
         payload = {};
       }
@@ -25,7 +37,7 @@ self.addEventListener('push', (event) => {
     payload.notification?.title ||
     payload.data?.title ||
     payload.heading ||
-    'Anfaal Mentorship';
+    'Anfaal Test Notification';
 
   // 2. Resolve meaningful notification message / body
   const body =
@@ -35,7 +47,7 @@ self.addEventListener('push', (event) => {
     payload.notification?.message ||
     payload.data?.body ||
     payload.data?.message ||
-    'You have a new update in your mentorship portal.';
+    'Background push notifications are working correctly!';
 
   // 3. Resolve destination URL
   const targetUrl =
@@ -78,13 +90,18 @@ self.addEventListener('push', (event) => {
     ],
   };
 
+  console.info(`[Anfaal SW-Push] [Step 5] Calling showNotification: "${title}" - "${body}"`);
+
   // Crucial: Android Chrome requires showNotification within event.waitUntil.
   // Never return early without showing a notification, or Android Chrome falls back to silent default.
   event.waitUntil(
     self.registration
       .showNotification(title, notificationOptions)
+      .then(() => {
+        console.info('[Anfaal SW-Push] [Step 5 Complete] showNotification displayed successfully.');
+      })
       .catch((err) => {
-        console.error('[Anfaal SW-Push] showNotification error:', err);
+        console.error('[Anfaal SW-Push] showNotification detailed error:', err);
         return self.registration.showNotification(title, {
           body,
           icon,
