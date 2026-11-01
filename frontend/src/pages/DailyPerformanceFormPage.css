@@ -196,13 +196,19 @@
 /* ── Quran / Islamic Reading Grid ────────────────────────────────────────── */
 .daily-quran-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
 @media (max-width: 480px) {
   .daily-quran-grid {
     gap: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  .daily-quran-grid {
+    gap: 6px;
   }
 }
 
@@ -240,7 +246,7 @@
 /* ── Mood Selector Grid (Section 4 Responsive Grid) ──────────────────────── */
 .daily-mood-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   width: 100%;
   box-sizing: border-box;
@@ -248,8 +254,14 @@
 
 @media (max-width: 640px) {
   .daily-mood-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .daily-mood-grid {
+    gap: 8px;
   }
 }
 
@@ -273,6 +285,13 @@
   width: 100%;
 }
 
+@media (max-width: 360px) {
+  .daily-mood-card {
+    padding: 10px 4px;
+    min-height: 80px;
+  }
+}
+
 .daily-mood-card:hover {
   border-color: #d1b8c6;
   background: #faf7f8;
@@ -291,6 +310,13 @@
   transition: transform 0.15s ease;
 }
 
+@media (max-width: 360px) {
+  .daily-mood-emoji {
+    font-size: 1.65rem;
+    margin-bottom: 4px;
+  }
+}
+
 .daily-mood-card.selected .daily-mood-emoji {
   transform: scale(1.1);
 }
@@ -300,6 +326,13 @@
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.25;
+  word-break: break-word;
+}
+
+@media (max-width: 360px) {
+  .daily-mood-label {
+    font-size: 0.76rem;
+  }
 }
 
 .daily-mood-card.selected .daily-mood-label {
@@ -559,4 +592,68 @@
   color: var(--text-secondary, #666);
   line-height: 1.45;
 }
+
+/* ── Small Mobile (≤ 380px) and Micro Mobile (≤ 320px) ────────────────────── */
+@media (max-width: 380px) {
+  .daily-form-card {
+    padding: 14px 10px;
+    border-radius: 14px;
+    margin-bottom: 12px;
+  }
+
+  .daily-card-title {
+    font-size: 0.96rem;
+  }
+
+  .daily-card-desc {
+    font-size: 0.82rem;
+    margin-bottom: 10px;
+  }
+
+  .daily-locked-date-badge-box {
+    font-size: 0.92rem;
+    padding: 8px 10px;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .daily-locked-date-value {
+    font-size: 0.88rem;
+  }
+
+  .daily-preset-chip {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    min-height: 36px;
+  }
+
+  .daily-quran-field input {
+    height: 42px;
+    font-size: 0.9rem;
+    padding: 4px 6px;
+  }
+
+  .daily-quran-field label {
+    font-size: 0.76rem;
+  }
+
+  .daily-quran-field small {
+    font-size: 0.68rem;
+  }
+
+  .daily-submission-card {
+    padding: 14px 10px;
+  }
+
+  .daily-submit-btn {
+    height: 48px;
+    font-size: 0.94rem;
+  }
+
+  .daily-summary-pill {
+    font-size: 0.78rem;
+    padding: 5px 8px;
+  }
+}
+
 

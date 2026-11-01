@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CalendarCheck,
@@ -25,6 +25,14 @@ import {
   ShieldCheck,
   History,
   Calendar,
+  GraduationCap,
+  BookOpen,
+  User,
+  PhoneCall,
+  Volume2,
+  FileText,
+  MessageSquare,
+  Check,
 } from 'lucide-react';
 import {
   getMenteeGrowthSummary,
@@ -82,6 +90,38 @@ export function MenteeDashboardPage() {
   const [isLoadingPastPeriods, setIsLoadingPastPeriods] = useState<boolean>(false);
   const [isLoadingPastLeaderboard, setIsLoadingPastLeaderboard] = useState<boolean>(false);
   const [pastSearchQuery, setPastSearchQuery] = useState<string>('');
+
+  // Call summary & Audio playback state
+  const [activeCallSummaryModal, setActiveCallSummaryModal] = useState<{
+    id: string;
+    date: string;
+    duration: number;
+    summary?: string;
+    aiSummary?: {
+      shortSummary?: string;
+      keyDiscussionPoints?: string[];
+      actionItems?: string[];
+      studentConcerns?: string[];
+    };
+    recordingUrl?: string;
+    transcript?: string;
+  } | null>(null);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handleToggleAudio = (callId: string, url?: string) => {
+    if (!url) return;
+    if (playingAudioId === callId) {
+      audioRef.current?.pause();
+      setPlayingAudioId(null);
+    } else {
+      if (audioRef.current) {
+        audioRef.current.src = url;
+        audioRef.current.play().catch(() => setPlayingAudioId(null));
+        setPlayingAudioId(callId);
+      }
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -262,12 +302,22 @@ export function MenteeDashboardPage() {
   const badges = data?.badges || [];
   const weeklyChallenges = data?.weeklyChallenges || [];
   const goals = data?.goals;
+  const routine = data?.routine;
+  const careerInterests = data?.careerInterests;
+  const mentor = data?.mentor;
+  const calls = data?.calls || [];
+  const academic = goals?.academic;
   const recentActivities = data?.recentActivities || [];
 
   const moodInfo = todayRecord ? MOOD_MAP[todayRecord.dayRating] || { emoji: '🙂', label: 'Good' } : null;
 
   return (
     <div className="mentee-growth-dashboard">
+      <audio
+        ref={audioRef}
+        onEnded={() => setPlayingAudioId(null)}
+        onError={() => setPlayingAudioId(null)}
+      />
       {loadError && (
         <div className="alert alert-error" role="alert" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <AlertCircle size={18} />
@@ -637,6 +687,224 @@ export function MenteeDashboardPage() {
             </div>
           </section>
 
+          {/* Academic & Exam Progress Section */}
+          <section className="growth-card" aria-label="Academic & Exam Progress">
+            <div className="growth-card-header">
+              <div className="growth-card-title-wrap">
+                <div className="growth-card-icon" style={{ background: '#e0f2fe', color: '#0369a1' }}>
+                  <GraduationCap size={18} />
+                </div>
+                <div>
+                  <h3 className="growth-card-title">Academic & Exam Progress</h3>
+                  <div style={{ fontSize: '0.74rem', color: '#70676d', marginTop: 1 }}>
+                    {academic?.currentExam || 'Current Academic Semester'}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="card-header-link-btn"
+                onClick={() => navigate('/mentee/profile')}
+                title="View full academic details in 360 profile"
+              >
+                <span>360 Profile</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+
+            {/* Academic Benchmarks 4-Tile Row */}
+            <div className="academic-benchmarks-grid">
+              <div className="academic-benchmark-tile">
+                <span className="benchmark-lbl">Target Score</span>
+                <span className="benchmark-val target">
+                  {academic?.targetPercentage != null ? `${academic.targetPercentage}%` : '—'}
+                </span>
+                <span className="benchmark-sub">Semester Target</span>
+              </div>
+              <div className="academic-benchmark-tile">
+                <span className="benchmark-lbl">Latest Score</span>
+                <span className="benchmark-val latest">
+                  {academic?.latestPercentage != null ? `${academic.latestPercentage}%` : '—'}
+                </span>
+                <span className="benchmark-sub">Most Recent Term</span>
+              </div>
+              <div className="academic-benchmark-tile">
+                <span className="benchmark-lbl">Previous Score</span>
+                <span className="benchmark-val">
+                  {academic?.previousPercentage != null ? `${academic.previousPercentage}%` : '—'}
+                </span>
+                <span className="benchmark-sub">Past Assessment</span>
+              </div>
+              <div className="academic-benchmark-tile">
+                <span className="benchmark-lbl">Attendance</span>
+                <span className="benchmark-val attendance">
+                  {academic?.attendancePercentage != null ? `${academic.attendancePercentage}%` : '—'}
+                </span>
+                <span className="benchmark-sub">Presence Rate</span>
+              </div>
+            </div>
+
+            {/* Exam Subject Portion Completion */}
+            <div style={{ marginTop: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                <h5 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#70676d', margin: 0, letterSpacing: '0.04em' }}>
+                  Exam Preparation & Syllabus Coverage
+                </h5>
+                {academic?.currentExam && (
+                  <span className="exam-tag-pill">{academic.currentExam}</span>
+                )}
+              </div>
+
+              {academic?.examProgress && academic.examProgress.length > 0 ? (
+                <div className="exam-progress-list">
+                  {academic.examProgress.map((ep: any, idx: number) => (
+                    <div key={idx} className="exam-progress-item">
+                      <div className="exam-progress-row">
+                        <span className="exam-subject-name">{ep.subject}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          {ep.status && (
+                            <span className={`exam-status-tag ${ep.status.toLowerCase().includes('good') || ep.status.toLowerCase().includes('complete') ? 'good' : 'pending'}`}>
+                              {ep.status}
+                            </span>
+                          )}
+                          <span className="exam-progress-pct">{ep.portionCompleted}%</span>
+                        </div>
+                      </div>
+                      <div className="goal-progress-bar-wrap">
+                        <div className="goal-progress-track">
+                          <div
+                            className="goal-progress-fill"
+                            style={{
+                              width: `${Math.min(100, ep.portionCompleted)}%`,
+                              background: ep.portionCompleted >= 80 ? '#16a34a' : ep.portionCompleted >= 50 ? '#0284c7' : '#d97706',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="academic-empty-box">
+                  <BookOpen size={24} color="#0284c7" style={{ opacity: 0.7, margin: '0 auto 6px', display: 'block' }} />
+                  <p style={{ margin: 0, fontSize: '0.84rem', color: '#70676d' }}>
+                    No subject exam targets logged yet. Coordinate with your mentor during your next call to record upcoming exam syllabus goals.
+                  </p>
+                </div>
+              )}
+
+              {/* Subject Strengths Tags */}
+              {((academic?.favouriteSubjects && academic.favouriteSubjects.length > 0) ||
+                (academic?.weakSubjects && academic.weakSubjects.length > 0)) && (
+                <div className="academic-subjects-row">
+                  {academic.favouriteSubjects && academic.favouriteSubjects.length > 0 && (
+                    <div className="subject-group">
+                      <span className="subject-group-lbl">Strengths:</span>
+                      <div className="subject-pills-wrap">
+                        {academic.favouriteSubjects.map((s: string, i: number) => (
+                          <span key={i} className="subject-pill strength">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {academic.weakSubjects && academic.weakSubjects.length > 0 && (
+                    <div className="subject-group">
+                      <span className="subject-group-lbl">Focus Areas:</span>
+                      <div className="subject-pills-wrap">
+                        {academic.weakSubjects.map((s: string, i: number) => (
+                          <span key={i} className="subject-pill focus">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Daily Routine & Interests Section */}
+          <section className="growth-card" aria-label="Daily Routine & Interests">
+            <div className="growth-card-header">
+              <div className="growth-card-title-wrap">
+                <div className="growth-card-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
+                  <Clock size={18} />
+                </div>
+                <div>
+                  <h3 className="growth-card-title">Daily Routine & Interests</h3>
+                  <div style={{ fontSize: '0.74rem', color: '#70676d', marginTop: 1 }}>
+                    Target study rhythm, habits & skills
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="card-header-link-btn"
+                onClick={() => navigate('/mentee/profile')}
+                title="View full routine and skills profile"
+              >
+                <span>Edit Profile</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+
+            {/* Routine & Self-Study Target */}
+            <div className="routine-overview-box">
+              <div className="routine-stat-row">
+                <div className="routine-stat-item">
+                  <span className="routine-stat-lbl">Self-Study Target</span>
+                  <span className="routine-stat-val">
+                    {routine?.selfStudyHours ? `${routine.selfStudyHours} hrs / day` : 'Not set'}
+                  </span>
+                </div>
+                {routine?.schedule && (
+                  <div className="routine-schedule-desc">
+                    <span className="routine-stat-lbl">Schedule Rhythm</span>
+                    <p className="routine-schedule-text">{routine.schedule}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Study Habits */}
+              {routine?.habits && routine.habits.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <span className="routine-stat-lbl">Established Habits</span>
+                  <div className="pills-cluster">
+                    {routine.habits.map((h: string, idx: number) => (
+                      <span key={idx} className="habit-pill">
+                        <Check size={12} /> {h}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Interests, Hobbies & Skills */}
+            <div style={{ marginTop: 12 }}>
+              {careerInterests?.hobbies && careerInterests.hobbies.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <span className="routine-stat-lbl">Interests & Hobbies</span>
+                  <div className="pills-cluster">
+                    {careerInterests.hobbies.map((hobby: string, idx: number) => (
+                      <span key={idx} className="interest-pill">{hobby}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {careerInterests?.skills && careerInterests.skills.length > 0 && (
+                <div>
+                  <span className="routine-stat-lbl">Core Skills & Competencies</span>
+                  <div className="pills-cluster">
+                    {careerInterests.skills.map((skill: string, idx: number) => (
+                      <span key={idx} className="skill-pill">{skill}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
           {/* Weekly Challenges */}
           <section className="growth-card" aria-label="Weekly Challenges">
             <div className="growth-card-header">
@@ -902,6 +1170,135 @@ export function MenteeDashboardPage() {
                 </button>
               </div>
             )}
+          </section>
+
+          {/* Assigned Mentor & Recent Sessions Section */}
+          <section className="growth-card" aria-label="Mentor & Recent Calls">
+            <div className="growth-card-header">
+              <div className="growth-card-title-wrap">
+                <div className="growth-card-icon" style={{ background: '#fdf2f7', color: '#8f3f66' }}>
+                  <User size={18} />
+                </div>
+                <div>
+                  <h3 className="growth-card-title">Assigned Mentor & Feedback</h3>
+                  <div style={{ fontSize: '0.74rem', color: '#70676d', marginTop: 1 }}>
+                    Guidance, recorded sessions & feedback
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="card-header-link-btn"
+                onClick={() => navigate('/mentee/chat')}
+                title="Send a message to your mentor"
+              >
+                <MessageSquare size={13} />
+                <span>Chat</span>
+              </button>
+            </div>
+
+            {/* Mentor Information Card */}
+            {mentor ? (
+              <div className="mentor-summary-box">
+                <div className="mentor-avatar-col">
+                  <div className="mentor-avatar">
+                    {mentor.name.charAt(0).toUpperCase()}
+                  </div>
+                </div>
+                <div className="mentor-details-col">
+                  <div className="mentor-name-title">{mentor.name}</div>
+                  <div className="mentor-designation">{mentor.designation || 'Assigned Mentor'}</div>
+                  <div className="mentor-contact-row">
+                    {mentor.email && <span className="mentor-contact-pill">{mentor.email}</span>}
+                    {mentor.phone && <span className="mentor-contact-pill">{mentor.phone}</span>}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mentor-empty-box">
+                <User size={22} color="#8f3f66" style={{ opacity: 0.7, margin: '0 auto 4px', display: 'block' }} />
+                <p style={{ margin: 0, fontSize: '0.82rem', color: '#70676d', textAlign: 'center' }}>
+                  Mentorship coordinator is reviewing your profile for mentor assignment.
+                </p>
+              </div>
+            )}
+
+            {/* Recent Call Sessions List */}
+            <div style={{ marginTop: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                <h5 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#70676d', margin: 0, letterSpacing: '0.04em' }}>
+                  Recent Mentorship Calls & Summaries
+                </h5>
+                <button
+                  type="button"
+                  className="card-header-link-btn"
+                  onClick={() => navigate('/mentee/call-summary')}
+                  style={{ fontSize: '0.72rem' }}
+                >
+                  <span>All Calls</span>
+                  <ArrowRight size={12} />
+                </button>
+              </div>
+
+              {calls && calls.length > 0 ? (
+                <div className="mentor-calls-list">
+                  {calls.map((call) => (
+                    <div key={call.id} className="mentor-call-item">
+                      <div className="mentor-call-top">
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <PhoneCall size={14} color="#8f3f66" />
+                          <span className="mentor-call-date">
+                            {new Date(call.date).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+                        <span className="mentor-call-duration">
+                          {formatDuration(call.duration)}
+                        </span>
+                      </div>
+
+                      {call.summary && (
+                        <p className="mentor-call-summary-snippet">
+                          {call.summary.length > 120 ? `${call.summary.slice(0, 120)}...` : call.summary}
+                        </p>
+                      )}
+
+                      <div className="mentor-call-actions">
+                        {call.recordingUrl && (
+                          <button
+                            type="button"
+                            className={`call-listen-btn ${playingAudioId === call.id ? 'playing' : ''}`}
+                            onClick={() => handleToggleAudio(call.id, call.recordingUrl)}
+                            aria-label={playingAudioId === call.id ? 'Pause audio' : 'Play call audio'}
+                          >
+                            <Volume2 size={13} />
+                            <span>{playingAudioId === call.id ? 'Pause' : 'Listen'}</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="call-view-summary-btn"
+                          onClick={() => setActiveCallSummaryModal(call)}
+                        >
+                          <FileText size={13} />
+                          <span>View Takeaways</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="call-empty-box">
+                  <PhoneCall size={20} color="#70676d" style={{ opacity: 0.6, margin: '0 auto 4px', display: 'block' }} />
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#70676d', textAlign: 'center' }}>
+                    No call recordings logged yet. When your mentor conducts a scheduled check-in call, session notes and AI takeaways will appear here.
+                  </p>
+                </div>
+              )}
+            </div>
           </section>
 
           {/* Achievement Badges Showcase */}
@@ -1553,6 +1950,120 @@ export function MenteeDashboardPage() {
                 onClick={() => setScoringInfoOpen(false)}
               >
                 Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Call Summary & Key Takeaways Modal ─────────────────────────────────── */}
+      {activeCallSummaryModal && (
+        <div
+          className="leaderboard-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="call-summary-modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActiveCallSummaryModal(null);
+          }}
+        >
+          <div className="leaderboard-modal-card" style={{ maxWidth: 540 }}>
+            <div className="leaderboard-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <div className="growth-card-icon" style={{ background: '#fdf2f7', color: '#8f3f66' }}>
+                  <PhoneCall size={18} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <h3 id="call-summary-modal-title" style={{ margin: 0, fontSize: '1.1rem', color: '#231e21', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    Call Summary & Takeaways
+                  </h3>
+                  <div style={{ fontSize: '0.76rem', color: '#70676d' }}>
+                    {new Date(activeCallSummaryModal.date).toLocaleDateString('en-IN', {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}{' '}
+                    · {formatDuration(activeCallSummaryModal.duration)}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="leaderboard-modal-close-btn"
+                onClick={() => setActiveCallSummaryModal(null)}
+                aria-label="Close summary modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="scoring-rules-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              {activeCallSummaryModal.recordingUrl && (
+                <div style={{ padding: '10px 14px', background: '#fbf7f9', borderRadius: 12, border: '1px solid #ebdbe3', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem', fontWeight: 700, color: '#8f3f66' }}>
+                    <Volume2 size={16} />
+                    <span>Call Audio Recording</span>
+                  </div>
+                  <button
+                    type="button"
+                    className={`call-listen-btn ${playingAudioId === activeCallSummaryModal.id ? 'playing' : ''}`}
+                    onClick={() => handleToggleAudio(activeCallSummaryModal.id, activeCallSummaryModal.recordingUrl)}
+                  >
+                    <span>{playingAudioId === activeCallSummaryModal.id ? 'Pause Audio' : 'Play Audio'}</span>
+                  </button>
+                </div>
+              )}
+
+              {activeCallSummaryModal.summary && (
+                <div className="call-modal-section">
+                  <h5 className="call-modal-section-title">Overview</h5>
+                  <p className="call-modal-text">{activeCallSummaryModal.summary}</p>
+                </div>
+              )}
+
+              {activeCallSummaryModal.aiSummary?.keyDiscussionPoints && activeCallSummaryModal.aiSummary.keyDiscussionPoints.length > 0 && (
+                <div className="call-modal-section">
+                  <h5 className="call-modal-section-title">Key Discussion Points</h5>
+                  <ul className="call-modal-bullets">
+                    {activeCallSummaryModal.aiSummary.keyDiscussionPoints.map((pt: string, i: number) => (
+                      <li key={i}>{pt}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {activeCallSummaryModal.aiSummary?.actionItems && activeCallSummaryModal.aiSummary.actionItems.length > 0 && (
+                <div className="call-modal-section">
+                  <h5 className="call-modal-section-title">Agreed Action Items</h5>
+                  <ul className="call-modal-bullets">
+                    {activeCallSummaryModal.aiSummary.actionItems.map((item: string, i: number) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {activeCallSummaryModal.aiSummary?.studentConcerns && activeCallSummaryModal.aiSummary.studentConcerns.length > 0 && (
+                <div className="call-modal-section">
+                  <h5 className="call-modal-section-title">Learner Notes & Challenges</h5>
+                  <ul className="call-modal-bullets">
+                    {activeCallSummaryModal.aiSummary.studentConcerns.map((c: string, i: number) => (
+                      <li key={i}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div style={{ textAlign: 'right', padding: '12px 20px', borderTop: '1px solid #f0eaee', background: '#faf8f9' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: '8px 20px', fontSize: '0.86rem' }}
+                onClick={() => setActiveCallSummaryModal(null)}
+              >
+                Close
               </button>
             </div>
           </div>

@@ -2017,6 +2017,8 @@ tr:last-child td { border-bottom: none; }
   .chat-layout { grid-template-columns: 1fr; min-height: 0; }
   .chat-conversations { max-height: 360px; }
   .chat-thread { min-height: 480px; }
+  .ai-mentor-card { min-height: 400px; padding: 14px 12px; }
+  .ai-mentor-messages { min-height: 260px; }
 }
 @media (max-width: 420px) {
   .chat-new-row, .chat-composer { grid-template-columns: 1fr; }

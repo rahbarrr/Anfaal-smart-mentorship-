@@ -154,8 +154,21 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export function MenteeProfilePage() {
-  const { menteeId } = useParams<{ menteeId: string }>();
+  const { menteeId: paramMenteeId } = useParams<{ menteeId: string }>();
   const navigate = useNavigate();
+
+  const user = (() => {
+    try {
+      const u = localStorage.getItem('anfaal-user');
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const isAdmin = user?.role === 'ADMIN';
+  const isMentee = user?.role === 'MENTEE';
+  const menteeId = paramMenteeId || user?.menteeId || (isMentee ? user?.id : '') || '';
+  const token = localStorage.getItem('anfaal-token') || '';
 
   // Core mentee & calls data
   const [mentee, setMentee] = useState<Mentee360Profile | null>(null);
@@ -197,17 +210,6 @@ export function MenteeProfilePage() {
   const [perfDeleteTarget, setPerfDeleteTarget] = useState<PerformanceHistoryRecord | 'BULK' | null>(null);
   const [isPerfDeleting, setIsPerfDeleting] = useState(false);
   const selectAllPerfRef = useRef<HTMLInputElement | null>(null);
-
-  const user = (() => {
-    try {
-      const u = localStorage.getItem('anfaal-user');
-      return u ? JSON.parse(u) : null;
-    } catch {
-      return null;
-    }
-  })();
-  const isAdmin = user?.role === 'ADMIN';
-  const token = localStorage.getItem('anfaal-token') || '';
 
   // Supportive Intelligence (AI Insights)
   const [aiInsights, setAiInsights] = useState<AiInsightsResult | null>(null);
@@ -576,9 +578,9 @@ export function MenteeProfilePage() {
           type="button"
           className="btn-ghost"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', padding: '6px 10px', color: 'var(--text-secondary)' }}
-          onClick={() => navigate(isAdmin ? '/admin/mentees' : '/mentor/mentees')}
+          onClick={() => navigate(isAdmin ? '/admin/mentees' : isMentee ? '/mentee' : '/mentor/mentees')}
         >
-          <ArrowLeft size={15} /> Back to Mentees
+          <ArrowLeft size={15} /> {isMentee ? 'Back to Dashboard' : 'Back to Mentees'}
         </button>
       </div>
 
@@ -2915,8 +2917,8 @@ function EditProfileModal({
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 16 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 520, width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 'clamp(8px, 2.5vw, 16px)' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 520, width: '100%', maxHeight: '90dvh', overflowY: 'auto', padding: 'clamp(14px, 4vw, 24px)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Edit Mentee Profile</h3>
           <button type="button" className="btn-ghost" onClick={onClose}>✕</button>
@@ -2926,7 +2928,7 @@ function EditProfileModal({
             <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Full Name</label>
             <input className="input-field" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>MAKID</label>
               <input className="input-field" value={makid} onChange={(e) => setMakid(e.target.value)} placeholder="e.g. MAK10245" />
@@ -2936,7 +2938,7 @@ function EditProfileModal({
               <input className="input-field" value={standard} onChange={(e) => setStandard(e.target.value)} required />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Location</label>
               <input className="input-field" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Area, City" />
@@ -2949,7 +2951,7 @@ function EditProfileModal({
               </select>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Guardian Name</label>
               <input className="input-field" value={guardian} onChange={(e) => setGuardian(e.target.value)} />
@@ -3025,14 +3027,14 @@ function EditAcademicModal({
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 16 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 500, width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 'clamp(8px, 2.5vw, 16px)' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 500, width: '100%', maxHeight: '90dvh', overflowY: 'auto', padding: 'clamp(14px, 4vw, 24px)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Edit Academic Details</h3>
           <button type="button" className="btn-ghost" onClick={onClose}>✕</button>
         </div>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Previous %</label>
               <input type="number" className="input-field" value={previousPercentage} onChange={(e) => setPreviousPercentage(e.target.value)} placeholder="e.g. 68" />
@@ -3042,7 +3044,7 @@ function EditAcademicModal({
               <input type="number" className="input-field" value={latestPercentage} onChange={(e) => setLatestPercentage(e.target.value)} placeholder="e.g. 74" />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Target %</label>
               <input type="number" className="input-field" value={targetPercentage} onChange={(e) => setTargetPercentage(e.target.value)} placeholder="e.g. 85" />
@@ -3052,7 +3054,7 @@ function EditAcademicModal({
               <input type="number" className="input-field" value={attendancePercentage} onChange={(e) => setAttendancePercentage(e.target.value)} placeholder="e.g. 90" />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Academic Level</label>
               <input className="input-field" placeholder="e.g. Secondary / 10th" value={academicLevel} onChange={(e) => setAcademicLevel(e.target.value)} />
@@ -3101,8 +3103,8 @@ function EditGoalsModal({
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 16 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 480, width: '100%', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 'clamp(8px, 2.5vw, 16px)' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 480, width: '100%', maxHeight: '90dvh', overflowY: 'auto', padding: 'clamp(14px, 4vw, 24px)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>High-Level Targets</h3>
           <button type="button" className="btn-ghost" onClick={onClose}>✕</button>
@@ -3152,8 +3154,8 @@ function GoalDetailModal({
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 16 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 480, width: '100%', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 'clamp(8px, 2.5vw, 16px)' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 480, width: '100%', maxHeight: '90dvh', overflowY: 'auto', padding: 'clamp(14px, 4vw, 24px)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>{mode === 'add' ? 'Add Short-Term Goal' : 'Edit Goal'}</h3>
           <button type="button" className="btn-ghost" onClick={onClose}>✕</button>
@@ -3167,7 +3169,7 @@ function GoalDetailModal({
             <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Description</label>
             <textarea rows={2} className="input-field" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Progress ({progress}%)</label>
               <input type="range" min="0" max="100" value={progress} onChange={(e) => setProgress(Number(e.target.value))} style={{ width: '100%' }} />
@@ -3223,8 +3225,8 @@ function ChallengeDetailModal({
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 16 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 500, width: '100%', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 'clamp(8px, 2.5vw, 16px)' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 500, width: '100%', maxHeight: '90dvh', overflowY: 'auto', padding: 'clamp(14px, 4vw, 24px)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>{mode === 'add' ? 'Log New Challenge' : 'Edit Challenge'}</h3>
           <button type="button" className="btn-ghost" onClick={onClose}>✕</button>
@@ -3238,7 +3240,7 @@ function ChallengeDetailModal({
             <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Description</label>
             <textarea rows={2} className="input-field" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe difficulty observed..." />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
             <div>
               <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Priority</label>
               <select className="input-field" value={priority} onChange={(e) => setPriority(e.target.value as MenteeChallenge['priority'])}>
@@ -3302,8 +3304,8 @@ function EditRoutineModal({
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 16 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 500, width: '100%', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 'clamp(8px, 2.5vw, 16px)' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 500, width: '100%', maxHeight: '90dvh', overflowY: 'auto', padding: 'clamp(14px, 4vw, 24px)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Edit Study Routine</h3>
           <button type="button" className="btn-ghost" onClick={onClose}>✕</button>
@@ -3364,8 +3366,8 @@ function EditCareerModal({
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 16 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 500, width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 'clamp(8px, 2.5vw, 16px)' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: 16, maxWidth: 500, width: '100%', maxHeight: '90dvh', overflowY: 'auto', padding: 'clamp(14px, 4vw, 24px)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>Edit Career & Interests</h3>
           <button type="button" className="btn-ghost" onClick={onClose}>✕</button>
@@ -3611,7 +3613,7 @@ function ReviewSuggestionsModal({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 16,
+        padding: 'clamp(8px, 2.5vw, 16px)',
       }}
     >
       <div
@@ -3621,7 +3623,7 @@ function ReviewSuggestionsModal({
           borderRadius: 16,
           width: '100%',
           maxWidth: 720,
-          maxHeight: '90vh',
+          maxHeight: '90dvh',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 20px 40px rgba(0, 0, 0, 0.25)',
@@ -3632,7 +3634,7 @@ function ReviewSuggestionsModal({
         {/* Modal Header */}
         <div
           style={{
-            padding: '16px 20px',
+            padding: 'clamp(12px, 3vw, 16px) clamp(12px, 4vw, 20px)',
             borderBottom: '1px solid var(--border)',
             display: 'flex',
             justifyContent: 'space-between',

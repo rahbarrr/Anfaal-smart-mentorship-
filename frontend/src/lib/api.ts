@@ -1,5 +1,5 @@
 // Production API Base URL: loaded from VITE_API_URL or defaults to '/api'
-import type { ImportPreview, ShortTermGoal } from '../types';
+import type { ImportPreview, ShortTermGoal, Mentee360Profile } from '../types';
 
 const rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || '/api';
 const API_BASE_URL = rawApiUrl.replace(/\/+$/, '');
@@ -121,6 +121,40 @@ export async function loginWithEmail(email: string, password: string): Promise<L
     throw new Error(payload.message ?? 'Unable to sign in.');
   }
   return response.json();
+}
+
+export async function verifySessionToken(token: string): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message ?? 'Session expired or invalid.');
+  }
+  return response.json();
+}
+
+export async function refreshSessionToken(token: string): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message ?? 'Failed to refresh session.');
+  }
+  return response.json();
+}
+
+export async function logoutApi(token?: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    // Best effort logout on backend
+  }
 }
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
@@ -1462,8 +1496,32 @@ export interface MenteeGrowthSummary {
     careerGoal: string;
     semesterGoal: string;
     shortTermGoals: ShortTermGoal[];
-    academic: Record<string, unknown> | null;
+    academic: Mentee360Profile['academic'] | null;
   };
+  routine?: Mentee360Profile['routine'] | null;
+  careerInterests?: Mentee360Profile['careerInterests'] | null;
+  mentor?: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    designation?: string;
+  } | null;
+  calls?: Array<{
+    id: string;
+    date: string;
+    duration: number;
+    summary?: string;
+    aiSummary?: {
+      shortSummary?: string;
+      keyDiscussionPoints?: string[];
+      actionItems?: string[];
+      studentConcerns?: string[];
+    };
+    recordingUrl?: string;
+    transcript?: string;
+    reviewStatus?: string;
+  }>;
   leaderboard?: LeaderboardData;
   cohortLeaderboard: {
     hasCohort: boolean;

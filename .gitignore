@@ -17,3 +17,6 @@ npm-debug.log*
 
 # OS
 .DS_Store
+
+# Discarded Next.js experiment
+next-app/

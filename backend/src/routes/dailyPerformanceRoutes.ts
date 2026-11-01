@@ -8,7 +8,7 @@ import { Mentor } from '../models/Mentor.js';
 import { Mentorship } from '../models/Mentorship.js';
 import { createDailyPerformanceAiService } from '../services/dailyPerformanceAiService.js';
 import { logAuditEvent } from '../services/auditService.js';
-import { notifyMentorsForMentee } from '../services/notificationService.js';
+import { notifyMentorsForMentee, createNotification } from '../services/notificationService.js';
 import { getLocalTodayString } from '../services/menteeGrowthService.js';
 import { isValidTimezone, DEFAULT_REMINDER_TIMEZONE } from '../services/reminderSchedulerService.js';
 
@@ -208,9 +208,24 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
       mentorHelpNote: parsed.data.needsMentorHelp ? parsed.data.mentorHelpNote?.trim() : undefined,
     });
 
-    // Notify assigned mentor(s) asynchronously
+    // Notify mentee and assigned mentor(s) asynchronously
     void (async () => {
       try {
+        // 1. Notify the submitting mentee (or user account)
+        if (req.user?.id) {
+          await createNotification({
+            userId: req.user.id,
+            type: 'MENTEE_DAILY_SUBMITTED',
+            category: 'dailyReminders',
+            title: 'Daily Progress Submitted Successfully',
+            message: 'Your daily progress has been submitted. Keep up the consistency!',
+            link: '/mentee/history',
+            metadata: { menteeId, recordId: record._id.toString(), date: targetDate },
+            idempotencyKey: `daily-submitted-mentee:${record._id.toString()}`,
+          });
+        }
+
+        // 2. Notify assigned mentors
         const menteeDoc = await Mentee.findById(menteeId).select('name').lean();
         const menteeName = menteeDoc?.name || 'Your mentee';
         await notifyMentorsForMentee(menteeId, {
@@ -223,7 +238,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response) => {
           idempotencyKey: `daily-submitted:${record._id.toString()}`,
         });
       } catch (err) {
-        console.error('[DailyPerformance] Failed to notify mentor:', err);
+        console.error('[DailyPerformance] Failed to dispatch notifications:', err);
       }
     })();
 

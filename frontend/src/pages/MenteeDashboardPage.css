@@ -1799,50 +1799,596 @@
   gap: 12px;
 }
 
+/* ── Card Header Action Link ─────────────────────────────────────────────── */
+.card-header-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #faf7f8;
+  border: 1px solid #ebdbe3;
+  color: #8f3f66;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.card-header-link-btn:hover {
+  background: #fdf2f7;
+  border-color: #8f3f66;
+}
+
+/* ── Academic & Exam Progress ────────────────────────────────────────────── */
+.academic-benchmarks-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.academic-benchmark-tile {
+  background: #faf8f9;
+  border: 1px solid #ebdbe3;
+  border-radius: 12px;
+  padding: 10px 12px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.benchmark-lbl {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #70676d;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.benchmark-val {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #231e21;
+}
+
+.benchmark-val.target { color: #8f3f66; }
+.benchmark-val.latest { color: #0284c7; }
+.benchmark-val.attendance { color: #16a34a; }
+
+.benchmark-sub {
+  font-size: 0.68rem;
+  color: #9c9298;
+}
+
+.exam-tag-pill {
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #bae6fd;
+}
+
+.exam-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.exam-progress-item {
+  background: #faf8f9;
+  border: 1px solid #ebdbe3;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.exam-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.exam-subject-name {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #231e21;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exam-status-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.exam-status-tag.good { background: #dcfce7; color: #15803d; }
+.exam-status-tag.pending { background: #fef3c7; color: #b45309; }
+
+.exam-progress-pct {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #8f3f66;
+}
+
+.academic-empty-box {
+  padding: 18px 14px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.academic-subjects-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f0eaee;
+}
+
+.subject-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.subject-group-lbl {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #70676d;
+}
+
+.subject-pills-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.subject-pill {
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+
+.subject-pill.strength { background: #dcfce7; color: #166534; }
+.subject-pill.focus { background: #fee2e2; color: #991b1b; }
+
+/* ── Daily Routine & Interests ───────────────────────────────────────────── */
+.routine-overview-box {
+  background: #faf8f9;
+  border: 1px solid #ebdbe3;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.routine-stat-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.routine-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.routine-stat-lbl {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #70676d;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.routine-stat-val {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #8f3f66;
+}
+
+.routine-schedule-desc {
+  flex: 1;
+  min-width: 140px;
+}
+
+.routine-schedule-text {
+  font-size: 0.8rem;
+  color: #554a50;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.pills-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.habit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  background: #ffffff;
+  border: 1px solid #ebdbe3;
+  color: #15803d;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.interest-pill {
+  font-size: 0.74rem;
+  font-weight: 600;
+  background: #fdf2f7;
+  border: 1px solid #ebdbe3;
+  color: #8f3f66;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.skill-pill {
+  font-size: 0.74rem;
+  font-weight: 600;
+  background: #fef9c3;
+  border: 1px solid #fef08a;
+  color: #854d0e;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+/* ── Assigned Mentor & Calls ─────────────────────────────────────────────── */
+.mentor-summary-box {
+  background: #faf8f9;
+  border: 1px solid #ebdbe3;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mentor-avatar-col {
+  flex-shrink: 0;
+}
+
+.mentor-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8f3f66 0%, #6d2448 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.mentor-details-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.mentor-name-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #231e21;
+}
+
+.mentor-designation {
+  font-size: 0.76rem;
+  color: #70676d;
+}
+
+.mentor-contact-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.mentor-contact-pill {
+  font-size: 0.7rem;
+  background: #ffffff;
+  border: 1px solid #ebdfe4;
+  color: #70676d;
+  padding: 2px 6px;
+  border-radius: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.mentor-empty-box,
+.call-empty-box {
+  padding: 16px 12px;
+  background: #faf8f9;
+  border: 1px dashed #ebdbe3;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.mentor-calls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mentor-call-item {
+  background: #faf8f9;
+  border: 1px solid #ebdbe3;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.mentor-call-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mentor-call-date {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #231e21;
+}
+
+.mentor-call-duration {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #8f3f66;
+  background: #fdf2f7;
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+
+.mentor-call-summary-snippet {
+  font-size: 0.78rem;
+  color: #554a50;
+  margin: 6px 0;
+  line-height: 1.35;
+}
+
+.mentor-call-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.call-listen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #ebdbe3;
+  color: #8f3f66;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 32px;
+}
+
+.call-listen-btn:hover { background: #fdf2f7; }
+
+.call-listen-btn.playing {
+  background: #8f3f66;
+  color: #ffffff;
+  border-color: #8f3f66;
+}
+
+.call-view-summary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  color: #8f3f66;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 6px;
+  min-height: 32px;
+}
+
+.call-view-summary-btn:hover { text-decoration: underline; }
+
+.call-modal-section {
+  margin-top: 12px;
+}
+
+.call-modal-section-title {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #70676d;
+  margin: 0 0 4px 0;
+}
+
+.call-modal-text {
+  font-size: 0.86rem;
+  color: #231e21;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.call-modal-bullets {
+  margin: 4px 0 0 0;
+  padding-left: 18px;
+  font-size: 0.84rem;
+  color: #231e21;
+  line-height: 1.45;
+}
+
+.call-modal-bullets li {
+  margin-bottom: 4px;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
-   RESPONSIVE LAYOUTS (TABLETS & PHONES)
+   RESPONSIVE LAYOUTS & BREAKPOINTS
+   320px | 360px | 390px | 430px | 768px | 1024px | 1280px | 1440px+
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ── Laptop & Tablet Breakpoint (≤ 1024px) ─────────────────────────────────── */
+@media (max-width: 1024px) {
+  .mentee-growth-dashboard {
+    gap: 20px;
+    padding-bottom: 30px;
+  }
+
+  .growth-dashboard-grid {
+    gap: 20px;
+  }
+}
+
+/* ── Tablet Breakpoint (≤ 980px) ─────────────────────────────────────────── */
 @media (max-width: 980px) {
   .growth-metrics-strip {
     grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
   }
 
   .growth-dashboard-grid {
     grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .academic-benchmarks-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
 }
 
-@media (max-width: 640px) {
+/* ── Small Tablet & Large Mobile (≤ 768px) ───────────────────────────────── */
+@media (max-width: 768px) {
   .growth-welcome-card {
-    padding: 20px 18px;
+    padding: 22px 20px;
+  }
+
+  .primary-checkin-hero {
+    padding: 20px 20px;
+  }
+
+  .weekly-calendar-card {
+    padding: 18px 18px;
+  }
+
+  .growth-card {
+    padding: 18px 18px;
+  }
+
+  .today-preview-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── Standard Mobile (≤ 640px) ───────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .mentee-growth-dashboard {
+    gap: 16px;
+    padding-bottom: 20px;
+  }
+
+  .growth-welcome-card {
+    padding: 18px 16px;
+    border-radius: 16px;
   }
 
   .growth-level-badge-box {
     width: 100%;
     min-width: 0;
+    padding: 12px 14px;
   }
 
   .growth-metrics-strip {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .primary-checkin-hero {
+    padding: 16px 14px;
+    border-radius: 16px;
+  }
+
+  .checkin-header-row {
+    flex-direction: column;
+    align-items: stretch;
     gap: 12px;
   }
 
+  .checkin-action-btn-primary,
+  .checkin-action-btn-secondary {
+    width: 100%;
+    justify-content: center;
+    min-height: 46px;
+  }
+
+  .weekly-calendar-card {
+    padding: 16px 14px;
+    border-radius: 16px;
+  }
+
+  .calendar-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .calendar-nav-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
+    width: 100%;
+    gap: 6px;
+  }
+
+  .calendar-nav-btn {
+    justify-content: center;
+    padding: 7px 6px;
+    min-height: 38px;
+    font-size: 0.78rem;
+    text-align: center;
+  }
+
   .calendar-days-grid {
-    gap: 5px;
+    gap: 4px;
   }
 
   .calendar-day-cell {
-    padding: 8px 4px;
+    padding: 8px 3px;
     border-radius: 10px;
+    min-width: 0;
   }
 
   .calendar-day-name {
-    font-size: 0.65rem;
+    font-size: 0.62rem;
   }
 
   .calendar-day-num {
-    font-size: 0.95rem;
+    font-size: 0.92rem;
   }
 
   .calendar-day-status {
@@ -1851,8 +2397,32 @@
     font-size: 0.7rem;
   }
 
+  .calendar-day-minutes {
+    font-size: 0.65rem;
+  }
+
+  .calendar-legend-row {
+    gap: 10px;
+    font-size: 0.72rem;
+  }
+
+  .growth-card {
+    padding: 16px 14px;
+    border-radius: 16px;
+  }
+
+  .growth-card-header {
+    margin-bottom: 12px;
+  }
+
+  .academic-benchmarks-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
   .today-preview-metrics {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
   }
 
   .leaderboard-podium-showcase {
@@ -1919,6 +2489,7 @@
 
   .privacy-toggle-btn {
     width: 100%;
+    min-height: 42px;
   }
 
   .past-periods-chips-row {
@@ -1952,5 +2523,183 @@
 
   .past-modal-footer button {
     width: 100%;
+    min-height: 42px;
+  }
+
+  .badges-showcase-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+}
+
+/* ── Compact Mobile (≤ 430px) ────────────────────────────────────────────── */
+@media (max-width: 430px) {
+  .growth-welcome-title {
+    font-size: 1.3rem;
+  }
+
+  .growth-welcome-eyebrow {
+    font-size: 0.72rem;
+  }
+
+  .growth-stat-card {
+    padding: 12px 10px;
+  }
+
+  .growth-stat-val {
+    font-size: 1.35rem;
+  }
+
+  .leaderboard-my-standing-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .my-standing-action-btn {
+    width: 100%;
+    text-align: center;
+    min-height: 38px;
+  }
+
+  .mentor-summary-box {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .mentor-avatar {
+    width: 38px;
+    height: 38px;
+    font-size: 0.95rem;
+  }
+
+  .mentor-call-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .routine-stat-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+/* ── Small Mobile (≤ 360px — including 320px) ────────────────────────────── */
+@media (max-width: 360px) {
+  .growth-metrics-strip {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .today-preview-metrics {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .academic-benchmarks-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .academic-benchmark-tile {
+    padding: 8px 6px;
+  }
+
+  .benchmark-val {
+    font-size: 1rem;
+  }
+
+  .calendar-days-grid {
+    gap: 2px;
+  }
+
+  .calendar-day-cell {
+    padding: 6px 1px;
+    border-radius: 8px;
+  }
+
+  .calendar-day-name {
+    font-size: 0.58rem;
+  }
+
+  .calendar-day-num {
+    font-size: 0.85rem;
+  }
+
+  .calendar-day-status {
+    width: 18px;
+    height: 18px;
+    font-size: 0.65rem;
+  }
+
+  .calendar-day-minutes {
+    font-size: 0.58rem;
+  }
+
+  .podium-card {
+    padding: 6px 2px;
+  }
+
+  .podium-medal-badge {
+    font-size: 1rem;
+  }
+
+  .podium-name {
+    font-size: 0.68rem;
+  }
+
+  .podium-points {
+    font-size: 0.72rem;
+  }
+
+  .modal-leaderboard-row {
+    padding: 8px 8px;
+    gap: 6px;
+  }
+
+  .modal-rank-col {
+    width: 26px;
+  }
+
+  .modal-rank-badge {
+    font-size: 0.74rem;
+  }
+
+  .modal-mentee-name {
+    font-size: 0.78rem;
+  }
+
+  .modal-score-badge {
+    min-width: 44px;
+    font-size: 0.78rem;
+  }
+
+  .modal-streak-badge,
+  .modal-days-badge {
+    font-size: 0.66rem;
+    padding: 1px 4px;
+  }
+
+  .badges-showcase-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .badge-item-card {
+    padding: 8px 6px;
+  }
+
+  .badge-emoji {
+    font-size: 1.2rem;
+  }
+
+  .badge-name {
+    font-size: 0.74rem;
+  }
+
+  .badge-desc {
+    font-size: 0.66rem;
   }
 }

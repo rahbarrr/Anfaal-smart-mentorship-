@@ -80,3 +80,73 @@ test('NOTIFICATIONS: duplicate notification is suppressed via idempotencyKey', a
   assert.equal(result?._id, 'notif_existing');
   assert.equal(result?.title, 'Call Summary Ready');
 });
+
+test('NOTIFICATIONS: mentor feedback notification is created with correct content', async () => {
+  const mockNotification = {
+    _id: 'notif_feedback_1',
+    userId: 'mentee_user_1',
+    type: 'MENTOR_FEEDBACK_RECEIVED' as const,
+    category: 'mentorshipActivity' as const,
+    title: 'New Mentor Feedback',
+    message: 'Your mentor has shared feedback on your recent progress. Check it out!',
+    link: '/mentee/profile',
+    read: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  mock.method(Notification, 'findOne', () => ({
+    lean: async () => null,
+  }) as any);
+  const createMock = mock.method(Notification, 'create', async () => mockNotification as any);
+
+  const result = await createNotification({
+    userId: 'mentee_user_1',
+    type: 'MENTOR_FEEDBACK_RECEIVED',
+    category: 'mentorshipActivity',
+    title: 'New Mentor Feedback',
+    message: 'Your mentor has shared feedback on your recent progress. Check it out!',
+    link: '/mentee/profile',
+  });
+
+  assert.equal(createMock.mock.callCount(), 1);
+  assert.equal(result?.type, 'MENTOR_FEEDBACK_RECEIVED');
+  assert.equal(result?.title, 'New Mentor Feedback');
+  assert.equal(result?.message, 'Your mentor has shared feedback on your recent progress. Check it out!');
+  assert.equal(result?.link, '/mentee/profile');
+});
+
+test('NOTIFICATIONS: new assignment notification is created with correct content', async () => {
+  const mockNotification = {
+    _id: 'notif_assignment_1',
+    userId: 'mentee_user_2',
+    type: 'NEW_TASK_ASSIGNED' as const,
+    category: 'mentorshipActivity' as const,
+    title: 'New Assignment Received',
+    message: 'Your mentor has assigned you a new task. Open Anfaal for details.',
+    link: '/mentee/profile',
+    read: false,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  mock.method(Notification, 'findOne', () => ({
+    lean: async () => null,
+  }) as any);
+  const createMock = mock.method(Notification, 'create', async () => mockNotification as any);
+
+  const result = await createNotification({
+    userId: 'mentee_user_2',
+    type: 'NEW_TASK_ASSIGNED',
+    category: 'mentorshipActivity',
+    title: 'New Assignment Received',
+    message: 'Your mentor has assigned you a new task. Open Anfaal for details.',
+    link: '/mentee/profile',
+  });
+
+  assert.equal(createMock.mock.callCount(), 1);
+  assert.equal(result?.type, 'NEW_TASK_ASSIGNED');
+  assert.equal(result?.title, 'New Assignment Received');
+  assert.equal(result?.message, 'Your mentor has assigned you a new task. Open Anfaal for details.');
+  assert.equal(result?.link, '/mentee/profile');
+});

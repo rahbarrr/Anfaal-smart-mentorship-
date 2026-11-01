@@ -23,6 +23,7 @@ import { MobileMoreDrawer, type MoreDrawerLink } from '../components/MobileMoreD
 import { NotificationCenter } from '../components/NotificationCenter';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { InstallAppButton } from '../pwa/InstallAppButton';
+import { useAuth } from '../context/AuthContext';
 
 const links = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -78,13 +79,13 @@ function getStoredUser() {
 
 export function AdminLayout() {
   const navigate = useNavigate();
-  const user = getStoredUser();
+  const { user: authUser, logout } = useAuth();
+  const user = authUser || getStoredUser();
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreDrawerOpen, setMoreDrawerOpen] = useState(false);
 
-  const handleSignOut = () => {
-    localStorage.removeItem('anfaal-token');
-    localStorage.removeItem('anfaal-user');
+  const handleSignOut = async () => {
+    await logout();
     navigate('/', { replace: true });
   };
 

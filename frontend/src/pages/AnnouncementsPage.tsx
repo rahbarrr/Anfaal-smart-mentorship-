@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Bell, Check, Megaphone, Pin, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, Check, Megaphone, Pin, Plus, ArrowLeft } from 'lucide-react';
 import { createAnnouncement, getAnnouncements, markAnnouncementRead } from '../lib/api';
 
 type Announcement = {
@@ -15,6 +16,7 @@ type Announcement = {
 };
 
 export function AnnouncementsPage() {
+  const navigate = useNavigate();
   const token = localStorage.getItem('anfaal-token') ?? '';
   const user = (() => { try { return JSON.parse(localStorage.getItem('anfaal-user') ?? '{}') as { role?: string }; } catch { return {}; } })();
   const isAdmin = user.role === 'ADMIN';
@@ -50,12 +52,24 @@ export function AnnouncementsPage() {
   };
 
   return (
-    <div style={{ display: 'grid', gap: 18, maxWidth: 900 }}>
-      <div className="page-heading" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+    <div style={{ display: 'grid', gap: 18, maxWidth: 900, minWidth: 0, width: '100%', paddingBottom: 60 }}>
+      {/* Back button */}
+      <div>
+        <button
+          type="button"
+          className="btn-secondary"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.88rem', minHeight: 38 }}
+          onClick={() => navigate('/mentee')}
+        >
+          <ArrowLeft size={15} /> Back to Dashboard
+        </button>
+      </div>
+
+      <div className="page-heading" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <div>
           <div className="eyebrow">Updates</div>
-          <h1 style={{ margin: '4px 0 0' }}>Announcements</h1>
-          <p className="muted">Important notices for the Anfaal mentorship community.</p>
+          <h1 style={{ margin: '4px 0 0', fontSize: 'clamp(1.4rem, 4vw, 1.8rem)' }}>Announcements</h1>
+          <p className="muted" style={{ fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)' }}>Important notices for the Anfaal mentorship community.</p>
         </div>
         {isAdmin && <button className="btn-primary" onClick={() => setShowComposer((value) => !value)}><Plus size={16} /> New announcement</button>}
       </div>

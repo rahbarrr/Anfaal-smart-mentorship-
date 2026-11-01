@@ -1,7 +1,9 @@
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { AUTH_EXPIRED_EVENT, clearStoredAuth } from './lib/api';
 import { lazy, Suspense } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { SessionLoadingScreen } from './components/SessionLoadingScreen';
 import { AdminLayout } from './layouts/AdminLayout';
 import { MentorLayout } from './layouts/MentorLayout';
 import { MenteeLayout } from './layouts/MenteeLayout';
@@ -43,26 +45,26 @@ const ManualCallSummaryPage = lazy(() => import('./pages/ManualCallSummaryPage')
 const ChatPage = lazy(() => import('./pages/ChatPage').then((m) => ({ default: m.ChatPage })));
 const AiMentorPage = lazy(() => import('./pages/AiMentorPage').then((m) => ({ default: m.AiMentorPage })));
 
-function getStoredUser() {
-  const rawUser = localStorage.getItem('anfaal-user');
-  try {
-    return rawUser ? JSON.parse(rawUser) : null;
-  } catch {
-    return null;
+function ProtectedRoute({
+  children,
+  requiredRole,
+}: {
+  children: React.ReactNode;
+  requiredRole?: 'ADMIN' | 'MENTOR' | 'MENTEE';
+}) {
+  const { user, isAuthenticated, isLoading, getDashboardUrl } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return <SessionLoadingScreen />;
   }
-}
 
-function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: 'ADMIN' | 'MENTOR' | 'MENTEE' }) {
-  const user = getStoredUser();
-  const token = localStorage.getItem('anfaal-token');
-
-  if (!token || !user) {
-    return <Navigate to="/" replace />;
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   if (requiredRole && user.role !== requiredRole) {
-    const target = user.role === 'ADMIN' ? '/admin' : user.role === 'MENTEE' ? '/mentee' : '/mentor';
-    return <Navigate to={target} replace />;
+    return <Navigate to={getDashboardUrl(user)} replace />;
   }
 
   if (requiredRole === 'MENTOR' && user.role === 'MENTOR') {
@@ -72,6 +74,20 @@ function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode;
     if (user.mentorApprovalStatus === 'REJECTED') {
       return <Navigate to="/mentor/rejected" replace />;
     }
+  }
+
+  return <>{children}</>;
+}
+
+function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { user, isAuthenticated, isLoading, getDashboardUrl } = useAuth();
+
+  if (isLoading) {
+    return <SessionLoadingScreen />;
+  }
+
+  if (isAuthenticated && user) {
+    return <Navigate to={getDashboardUrl(user)} replace />;
   }
 
   return <>{children}</>;
@@ -98,12 +114,34 @@ function App() {
     <BrowserRouter>
       <ErrorBoundary>
         <PwaProvider>
-          <AuthSessionBoundary />
-          <Suspense fallback={<div className="page-loading">Loading…</div>}>
-            <Routes>
-            <Route path="/" element={<LoginPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/mentor/register" element={<MentorRegistrationPage />} />
+          <AuthProvider>
+            <AuthSessionBoundary />
+            <Suspense fallback={<SessionLoadingScreen />}>
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <PublicOnlyRoute>
+                      <LoginPage />
+                    </PublicOnlyRoute>
+                  }
+                />
+                <Route
+                  path="/login"
+                  element={
+                    <PublicOnlyRoute>
+                      <LoginPage />
+                    </PublicOnlyRoute>
+                  }
+                />
+                <Route
+                  path="/mentor/register"
+                  element={
+                    <PublicOnlyRoute>
+                      <MentorRegistrationPage />
+                    </PublicOnlyRoute>
+                  }
+                />
             <Route
               path="/admin"
               element={
@@ -165,6 +203,7 @@ function App() {
               <Route index element={<MenteeDashboardPage />} />
               <Route path="daily" element={<DailyPerformanceFormPage />} />
               <Route path="history" element={<MenteePerformanceHistoryPage />} />
+              <Route path="profile" element={<MenteeProfilePage />} />
               <Route path="announcements" element={<AnnouncementsPage />} />
               <Route path="call-summary" element={<CallSummaryReportPage />} />
               <Route path="chat" element={<ChatPage />} />
@@ -184,8 +223,9 @@ function App() {
           </Suspense>
           <OfflineBanner />
           <PwaPrompts />
-        </PwaProvider>
-      </ErrorBoundary>
+        </AuthProvider>
+      </PwaProvider>
+    </ErrorBoundary>
   </BrowserRouter>
   );
 }

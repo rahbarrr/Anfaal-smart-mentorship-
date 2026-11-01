@@ -1217,6 +1217,46 @@ export async function getMenteeGrowthSummary(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );
 
+  // 12. Assigned Mentor & Detailed Calls for Mentee Dashboard
+  const mentorship = await Mentorship.findOne({ menteeId, status: 'active' }).lean();
+  let mentorInfo: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    designation?: string;
+  } | null = null;
+
+  if (mentorship) {
+    const mentorDoc = await Mentor.findById(mentorship.mentorId).lean();
+    if (mentorDoc) {
+      const mentorUser = await User.findById(mentorDoc.userId).lean();
+      mentorInfo = {
+        id: String(mentorDoc._id),
+        name: mentorUser?.name || 'Assigned Mentor',
+        email: mentorUser?.email || '',
+        phone: mentorDoc.phone || '',
+        designation: mentorDoc.expertise || 'Assigned Mentor',
+      };
+    }
+  }
+
+  const callsList = recentCalls.map((c: any) => ({
+    id: String(c._id),
+    date: c.date,
+    duration: c.duration,
+    summary: c.summary || c.aiSummary?.shortSummary || '',
+    aiSummary: c.aiSummary ? {
+      shortSummary: c.aiSummary.shortSummary,
+      keyDiscussionPoints: c.aiSummary.keyDiscussionPoints,
+      actionItems: c.aiSummary.actionItems,
+      studentConcerns: c.studentConcerns || c.aiSummary.challenges,
+    } : undefined,
+    recordingUrl: c.recordingUrl || c.recording?.storageKey || '',
+    transcript: c.transcript || '',
+    reviewStatus: c.reviewStatus || 'Draft',
+  }));
+
   // Motivational message based on status
   let motivationalMessage = 'Every daily effort compounds into extraordinary growth.';
   if (!todayStatus.submitted) {
@@ -1253,6 +1293,10 @@ export async function getMenteeGrowthSummary(
     badges,
     weeklyChallenges,
     goals: goalsData,
+    routine: mentee.routine || null,
+    careerInterests: mentee.careerInterests || null,
+    mentor: mentorInfo,
+    calls: callsList,
     leaderboard: systemLeaderboard,
     cohortLeaderboard,
     recentActivities: recentActivities.slice(0, 5),

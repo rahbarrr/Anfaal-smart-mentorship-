@@ -17,6 +17,8 @@ const notificationSchema = new Schema<NotificationDocument>(
         'MENTOR_ASSIGNED',
         'MENTEE_ASSIGNED',
         'DAILY_REMINDER',
+        'MENTOR_FEEDBACK_RECEIVED',
+        'NEW_TASK_ASSIGNED',
         'SYSTEM_ALERT',
       ],
     },

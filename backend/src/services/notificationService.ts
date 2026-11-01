@@ -8,17 +8,15 @@ import { Mentorship } from '../models/Mentorship.js';
 import { Mentor } from '../models/Mentor.js';
 import type { NotificationCategory, NotificationType } from '../types/index.js';
 
-// VAPID keys setup: Use environment variables or persistent fallback for development
-let vapidPublicKey = process.env.VAPID_PUBLIC_KEY || '';
-let vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || '';
-const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:support@anfaal.org';
+// Stable fallback keys for deterministic development and test environments
+const DEFAULT_VAPID_PUBLIC_KEY =
+  'BPpSzImH31roiuz-FbCLjRr6u2q7xC95lU_lIefat1EPVN_dxRai190e9SEEOWeRYhfM41UQHKzYBFci0TVBKrM';
+const DEFAULT_VAPID_PRIVATE_KEY = 'GHeCROArsmSRRr1-HUXC2t6LmYOBwcMaSKo6oCigSOE';
+const DEFAULT_VAPID_SUBJECT = 'mailto:support@anfaal.org';
 
-if (!vapidPublicKey || !vapidPrivateKey) {
-  // Deterministic or runtime keys if not set in environment
-  const generated = webpush.generateVAPIDKeys();
-  vapidPublicKey = generated.publicKey;
-  vapidPrivateKey = generated.privateKey;
-}
+const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY;
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || DEFAULT_VAPID_PRIVATE_KEY;
+const vapidSubject = process.env.VAPID_SUBJECT || DEFAULT_VAPID_SUBJECT;
 
 try {
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
@@ -82,6 +80,7 @@ export async function createNotification(params: CreateNotificationParams) {
     void sendPushIfAllowed(params.userId, params.category, {
       title: params.title,
       body: params.message,
+      message: params.message,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
       url: targetUrl,
@@ -89,11 +88,16 @@ export async function createNotification(params: CreateNotificationParams) {
       tag: params.idempotencyKey || params.type,
       notificationId: notification._id.toString(),
       type: params.type,
+      timestamp: Date.now(),
       data: {
         url: targetUrl,
         link: targetUrl,
         notificationId: notification._id.toString(),
         type: params.type,
+        title: params.title,
+        message: params.message,
+        body: params.message,
+        timestamp: Date.now(),
       },
     });
 
@@ -238,8 +242,8 @@ export async function notifyCallCompletion(callId: string) {
         userId: mentor.userId,
         type: 'CALL_PROCESSING_COMPLETED',
         category: 'callUpdates',
-        title: 'Call Summary Ready',
-        message: `The AI transcript and summary for ${menteeName}'s call are ready.`,
+        title: 'AI Call Summary Ready',
+        message: `The AI transcript and summary for ${menteeName}'s call are ready. Open Anfaal to view details.`,
         link: `/mentor/calls/${callId}`,
         metadata: { callId, menteeId: call.menteeId },
         idempotencyKey: `call-completed:${callId}:mentor:${mentor.userId}`,
@@ -252,8 +256,8 @@ export async function notifyCallCompletion(callId: string) {
         userId: mentee.userId,
         type: 'CALL_SUMMARY_AVAILABLE',
         category: 'callUpdates',
-        title: 'Your Call Summary Is Ready',
-        message: "Your mentor's call summary is now available.",
+        title: 'AI Call Summary Ready',
+        message: 'Your AI-generated call summary is ready. Open Anfaal to view your summary.',
         link: '/mentee/history',
         metadata: { callId, mentorId: call.mentorId },
         idempotencyKey: `call-completed:${callId}:mentee:${mentee.userId}`,
