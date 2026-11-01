@@ -117,6 +117,7 @@ async function sendPushIfAllowed(
   payload: {
     title: string;
     body: string;
+    message?: string;
     icon?: string;
     badge?: string;
     url?: string;
@@ -124,6 +125,7 @@ async function sendPushIfAllowed(
     tag: string;
     notificationId?: string;
     type?: string;
+    timestamp?: number;
     data?: Record<string, unknown>;
   },
 ) {
