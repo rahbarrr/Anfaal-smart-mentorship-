@@ -77,8 +77,25 @@ export async function syncPushSubscription(token: string): Promise<PushSubscript
   if (Notification.permission !== 'granted') return null;
 
   try {
-    const swReg = await navigator.serviceWorker.ready;
-    if (!swReg || !swReg.pushManager) return null;
+    let swReg: ServiceWorkerRegistration | null | undefined = await navigator.serviceWorker.getRegistration('/');
+    if (!swReg || !swReg.active) {
+      swReg = await registerServiceWorker();
+    }
+    if (!swReg || !swReg.pushManager) {
+      const readyReg = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<ServiceWorkerRegistration | null>((resolve) =>
+          setTimeout(() => resolve(null), 3500),
+        ),
+      ]);
+      if (readyReg) {
+        swReg = readyReg;
+      }
+    }
+    if (!swReg || !swReg.pushManager) {
+      console.warn('[Anfaal Push] PushManager not ready on service worker.');
+      return null;
+    }
 
     // 1. Fetch current backend VAPID public key
     const { publicKey } = await getVapidPublicKey();

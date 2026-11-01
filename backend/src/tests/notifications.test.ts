@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test, { mock } from 'node:test';
-import { getVapidPublicKey, createNotification, notifyCallCompletion } from '../services/notificationService.js';
+import { getVapidPublicKey, createNotification, notifyCallCompletion, sendDirectPushToUser } from '../services/notificationService.js';
 import { Notification } from '../models/Notification.js';
+import { PushSubscription } from '../models/PushSubscription.js';
 
 test('NOTIFICATIONS: VAPID public key is returned and valid', () => {
   const key = getVapidPublicKey();
@@ -149,4 +150,20 @@ test('NOTIFICATIONS: new assignment notification is created with correct content
   assert.equal(result?.title, 'New Assignment Received');
   assert.equal(result?.message, 'Your mentor has assigned you a new task. Open Anfaal for details.');
   assert.equal(result?.link, '/mentee/profile');
+});
+
+test('NOTIFICATIONS: sendDirectPushToUser handles zero subscriptions gracefully', async () => {
+  mock.method(PushSubscription, 'find', () => ({
+    lean: async () => [],
+  }) as any);
+
+  const result = await sendDirectPushToUser('user_no_sub', {
+    title: 'Daily Progress Reminder',
+    body: "You haven't submitted your daily progress today. Open Anfaal and complete your daily update.",
+  });
+
+  assert.equal(result.attempted, 0);
+  assert.equal(result.successful, 0);
+  assert.equal(result.failed, 0);
+  assert.deepEqual(result.results, []);
 });

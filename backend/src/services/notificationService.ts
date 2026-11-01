@@ -145,11 +145,12 @@ async function sendPushIfAllowed(
     if (!subscriptions || subscriptions.length === 0) return;
 
     const payloadString = JSON.stringify(payload);
+    console.info(`[NotificationService] Sending push (${category}) to ${subscriptions.length} device(s) for user ${userId}: "${payload.title}"`);
 
     await Promise.all(
       subscriptions.map(async (sub) => {
         try {
-          await webpush.sendNotification(
+          const res = await webpush.sendNotification(
             {
               endpoint: sub.endpoint,
               keys: {
@@ -158,13 +159,19 @@ async function sendPushIfAllowed(
               },
             },
             payloadString,
+            {
+              TTL: 86400,
+              urgency: 'high',
+            },
           );
+          console.info(`[NotificationService] Push delivered to ${sub.endpoint.slice(0, 35)}... (status: ${res.statusCode})`);
         } catch (err: any) {
           // Automatic cleanup of expired/unregistered subscriptions (HTTP 404 or 410)
           if (err.statusCode === 404 || err.statusCode === 410) {
+            console.warn(`[NotificationService] Pruning expired push subscription: ${sub.endpoint.slice(0, 35)}...`);
             await PushSubscription.deleteOne({ endpoint: sub.endpoint }).catch(() => undefined);
           } else {
-            console.warn(`[NotificationService] Push delivery warning for endpoint: ${sub.endpoint.slice(0, 30)}...`, err.message);
+            console.error(`[NotificationService] Push delivery warning for ${sub.endpoint.slice(0, 35)}...:`, err.statusCode, err.message);
           }
         }
       }),
@@ -172,6 +179,97 @@ async function sendPushIfAllowed(
   } catch (err) {
     console.error('[NotificationService] Error in sendPushIfAllowed:', err);
   }
+}
+
+/**
+ * Dispatches a direct Web Push notification to all active devices of a user.
+ * Returns detailed delivery diagnostic results.
+ */
+export async function sendDirectPushToUser(
+  userId: string,
+  payload: {
+    title: string;
+    body: string;
+    url?: string;
+    tag?: string;
+  },
+) {
+  const subscriptions = await PushSubscription.find({ userId }).lean();
+  if (!subscriptions || subscriptions.length === 0) {
+    return {
+      attempted: 0,
+      successful: 0,
+      failed: 0,
+      results: [],
+    };
+  }
+
+  const targetUrl = payload.url || '/mentee/daily';
+  const pushPayload = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    message: payload.body,
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    url: targetUrl,
+    link: targetUrl,
+    tag: payload.tag || `direct-push-${Date.now()}`,
+    type: 'DIRECT_PUSH',
+    timestamp: Date.now(),
+    data: {
+      url: targetUrl,
+      link: targetUrl,
+      title: payload.title,
+      body: payload.body,
+      message: payload.body,
+      timestamp: Date.now(),
+    },
+  });
+
+  const results: Array<{ endpoint: string; status: number; success: boolean; error?: string }> = [];
+
+  for (const sub of subscriptions) {
+    try {
+      const res = await webpush.sendNotification(
+        {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.keys.p256dh,
+            auth: sub.keys.auth,
+          },
+        },
+        pushPayload,
+        {
+          TTL: 86400,
+          urgency: 'high',
+        },
+      );
+      results.push({
+        endpoint: sub.endpoint.slice(0, 45) + '...',
+        status: res.statusCode,
+        success: true,
+      });
+      console.info(`[NotificationService] Direct push delivered to ${sub.endpoint.slice(0, 35)}... (status: ${res.statusCode})`);
+    } catch (err: any) {
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        await PushSubscription.deleteOne({ endpoint: sub.endpoint }).catch(() => undefined);
+      }
+      results.push({
+        endpoint: sub.endpoint.slice(0, 45) + '...',
+        status: err.statusCode || 500,
+        success: false,
+        error: err.message || 'Push delivery failed',
+      });
+      console.error(`[NotificationService] Direct push failed for ${sub.endpoint.slice(0, 35)}...:`, err.statusCode, err.message);
+    }
+  }
+
+  return {
+    attempted: subscriptions.length,
+    successful: results.filter((r) => r.success).length,
+    failed: results.filter((r) => !r.success).length,
+    results,
+  };
 }
 
 /**

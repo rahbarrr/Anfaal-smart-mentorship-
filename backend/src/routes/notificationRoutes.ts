@@ -3,7 +3,7 @@ import { requireAuth, type AuthRequest } from '../middleware/auth.js';
 import { Notification } from '../models/Notification.js';
 import { PushSubscription } from '../models/PushSubscription.js';
 import { NotificationPreference } from '../models/NotificationPreference.js';
-import { getVapidPublicKey } from '../services/notificationService.js';
+import { getVapidPublicKey, createNotification, sendDirectPushToUser } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -221,6 +221,80 @@ router.delete('/push-subscription', requireAuth, async (req: AuthRequest, res: R
   } catch (error: any) {
     console.error('[NotificationRoutes] DELETE /push-subscription error:', error);
     res.status(500).json({ message: 'Unable to remove push subscription.' });
+  }
+});
+
+// ─── Test Push Notification Endpoint ────────────────────────────────────────
+router.post('/test-push', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const callerId = req.user!.id;
+    const isCallerAdmin = req.user!.role === 'ADMIN';
+
+    // Admin can specify a target userId; others send to their own registered devices
+    const targetUserId = (isCallerAdmin && req.body.userId) ? req.body.userId : callerId;
+    const title = req.body.title || 'Daily Progress Reminder';
+    const message =
+      req.body.message ||
+      "You haven't submitted your daily progress today. Open Anfaal and complete your daily update.";
+    const link = req.body.link || '/mentee/daily';
+
+    // 1. Create in-app notification so user sees it in their notification list
+    const notification = await createNotification({
+      userId: targetUserId,
+      type: 'DAILY_REMINDER',
+      category: 'dailyReminders',
+      title,
+      message,
+      link,
+      idempotencyKey: `test-push:${targetUserId}:${Date.now()}`,
+    });
+
+    // 2. Send direct push notification with high urgency and 24h TTL
+    const directResult = await sendDirectPushToUser(targetUserId, {
+      title,
+      body: message,
+      url: link,
+      tag: `test-push-${Date.now()}`,
+    });
+
+    res.json({
+      success: directResult.successful > 0,
+      message:
+        directResult.attempted === 0
+          ? 'No active device subscriptions found for this user. Please enable notifications on your device first.'
+          : `Push notification dispatched to ${directResult.successful} of ${directResult.attempted} device(s).`,
+      targetUserId,
+      notificationId: notification?._id?.toString(),
+      summary: directResult,
+    });
+  } catch (error: any) {
+    console.error('[NotificationRoutes] POST /test-push error:', error);
+    res.status(500).json({ message: 'Unable to send test push notification.', error: error.message });
+  }
+});
+
+// ─── Get Push Notification Diagnostic Status ────────────────────────────────
+router.get('/status', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const [subscriptions, prefs] = await Promise.all([
+      PushSubscription.find({ userId }).select('endpoint userAgent createdAt').lean(),
+      NotificationPreference.findOne({ userId }).lean(),
+    ]);
+
+    res.json({
+      vapidConfigured: Boolean(getVapidPublicKey()),
+      pushEnabled: prefs ? prefs.pushEnabled : true,
+      registeredDevices: subscriptions.length,
+      devices: subscriptions.map((s) => ({
+        endpointSnippet: s.endpoint.slice(0, 45) + '...',
+        userAgent: s.userAgent || 'Unknown',
+        createdAt: s.createdAt,
+      })),
+    });
+  } catch (error: any) {
+    console.error('[NotificationRoutes] GET /status error:', error);
+    res.status(500).json({ message: 'Unable to retrieve notification status.' });
   }
 });
 

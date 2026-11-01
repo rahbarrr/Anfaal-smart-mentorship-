@@ -45,6 +45,13 @@ services:
         value: whisper-1
       - key: OPENAI_MODEL
         value: gpt-4o-mini
+      # Web Push VAPID Settings
+      - key: VAPID_PUBLIC_KEY
+        value: BPpSzImH31roiuz-FbCLjRr6u2q7xC95lU_lIefat1EPVN_dxRai190e9SEEOWeRYhfM41UQHKzYBFci0TVBKrM
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:support@anfaal.org
       - key: BOOTSTRAP_ADMIN_EMAIL
         value: admin@anfaalfoundation.com
       - key: BOOTSTRAP_ADMIN_PASSWORD
@@ -96,3 +103,10 @@ services:
         value: whisper-1
       - key: OPENAI_MODEL
         value: gpt-4o-mini
+      # Web Push VAPID Settings
+      - key: VAPID_PUBLIC_KEY
+        value: BPpSzImH31roiuz-FbCLjRr6u2q7xC95lU_lIefat1EPVN_dxRai190e9SEEOWeRYhfM41UQHKzYBFci0TVBKrM
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:support@anfaal.org

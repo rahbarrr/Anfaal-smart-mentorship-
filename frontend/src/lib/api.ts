@@ -1364,21 +1364,58 @@ export async function registerPushSubscription(
   token: string,
   subscription: PushSubscription,
 ): Promise<{ message: string }> {
-  const rawKey = subscription.getKey ? subscription.getKey('p256dh') : null;
-  const rawAuth = subscription.getKey ? subscription.getKey('auth') : null;
-  const p256dh = rawKey ? btoa(String.fromCharCode(...new Uint8Array(rawKey))) : '';
-  const auth = rawAuth ? btoa(String.fromCharCode(...new Uint8Array(rawAuth))) : '';
+  const subJson = subscription.toJSON();
+  const endpoint = subscription.endpoint || subJson.endpoint || '';
+  const keys = subJson.keys || {};
+  let p256dh = keys.p256dh;
+  let auth = keys.auth;
+
+  if (!p256dh || !auth) {
+    const rawKey = subscription.getKey ? subscription.getKey('p256dh') : null;
+    const rawAuth = subscription.getKey ? subscription.getKey('auth') : null;
+    p256dh = rawKey ? btoa(String.fromCharCode(...new Uint8Array(rawKey))) : '';
+    auth = rawAuth ? btoa(String.fromCharCode(...new Uint8Array(rawAuth))) : '';
+  }
 
   const res = await fetch(`${API_BASE_URL}/notifications/push-subscription`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({
-      endpoint: subscription.endpoint,
+      endpoint,
       keys: { p256dh, auth },
       userAgent: navigator.userAgent,
     }),
   });
   if (!res.ok) throw new Error('Failed to register push subscription');
+  return res.json();
+}
+
+export async function sendTestPushNotification(
+  token: string,
+  payload?: { title?: string; message?: string; link?: string; userId?: string },
+): Promise<{ success: boolean; message: string; summary?: any }> {
+  const res = await fetch(`${API_BASE_URL}/notifications/test-push`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload || {}),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to dispatch test notification');
+  }
+  return res.json();
+}
+
+export async function getPushDiagnosticStatus(token: string): Promise<{
+  vapidConfigured: boolean;
+  pushEnabled: boolean;
+  registeredDevices: number;
+  devices: Array<{ endpointSnippet: string; userAgent: string; createdAt?: string }>;
+}> {
+  const res = await fetch(`${API_BASE_URL}/notifications/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch notification diagnostic status');
   return res.json();
 }
 

@@ -21,6 +21,7 @@ import {
   markAllNotificationsAsRead,
   getNotificationPreferences,
   updateNotificationPreferences,
+  sendTestPushNotification,
   type InAppNotification,
   type NotificationPreferences,
 } from '../lib/api';
@@ -102,6 +103,8 @@ export function NotificationCenter() {
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission>('default');
   const [pushLoading, setPushLoading] = useState(false);
   const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
+  const [testPushLoading, setTestPushLoading] = useState(false);
+  const [testPushResult, setTestPushResult] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -277,6 +280,30 @@ export function NotificationCenter() {
       setPushStatusMessage('Failed to disable push notifications');
     } finally {
       setPushLoading(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setTestPushLoading(true);
+    setTestPushResult(null);
+    try {
+      const token = getToken();
+      if (!token) {
+        setTestPushResult('Please sign in first.');
+        return;
+      }
+      const res = await sendTestPushNotification(token, {
+        title: 'Daily Progress Reminder',
+        message: "You haven't submitted your daily progress today. Open Anfaal and complete your daily update.",
+        link: '/mentee/daily',
+      });
+      setTestPushResult(res.message);
+      void loadNotifications();
+      void fetchUnreadCount();
+    } catch (err: any) {
+      setTestPushResult(err?.message || 'Failed to dispatch test notification.');
+    } finally {
+      setTestPushLoading(false);
     }
   };
 
@@ -528,6 +555,39 @@ export function NotificationCenter() {
                       {pushStatusMessage}
                     </p>
                   )}
+
+                  {/* Test Push Trigger */}
+                  <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary w-full text-xs"
+                      disabled={testPushLoading}
+                      onClick={handleSendTestPush}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        padding: '0.5rem 0.75rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Bell size={13} />
+                      {testPushLoading ? 'Sending Test…' : 'Send Test Notification to This Device'}
+                    </button>
+                    {testPushResult && (
+                      <p
+                        className="text-xs font-medium mt-1.5"
+                        style={{
+                          color: testPushResult.toLowerCase().includes('fail') || testPushResult.toLowerCase().includes('no active') ? 'var(--danger)' : 'var(--primary)',
+                          margin: '0.35rem 0 0 0',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {testPushResult}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Categories Section */}

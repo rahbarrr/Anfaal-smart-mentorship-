@@ -46,9 +46,9 @@ self.addEventListener('push', (event) => {
     payload.click_action ||
     '/';
 
-  // 4. Resolve icon, badge, and tags
-  const icon = payload.icon || '/icons/icon-192.png';
-  const badge = payload.badge || '/icons/icon-192.png';
+  // 4. Resolve absolute icon, badge, and tags
+  const icon = new URL(payload.icon || '/icons/icon-192.png', self.location.origin).href;
+  const badge = new URL(payload.badge || '/icons/icon-192.png', self.location.origin).href;
   const tag = payload.tag || payload.idempotencyKey || payload.type || `anfaal-${Date.now()}`;
   const timestamp =
     payload.timestamp || (payload.createdAt ? new Date(payload.createdAt).getTime() : Date.now());
@@ -61,7 +61,8 @@ self.addEventListener('push', (event) => {
     timestamp,
     renotify: true,
     requireInteraction: false,
-    vibrate: [150, 80, 150],
+    silent: false,
+    vibrate: [200, 100, 200],
     data: {
       url: targetUrl,
       link: targetUrl,
@@ -84,6 +85,12 @@ self.addEventListener('push', (event) => {
       .showNotification(title, notificationOptions)
       .catch((err) => {
         console.error('[Anfaal SW-Push] showNotification error:', err);
+        return self.registration.showNotification(title, {
+          body,
+          icon,
+          badge,
+          tag,
+        });
       }),
   );
 });
