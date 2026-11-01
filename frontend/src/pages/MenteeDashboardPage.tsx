@@ -671,9 +671,9 @@ export function MenteeDashboardPage() {
                   </h5>
                   {goals.shortTermGoals.slice(0, 3).map((g, i: number) => (
                     <div key={g.id || i} style={{ marginBottom: 10 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', fontWeight: 600 }}>
-                        <span>{g.title}</span>
-                        <span>{g.progress || 0}%</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start', fontSize: '0.84rem', fontWeight: 600 }}>
+                        <span style={{ flex: 1, minWidth: 0, wordBreak: 'break-word' }}>{g.title}</span>
+                        <span style={{ flexShrink: 0 }}>{g.progress || 0}%</span>
                       </div>
                       <div className="goal-progress-bar-wrap">
                         <div className="goal-progress-track">
@@ -747,11 +747,11 @@ export function MenteeDashboardPage() {
             {/* Exam Subject Portion Completion */}
             <div style={{ marginTop: 14 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
-                <h5 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#70676d', margin: 0, letterSpacing: '0.04em' }}>
+                <h5 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#70676d', margin: 0, letterSpacing: '0.04em', flex: '1 1 auto', minWidth: 0, wordBreak: 'break-word' }}>
                   Exam Preparation & Syllabus Coverage
                 </h5>
                 {academic?.currentExam && (
-                  <span className="exam-tag-pill">{academic.currentExam}</span>
+                  <span className="exam-tag-pill" style={{ flexShrink: 0 }}>{academic.currentExam}</span>
                 )}
               </div>
 
@@ -936,7 +936,7 @@ export function MenteeDashboardPage() {
                         }}
                       />
                     </div>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#70676d' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#70676d', flexShrink: 0, whiteSpace: 'nowrap' }}>
                       {ch.current} / {ch.target} {ch.unit}
                     </span>
                   </div>
