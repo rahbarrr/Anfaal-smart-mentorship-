@@ -249,3 +249,4 @@ test('ATTENDANCE: recordManualAttendance updates isManual flag and custom notes'
   assert.equal(result.isManual, true);
   assert.equal(result.notes, 'Family emergency');
 });
+

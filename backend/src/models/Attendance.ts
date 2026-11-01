@@ -26,3 +26,4 @@ attendanceSchema.index({ month: 1, status: 1 });
 attendanceSchema.plugin(softDeletePlugin);
 
 export const Attendance = mongoose.model<AttendanceDocument>('Attendance', attendanceSchema);
+

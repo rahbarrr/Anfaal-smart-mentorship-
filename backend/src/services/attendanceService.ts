@@ -194,3 +194,4 @@ export function calculateAttendanceStats(records: Array<{ status: AttendanceStat
     percentage,
   };
 }
+
