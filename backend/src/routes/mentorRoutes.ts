@@ -7,7 +7,7 @@ import { Mentorship } from '../models/Mentorship.js';
 import { Call } from '../models/Call.js';
 import { User } from '../models/User.js';
 import { logAuditEvent } from '../services/auditService.js';
-import { notifyAdmins } from '../services/notificationService.js';
+import { notifyAdmins, createNotification } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -250,7 +250,23 @@ router.patch('/:id/approval', requireAuth, requireRole('ADMIN'), async (req: Aut
     mentor.status = parsed.data.approvalStatus === 'APPROVED' ? 'active' : 'disabled';
     await mentor.save();
 
-    await User.findByIdAndUpdate(mentor.userId, { status: 'active' });
+    await User.findByIdAndUpdate(mentor.userId, { status: mentor.status });
+
+    // Notify mentor in-app and via Web Push of approval/rejection status
+    if (mentor.userId) {
+      const isApproved = parsed.data.approvalStatus === 'APPROVED';
+      void createNotification({
+        userId: mentor.userId,
+        type: 'SYSTEM_ALERT',
+        category: 'systemNotifications',
+        title: isApproved ? 'Mentor Application Approved!' : 'Mentor Application Update',
+        message: isApproved
+          ? 'Congratulations! Your Anfaal mentor account has been approved. You can now access your mentor portal.'
+          : 'Your mentor application status has been updated. Please contact the administrator for details.',
+        link: '/dashboard',
+        idempotencyKey: `mentor-approval:${mentor._id}:${parsed.data.approvalStatus}`,
+      });
+    }
 
     return res.json({
       message: `Mentor application ${parsed.data.approvalStatus === 'APPROVED' ? 'approved' : 'rejected'} successfully.`,

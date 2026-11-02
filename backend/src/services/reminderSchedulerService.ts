@@ -175,9 +175,13 @@ export function getLocalTimeInTimezone(date: Date, timezone: string): {
  * Checks whether current time matches a slot time within a 15-minute evaluation window.
  * Window: [slotMinutes, slotMinutes + 15)
  */
-export function isSlotWindowActive(slotTimeStr: string, currentMinutesTotal: number): boolean {
+export function isSlotWindowActive(
+  slotTimeStr: string,
+  currentMinutesTotal: number,
+  windowMinutes: number = 15,
+): boolean {
   const slotMinutes = timeToMinutes(slotTimeStr);
-  return currentMinutesTotal >= slotMinutes && currentMinutesTotal < slotMinutes + 15;
+  return currentMinutesTotal >= slotMinutes && currentMinutesTotal < slotMinutes + windowMinutes;
 }
 
 /**
@@ -332,7 +336,7 @@ export async function evaluateDailyProgressReminders(targetDateOverride?: Date):
       // Check which enabled slot is currently active in this timezone
       const activeSlot = settings.slots
         .filter((s) => s.enabled)
-        .find((s) => isSlotWindowActive(s.time, minutesTotal));
+        .find((s) => isSlotWindowActive(s.time, minutesTotal, 30));
 
       if (!activeSlot) {
         // No reminder slot is currently active in this mentor's timezone
@@ -347,12 +351,33 @@ export async function evaluateDailyProgressReminders(targetDateOverride?: Date):
 
         // A. Verify mentee is active
         const menteeDoc = await Mentee.findById(menteeId).lean();
-        if (!menteeDoc || menteeDoc.status !== 'active' || !menteeDoc.userId) {
+        if (!menteeDoc || menteeDoc.status !== 'active') {
           skippedInactive++;
           continue;
         }
 
-        const menteeUser = await User.findById(menteeDoc.userId).lean();
+        // Self-heal mentee userId if missing
+        let menteeUserId = menteeDoc.userId;
+        if (!menteeUserId) {
+          const u = await User.findOne({
+            $or: [
+              { menteeId },
+              ...(menteeDoc.makid ? [{ makid: menteeDoc.makid }] : []),
+            ],
+          }).select('_id status').lean();
+
+          if (u) {
+            menteeUserId = String(u._id);
+            void Mentee.updateOne({ _id: menteeDoc._id }, { $set: { userId: menteeUserId } }).catch(() => undefined);
+          }
+        }
+
+        if (!menteeUserId) {
+          skippedInactive++;
+          continue;
+        }
+
+        const menteeUser = await User.findById(menteeUserId).lean();
         if (!menteeUser || menteeUser.status !== 'active') {
           skippedInactive++;
           continue;
@@ -375,7 +400,7 @@ export async function evaluateDailyProgressReminders(targetDateOverride?: Date):
 
         // D. Create notification & dispatch Web Push
         const notification = await createNotification({
-          userId: menteeDoc.userId,
+          userId: menteeUserId,
           type: 'DAILY_REMINDER',
           category: 'dailyReminders',
           title,

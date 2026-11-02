@@ -10,6 +10,7 @@ import { Attendance } from '../models/Attendance.js';
 import { recordManualAttendance } from '../services/attendanceService.js';
 import { emitChatMessage } from '../realtime/chatRuntime.js';
 import { maskDeletedCallParts } from '../services/callVisibility.js';
+import { notifyChatRecipient, createNotification } from '../services/notificationService.js';
 
 const router = Router();
 const collection = (name: string) => mongoose.connection.collection(name);
@@ -115,6 +116,33 @@ router.post('/announcements', requireAuth, requireRole('ADMIN'), async (req: Aut
   if (!title || !body) return res.status(400).json({ message: 'Title and body are required.' });
   const doc = { title, body, audience, priority: String(req.body.priority || 'NORMAL'), pinned: Boolean(req.body.pinned), createdBy: req.user!.id, createdAt: new Date() };
   const result = await collection('announcements').insertOne(doc);
+
+  // Dispatch in-app notification and Web Push to target audience
+  void (async () => {
+    try {
+      const userFilter: any = { status: 'active' };
+      if (audience === 'MENTORS') userFilter.role = 'MENTOR';
+      else if (audience === 'MENTEES') userFilter.role = 'MENTEE';
+      else userFilter.role = { $in: ['MENTOR', 'MENTEE'] };
+
+      const users = await User.find(userFilter).select('_id').lean();
+      for (const u of users) {
+        await createNotification({
+          userId: String(u._id),
+          type: 'SYSTEM_ALERT',
+          category: 'systemNotifications',
+          title: `Announcement: ${title}`,
+          message: body.length > 150 ? `${body.slice(0, 147)}...` : body,
+          link: '/dashboard',
+          metadata: { announcementId: String(result.insertedId) },
+          idempotencyKey: `announcement:${String(result.insertedId)}:${String(u._id)}`,
+        });
+      }
+    } catch (annErr) {
+      console.error('[FeatureRoutes] Error dispatching announcement push:', annErr);
+    }
+  })();
+
   return res.status(201).json({ announcement: serialize({ ...doc, _id: result.insertedId }) });
 });
 router.post('/announcements/:id/read', requireAuth, async (req: AuthRequest, res: Response) => {
@@ -173,6 +201,22 @@ router.post('/conversations/:id/messages', requireAuth, async (req: AuthRequest,
   await collection('conversations').updateOne({ _id: conversation._id }, { $set: { updatedAt: doc.createdAt, lastMessage: doc.text } });
   const message = serialize({ ...doc, _id: result.insertedId });
   emitChatMessage(conversationId, message);
+
+  // Dispatch in-app notification & Web Push to conversation recipients
+  const senderId = req.user!.id;
+  const participantIds: string[] = Array.isArray(conversation.participantIds) ? conversation.participantIds : [];
+  for (const pid of participantIds) {
+    if (String(pid) !== String(senderId)) {
+      void notifyChatRecipient({
+        conversationId,
+        senderId,
+        recipientId: String(pid),
+        messageText: text,
+        messageId: String(result.insertedId),
+      });
+    }
+  }
+
   return res.status(201).json({ message });
 });
 

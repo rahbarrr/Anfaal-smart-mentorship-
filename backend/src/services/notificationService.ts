@@ -4,6 +4,7 @@ import { Notification } from '../models/Notification.js';
 import { PushSubscription } from '../models/PushSubscription.js';
 import { NotificationPreference } from '../models/NotificationPreference.js';
 import { User } from '../models/User.js';
+import { Mentee } from '../models/Mentee.js';
 import { Mentorship } from '../models/Mentorship.js';
 import { Mentor } from '../models/Mentor.js';
 import type { NotificationCategory, NotificationType } from '../types/index.js';
@@ -37,6 +38,60 @@ export interface CreateNotificationParams {
   link?: string;
   metadata?: Record<string, unknown>;
   idempotencyKey?: string;
+}
+
+/**
+ * Resolves all distinct MongoDB User, Mentee, and Mentor IDs associated with an identifier.
+ * Ensures PushSubscription lookups always find the user's active device subscriptions,
+ * regardless of whether a notification was created using User._id, Mentee._id, or Mentor._id.
+ */
+export async function resolveAllUserIds(userId: string): Promise<string[]> {
+  const idSet = new Set<string>();
+  if (!userId) return [];
+  const strId = String(userId).trim();
+  idSet.add(strId);
+
+  try {
+    if (mongoose.connection.readyState === 1) {
+      // 1. If strId matches a User document
+      if (mongoose.isValidObjectId(strId)) {
+        const user = await User.findById(strId).lean().catch(() => null);
+        if (user) {
+          idSet.add(String(user._id));
+          if ((user as any).menteeId) idSet.add(String((user as any).menteeId));
+          if ((user as any).mentorId) idSet.add(String((user as any).mentorId));
+        }
+      }
+
+      // 2. If strId is linked to a Mentee document
+      const mentee = await Mentee.findOne({
+        $or: [
+          ...(mongoose.isValidObjectId(strId) ? [{ _id: strId }] : []),
+          { userId: strId },
+        ],
+      }).lean().catch(() => null);
+      if (mentee) {
+        idSet.add(String(mentee._id));
+        if (mentee.userId) idSet.add(String(mentee.userId));
+      }
+
+      // 3. If strId is linked to a Mentor document
+      const mentor = await Mentor.findOne({
+        $or: [
+          ...(mongoose.isValidObjectId(strId) ? [{ _id: strId }] : []),
+          { userId: strId },
+        ],
+      }).lean().catch(() => null);
+      if (mentor) {
+        idSet.add(String(mentor._id));
+        if (mentor.userId) idSet.add(String(mentor.userId));
+      }
+    }
+  } catch (err) {
+    // Non-blocking fallback to input id
+  }
+
+  return Array.from(idSet);
 }
 
 /**
@@ -110,6 +165,7 @@ export async function createNotification(params: CreateNotificationParams) {
 
 /**
  * Sends a push notification to all active devices of a user if user preferences permit it.
+ * Resolves user aliases so subscriptions stored under User._id, Mentee._id, or Mentor._id match reliably.
  */
 async function sendPushIfAllowed(
   userId: string,
@@ -132,17 +188,25 @@ async function sendPushIfAllowed(
   try {
     if (mongoose.connection.readyState !== 1) return;
 
-    const prefs = await NotificationPreference.findOne({ userId }).lean();
+    const targetUserIds = await resolveAllUserIds(userId);
+
+    const prefs = await NotificationPreference.findOne({ userId: { $in: targetUserIds } }).lean();
     if (prefs) {
-      if (!prefs.pushEnabled) return;
+      if (!prefs.pushEnabled) {
+        console.info(`[NotificationService] Push disabled in preferences for ${userId}`);
+        return;
+      }
       if (category === 'dailyReminders' && !prefs.dailyReminders) return;
       if (category === 'mentorshipActivity' && !prefs.mentorshipActivity) return;
       if (category === 'callUpdates' && !prefs.callUpdates) return;
       if (category === 'systemNotifications' && !prefs.systemNotifications) return;
     }
 
-    const subscriptions = await PushSubscription.find({ userId }).lean();
-    if (!subscriptions || subscriptions.length === 0) return;
+    const subscriptions = await PushSubscription.find({ userId: { $in: targetUserIds } }).lean();
+    if (!subscriptions || subscriptions.length === 0) {
+      console.info(`[NotificationService] No push subscriptions found for user ${userId} (checked: ${targetUserIds.join(', ')})`);
+      return;
+    }
 
     const payloadString = JSON.stringify(payload);
     console.info(`[NotificationService] Sending push (${category}) to ${subscriptions.length} device(s) for user ${userId}: "${payload.title}"`);
@@ -194,9 +258,9 @@ export async function sendDirectPushToUser(
     tag?: string;
   },
 ) {
-  // Step 1: Subscriptions found for user
-  const subscriptions = await PushSubscription.find({ userId }).lean();
-  console.info(`[NotificationService] [Step 1] Subscriptions found for user ${userId}: ${subscriptions?.length || 0}`);
+  const targetUserIds = await resolveAllUserIds(userId);
+  const subscriptions = await PushSubscription.find({ userId: { $in: targetUserIds } }).lean();
+  console.info(`[NotificationService] [Step 1] Subscriptions found for user ${userId} (matched IDs: ${targetUserIds.join(', ')}): ${subscriptions?.length || 0}`);
 
   if (!subscriptions || subscriptions.length === 0) {
     return {
@@ -374,7 +438,7 @@ export async function sendDirectPushToAll(payload: {
 }
 
 /**
- * Notifies all administrator accounts.
+ * Notifies all administrator accounts with in-app notification and Web Push.
  */
 export async function notifyAdmins(params: Omit<CreateNotificationParams, 'userId'>) {
   try {
@@ -395,6 +459,7 @@ export async function notifyAdmins(params: Omit<CreateNotificationParams, 'userI
 
 /**
  * Notifies all active mentors assigned to a given mentee.
+ * Handles mentor resolution for both Mentor._id and User._id keys.
  */
 export async function notifyMentorsForMentee(
   menteeId: string,
@@ -405,21 +470,62 @@ export async function notifyMentorsForMentee(
     if (!mentorships || mentorships.length === 0) return;
 
     for (const ms of mentorships) {
-      // Find mentor record to get their userId
-      const mentor = await Mentor.findById(ms.mentorId).lean();
+      let mentorUserId = ms.mentorId;
+      const mentor =
+        (await Mentor.findById(ms.mentorId).lean()) ||
+        (await Mentor.findOne({ userId: ms.mentorId }).lean());
       if (mentor?.userId) {
-        const idempotencyKey = params.idempotencyKey
-          ? `${params.idempotencyKey}:mentor:${mentor.userId}`
-          : undefined;
-        await createNotification({
-          ...params,
-          userId: mentor.userId,
-          idempotencyKey,
-        });
+        mentorUserId = mentor.userId;
       }
+
+      const idempotencyKey = params.idempotencyKey
+        ? `${params.idempotencyKey}:mentor:${mentorUserId}`
+        : undefined;
+
+      await createNotification({
+        ...params,
+        userId: mentorUserId,
+        idempotencyKey,
+      });
     }
   } catch (err) {
     console.error('[NotificationService] Error notifying mentor for mentee:', err);
+  }
+}
+
+/**
+ * Dispatches an in-app and push notification to the recipient of a chat message.
+ */
+export async function notifyChatRecipient(params: {
+  conversationId: string;
+  senderId: string;
+  recipientId: string;
+  messageText: string;
+  messageId: string;
+}) {
+  try {
+    const sender = await User.findById(params.senderId).select('name role').lean();
+    const senderName = sender?.name || 'Someone';
+    const preview = params.messageText.length > 100
+      ? `${params.messageText.slice(0, 97)}...`
+      : params.messageText;
+
+    await createNotification({
+      userId: params.recipientId,
+      type: 'MENTOR_FEEDBACK_RECEIVED',
+      category: 'mentorshipActivity',
+      title: `New message from ${senderName}`,
+      message: preview,
+      link: `/chat?c=${params.conversationId}`,
+      metadata: {
+        conversationId: params.conversationId,
+        senderId: params.senderId,
+        messageId: params.messageId,
+      },
+      idempotencyKey: `chat-msg:${params.messageId}:${params.recipientId}`,
+    });
+  } catch (err) {
+    console.error('[NotificationService] Error notifying chat recipient:', err);
   }
 }
 
@@ -452,16 +558,17 @@ export async function notifyCallCompletion(callId: string) {
     }
 
     // 2. Notify mentee
-    if (mentee?.userId) {
+    const menteeUserId = mentee?.userId || (await resolveAllUserIds(call.menteeId))[0];
+    if (menteeUserId) {
       await createNotification({
-        userId: mentee.userId,
+        userId: menteeUserId,
         type: 'CALL_SUMMARY_AVAILABLE',
         category: 'callUpdates',
         title: 'AI Call Summary Ready',
         message: 'Your AI-generated call summary is ready. Open Anfaal to view your summary.',
         link: '/mentee/history',
         metadata: { callId, mentorId: call.mentorId },
-        idempotencyKey: `call-completed:${callId}:mentee:${mentee.userId}`,
+        idempotencyKey: `call-completed:${callId}:mentee:${menteeUserId}`,
       });
     }
   } catch (err) {
@@ -504,4 +611,5 @@ export async function notifyCallFailure(callId: string, errorReason?: string) {
     console.error('[NotificationService] Error notifying call failure:', err);
   }
 }
+
 

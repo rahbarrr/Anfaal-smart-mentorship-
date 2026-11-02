@@ -1,8 +1,19 @@
 import assert from 'node:assert/strict';
 import test, { mock } from 'node:test';
-import { getVapidPublicKey, createNotification, notifyCallCompletion, sendDirectPushToUser } from '../services/notificationService.js';
+import {
+  getVapidPublicKey,
+  createNotification,
+  notifyCallCompletion,
+  sendDirectPushToUser,
+  resolveAllUserIds,
+  notifyChatRecipient,
+  notifyMentorsForMentee,
+} from '../services/notificationService.js';
 import { Notification } from '../models/Notification.js';
 import { PushSubscription } from '../models/PushSubscription.js';
+import { Mentorship } from '../models/Mentorship.js';
+import { Mentor } from '../models/Mentor.js';
+import { User } from '../models/User.js';
 
 test('NOTIFICATIONS: VAPID public key is returned and valid', () => {
   const key = getVapidPublicKey();
@@ -166,4 +177,79 @@ test('NOTIFICATIONS: sendDirectPushToUser handles zero subscriptions gracefully'
   assert.equal(result.successful, 0);
   assert.equal(result.failed, 0);
   assert.deepEqual(result.results, []);
+});
+
+test('NOTIFICATIONS: resolveAllUserIds returns input and handles edge cases safely', async () => {
+  const ids = await resolveAllUserIds('test_user_id_123');
+  assert.ok(Array.isArray(ids));
+  assert.ok(ids.includes('test_user_id_123'));
+});
+
+test('NOTIFICATIONS: notifyChatRecipient creates in-app notification with preview', async () => {
+  mock.method(User, 'findById', () => ({
+    select: () => ({
+      lean: async () => ({ name: 'Brother Mentor', role: 'MENTOR' }),
+    }),
+  }) as any);
+
+  mock.method(Notification, 'findOne', () => ({
+    lean: async () => null,
+  }) as any);
+
+  let createdData: any = null;
+  mock.method(Notification, 'create', async (data: any) => {
+    createdData = data;
+    return { _id: 'notif_chat_1', ...data };
+  });
+
+  await notifyChatRecipient({
+    conversationId: 'conv_123',
+    senderId: 'user_mentor_1',
+    recipientId: 'user_mentee_1',
+    messageText: 'Great work completing your revisions on Chapter 4 today!',
+    messageId: 'msg_999',
+  });
+
+  assert.ok(createdData);
+  assert.equal(createdData.userId, 'user_mentee_1');
+  assert.equal(createdData.type, 'MENTOR_FEEDBACK_RECEIVED');
+  assert.equal(createdData.title, 'New message from Brother Mentor');
+  assert.equal(createdData.message, 'Great work completing your revisions on Chapter 4 today!');
+  assert.equal(createdData.link, '/chat?c=conv_123');
+  assert.equal(createdData.idempotencyKey, 'chat-msg:msg_999:user_mentee_1');
+});
+
+test('NOTIFICATIONS: notifyMentorsForMentee resolves mentor userId and dispatches notification', async () => {
+  mock.method(Mentorship, 'find', () => ({
+    lean: async () => [{ mentorId: 'profile_mentor_1', menteeId: 'mentee_1', status: 'active' }],
+  }) as any);
+
+  mock.method(Mentor, 'findById', () => ({
+    lean: async () => ({ _id: 'profile_mentor_1', userId: 'user_account_mentor_1' }),
+  }) as any);
+
+  mock.method(Notification, 'findOne', () => ({
+    lean: async () => null,
+  }) as any);
+
+  let mentorNotificationData: any = null;
+  mock.method(Notification, 'create', async (data: any) => {
+    mentorNotificationData = data;
+    return { _id: 'notif_mentor_1', ...data };
+  });
+
+  await notifyMentorsForMentee('mentee_1', {
+    type: 'MENTEE_DAILY_SUBMITTED',
+    category: 'mentorshipActivity',
+    title: 'Daily Log Submitted',
+    message: 'M Mujtaba A Sayyed submitted todays daily performance.',
+    link: '/mentor/mentees/mentee_1',
+    idempotencyKey: 'daily-submitted:rec_1',
+  });
+
+  assert.ok(mentorNotificationData);
+  assert.equal(mentorNotificationData.userId, 'user_account_mentor_1');
+  assert.equal(mentorNotificationData.title, 'Daily Log Submitted');
+  assert.equal(mentorNotificationData.category, 'mentorshipActivity');
+  assert.equal(mentorNotificationData.idempotencyKey, 'daily-submitted:rec_1:mentor:user_account_mentor_1');
 });

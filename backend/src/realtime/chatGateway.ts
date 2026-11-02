@@ -6,6 +6,7 @@ import { AuthenticatedUser } from '../middleware/auth.js';
 import { User } from '../models/User.js';
 import { getSupabaseUserContext } from '../services/supabaseAuthService.js';
 import { setChatIo } from './chatRuntime.js';
+import { notifyChatRecipient } from '../services/notificationService.js';
 
 type ChatSocket = Socket & { data: { user?: AuthenticatedUser } };
 const collection = (name: string) => mongoose.connection.collection(name);
@@ -78,7 +79,8 @@ export function configureChatGateway(io: Server) {
       try {
         const conversationId = payload?.conversationId ?? '';
         const text = typeof payload?.text === 'string' ? payload.text.trim() : '';
-        if (!(await conversationForUser(user.id, conversationId))) {
+        const conversation = await conversationForUser(user.id, conversationId);
+        if (!conversation) {
           acknowledge?.({ ok: false, message: 'Conversation not found.' });
           return;
         }
@@ -97,6 +99,20 @@ export function configureChatGateway(io: Server) {
         const message = { ...doc, id: String(result.insertedId) };
         io.to(`conversation:${conversationId}`).emit('chat:message', message);
         acknowledge?.({ ok: true, data: message });
+
+        // Dispatch in-app and push notification to recipient(s)
+        const participantIds: string[] = Array.isArray(conversation.participantIds) ? conversation.participantIds : [];
+        for (const pid of participantIds) {
+          if (String(pid) !== String(user.id)) {
+            void notifyChatRecipient({
+              conversationId,
+              senderId: user.id,
+              recipientId: String(pid),
+              messageText: text,
+              messageId: String(result.insertedId),
+            });
+          }
+        }
       } catch {
         acknowledge?.({ ok: false, message: 'Unable to send message right now.' });
       }
