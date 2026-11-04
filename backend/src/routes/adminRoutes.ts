@@ -380,8 +380,8 @@ router.post('/assignments', requireAuth, requireRole('ADMIN'), async (req: AuthR
             userId: mentee.userId,
             type: 'MENTOR_ASSIGNED',
             category: 'mentorshipActivity',
-            title: 'Mentor assigned',
-            message: `${mentorUser?.name || 'A mentor'} has been assigned to you.`,
+            title: 'New Assignment Received',
+            message: `${mentorUser?.name || 'Your mentor'} has been assigned to your profile. Open Anfaal for details.`,
             link: '/mentee',
             metadata: { mentorId: parsed.data.mentorId },
           });

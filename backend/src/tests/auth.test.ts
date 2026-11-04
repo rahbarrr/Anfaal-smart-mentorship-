@@ -3,6 +3,7 @@ import test, { mock } from 'node:test';
 import jwt from 'jsonwebtoken';
 import { requireAuth, requireRole, AuthRequest } from '../middleware/auth.js';
 import { User } from '../models/User.js';
+import { signAuthToken, getUserSession } from '../services/authService.js';
 
 const TEST_SECRET = 'test-jwt-secret-key-12345';
 process.env.JWT_SECRET = TEST_SECRET;
@@ -224,4 +225,60 @@ test('AUTH: rejected mentor access is blocked until new review', () => {
   assert.equal(nextCalled, false);
   assert.equal(res.statusCode, 403);
   assert.equal(res.body.message, 'Your mentor application was rejected.');
+});
+
+test('AUTH: signAuthToken signs payload with 7-day expiration', () => {
+  const token = signAuthToken({
+    id: 'user_persistent_1',
+    email: 'persistent@anfaal.org',
+    role: 'MENTEE',
+    menteeId: 'mentee_123',
+  });
+  const decoded = jwt.verify(token, TEST_SECRET) as any;
+  assert.equal(decoded.id, 'user_persistent_1');
+  assert.equal(decoded.email, 'persistent@anfaal.org');
+  assert.equal(decoded.role, 'MENTEE');
+  assert.equal(decoded.menteeId, 'mentee_123');
+  assert.ok(decoded.exp - decoded.iat >= 6 * 24 * 3600, 'Expected at least 6 days expiration window');
+});
+
+test('AUTH: getUserSession returns refreshed token and user profile for active user', async () => {
+  const mockUser = {
+    _id: 'user_active_1',
+    email: 'mentee@anfaal.org',
+    name: 'Anfaal Student',
+    role: 'MENTEE' as const,
+    status: 'active',
+    menteeId: 'mentee_real_1',
+  };
+
+  const userFindMock = mock.method(User, 'findById', async () => mockUser as any);
+  const session = await getUserSession('user_active_1');
+  userFindMock.mock.restore();
+
+  assert.ok(session !== null);
+  assert.equal(session?.user.id, 'user_active_1');
+  assert.equal(session?.user.name, 'Anfaal Student');
+  assert.equal(session?.user.role, 'MENTEE');
+  assert.equal(session?.user.menteeId, 'mentee_real_1');
+  assert.ok(typeof session?.token === 'string');
+
+  const verified = jwt.verify(session!.token, TEST_SECRET) as any;
+  assert.equal(verified.id, 'user_active_1');
+  assert.equal(verified.role, 'MENTEE');
+});
+
+test('AUTH: getUserSession returns null for disabled or missing user', async () => {
+  const disabledUser = {
+    _id: 'user_disabled_1',
+    email: 'disabled@anfaal.org',
+    role: 'MENTOR' as const,
+    status: 'disabled',
+  };
+
+  const userFindMock = mock.method(User, 'findById', async () => disabledUser as any);
+  const session = await getUserSession('user_disabled_1');
+  userFindMock.mock.restore();
+
+  assert.equal(session, null);
 });

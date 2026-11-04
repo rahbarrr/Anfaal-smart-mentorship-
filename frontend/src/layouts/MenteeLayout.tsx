@@ -1,18 +1,42 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CalendarCheck, History, LogOut, Menu, X, Sparkles, MoreHorizontal, Bot } from 'lucide-react';
+import {
+  LayoutDashboard,
+  CalendarCheck,
+  History,
+  LogOut,
+  Menu,
+  X,
+  Sparkles,
+  MoreHorizontal,
+  Bot,
+  UserCircle2,
+  MessageSquare,
+  PhoneCall,
+} from 'lucide-react';
 import { MobileHeader } from '../components/MobileHeader';
 import { MobileMoreDrawer, type MoreDrawerLink } from '../components/MobileMoreDrawer';
 import { NotificationCenter } from '../components/NotificationCenter';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { InstallAppButton } from '../pwa/InstallAppButton';
+import { useAuth } from '../context/AuthContext';
 
 const links = [
   { to: '/mentee', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/mentee/daily', label: 'Daily Progress', icon: CalendarCheck, end: false },
   { to: '/mentee/history', label: 'History', icon: History, end: false },
+  { to: '/mentee/profile', label: 'My 360 Profile', icon: UserCircle2, end: false },
   { to: '/mentee/announcements', label: 'Announcements', icon: Sparkles, end: false },
-  { to: '/mentee/chat', label: 'Chat', icon: Sparkles, end: false },
+  { to: '/mentee/chat', label: 'Chat', icon: MessageSquare, end: false },
+  { to: '/mentee/ai-mentor', label: 'AI Mentor', icon: Bot, end: false },
+  { to: '/mentee/call-summary', label: 'Call Summaries', icon: PhoneCall, end: false },
+];
+
+// Touch-friendly 4-item mobile bottom nav + More drawer
+const bottomLinks = [
+  { to: '/mentee', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/mentee/daily', label: 'Daily', icon: CalendarCheck, end: false },
+  { to: '/mentee/history', label: 'History', icon: History, end: false },
   { to: '/mentee/ai-mentor', label: 'AI Mentor', icon: Bot, end: false },
 ];
 
@@ -20,7 +44,11 @@ const menteeDrawerLinks: MoreDrawerLink[] = [
   { to: '/mentee', label: 'Learner Dashboard', icon: LayoutDashboard, description: 'Daily schedule, goals & mentor info', end: true },
   { to: '/mentee/daily', label: "Record Today's Progress", icon: CalendarCheck, description: 'Log study hours, Quran & habits' },
   { to: '/mentee/history', label: 'Submission History', icon: History, description: 'Browse and reflect on past entries' },
-  { to: '/mentee/ai-mentor', label: 'AI Mentor', icon: Bot, description: 'Get study-planning guidance' },
+  { to: '/mentee/profile', label: 'My 360 Profile', icon: UserCircle2, description: 'Academic benchmarks, exams, routine & interests' },
+  { to: '/mentee/ai-mentor', label: 'AI Mentor', icon: Bot, description: 'Interactive guidance & study-planning support' },
+  { to: '/mentee/chat', label: 'In-App Chat', icon: MessageSquare, description: 'Private direct messaging with your mentor' },
+  { to: '/mentee/announcements', label: 'Announcements', icon: Sparkles, description: 'Notices from Anfaal administrators' },
+  { to: '/mentee/call-summary', label: 'Call Summaries', icon: PhoneCall, description: 'Mentor calls & session takeaways' },
 ];
 
 function getStoredUser() {
@@ -34,13 +62,13 @@ function getStoredUser() {
 
 export function MenteeLayout() {
   const navigate = useNavigate();
-  const user = getStoredUser();
+  const { user: authUser, logout } = useAuth();
+  const user = authUser || getStoredUser();
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreDrawerOpen, setMoreDrawerOpen] = useState(false);
 
-  const handleSignOut = () => {
-    localStorage.removeItem('anfaal-token');
-    localStorage.removeItem('anfaal-user');
+  const handleSignOut = async () => {
+    await logout();
     navigate('/', { replace: true });
   };
 
@@ -131,7 +159,7 @@ export function MenteeLayout() {
 
       {/* ── Mobile bottom navigation bar ─────────────────────────────────── */}
       <nav className="bottom-nav" aria-label="Mobile Mentee Navigation">
-        {links.map(({ to, label, icon: Icon, end }) => (
+        {bottomLinks.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}

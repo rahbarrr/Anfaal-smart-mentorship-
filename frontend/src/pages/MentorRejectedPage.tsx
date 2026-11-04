@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { ShieldAlert } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export function MentorRejectedPage() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
-  const handleSignOut = () => {
-    localStorage.removeItem('anfaal-token');
-    localStorage.removeItem('anfaal-user');
+  const handleSignOut = async () => {
+    await logout();
     navigate('/', { replace: true });
   };
 

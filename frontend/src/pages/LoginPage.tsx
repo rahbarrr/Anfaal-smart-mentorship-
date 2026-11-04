@@ -14,11 +14,13 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { loginWithEmail } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 import './LoginPage.css';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { login, getDashboardUrl } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -54,20 +56,9 @@ export function LoginPage() {
 
     try {
       const response = await loginWithEmail(trimmedIdentifier, password);
-      localStorage.setItem('anfaal-token', response.token);
-      localStorage.setItem('anfaal-user', JSON.stringify(response.user));
-
-      if (response.user.role === 'ADMIN') {
-        navigate('/admin');
-      } else if (response.user.role === 'MENTEE') {
-        navigate('/mentee');
-      } else if (response.user.mentorApprovalStatus === 'PENDING') {
-        navigate('/mentor/pending');
-      } else if (response.user.mentorApprovalStatus === 'REJECTED') {
-        navigate('/mentor/rejected');
-      } else {
-        navigate('/mentor');
-      }
+      login(response);
+      const destination = getDashboardUrl(response.user);
+      navigate(destination, { replace: true });
     } catch (submissionError) {
       setError(
         submissionError instanceof Error

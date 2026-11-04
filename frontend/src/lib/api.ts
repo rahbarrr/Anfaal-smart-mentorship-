@@ -1,5 +1,5 @@
 // Production API Base URL: loaded from VITE_API_URL or defaults to '/api'
-import type { ImportPreview, ShortTermGoal } from '../types';
+import type { ImportPreview, ShortTermGoal, Mentee360Profile } from '../types';
 
 const rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim() || '/api';
 const API_BASE_URL = rawApiUrl.replace(/\/+$/, '');
@@ -21,7 +21,20 @@ export type LoginResponse = {
   user: AuthUser;
 };
 
-type AttendanceRecord = { id: string; menteeId: string; date: string; status: 'PRESENT' | 'ABSENT'; source: string; notes?: string };
+export type AttendanceRecord = {
+  id: string;
+  menteeId: string;
+  date: string;
+  month?: string;
+  status: 'PRESENT' | 'ABSENT';
+  source: string;
+  notes?: string;
+  isManual?: boolean;
+  manuallyCorrectedAt?: string;
+  manuallyCorrectedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
 type AnnouncementRecord = { id: string; title: string; body: string; audience: string; priority?: string; pinned?: boolean; read?: boolean; publishedAt?: { _seconds?: number } | string };
 type CallSummaryRecord = { id: string; date: string; summary: { overview: string } };
 type ConversationRecord = { id: string; participantIds: string[]; lastMessage?: string; updatedAt?: string };
@@ -29,7 +42,8 @@ type ChatContact = { id: string; name: string; email?: string; role: string };
 type ChatMessage = { id: string; conversationId?: string; senderId: string; text: string; createdAt?: string };
 type ProxyAssignmentRecord = { id: string; menteeId: string; primaryMentorId: string; proxyMentorId: string; startDate: string; endDate: string; reason?: string };
 type BinRecord = { type: string; id: string; label: string; deletedAt?: string; deletedBy?: string; deletionReason?: string };
-type AiMentorMessage = { role: 'user' | 'assistant'; content: string; createdAt?: string };
+export type AiMentorMessage = { role: 'user' | 'assistant'; content: string; createdAt?: string };
+export type AiMentorStatus = { dailyLimit: number; promptsUsedToday: number; promptsRemaining: number };
 type GrowthDailyRecord = {
   studyMinutes: number;
   readingMinutes: number;
@@ -88,7 +102,16 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
 }
 
 // Product features: kept on the regular Render API boundary.
-export async function getAttendance(token: string, params: { month?: string } = {}): Promise<{ records: AttendanceRecord[] }> { const q = params.month ? `?month=${encodeURIComponent(params.month)}` : ''; return (await apiFetch(`/attendance${q}`, { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getAttendance(
+  token: string,
+  params: { month?: string; menteeId?: string } = {},
+): Promise<{ records: AttendanceRecord[] }> {
+  const query = new URLSearchParams();
+  if (params.month) query.set('month', params.month);
+  if (params.menteeId) query.set('menteeId', params.menteeId);
+  const q = query.toString() ? `?${query.toString()}` : '';
+  return (await apiFetch(`/attendance${q}`, { headers: { Authorization: `Bearer ${token}` } })).json();
+}
 export async function saveAttendance(token: string, body: unknown): Promise<{ record: AttendanceRecord }> { return (await apiFetch('/attendance', { method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${token}` } })).json(); }
 export async function getAnnouncements(token: string): Promise<{ announcements: AnnouncementRecord[] }> { return (await apiFetch('/announcements', { headers: { Authorization: `Bearer ${token}` } })).json(); }
 export async function createAnnouncement(token: string, body: unknown): Promise<{ announcement: AnnouncementRecord }> { return (await apiFetch('/announcements', { method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${token}` } })).json(); }
@@ -103,7 +126,8 @@ export async function getProxyAssignments(token: string): Promise<{ assignments:
 export async function createProxyAssignment(token: string, body: unknown): Promise<{ assignment: ProxyAssignmentRecord }> { return (await apiFetch('/admin/proxy-assignments', { method: 'POST', body: JSON.stringify(body), headers: { Authorization: `Bearer ${token}` } })).json(); }
 export async function getBin(token: string): Promise<{ items: BinRecord[] }> { return (await apiFetch('/admin/bin', { headers: { Authorization: `Bearer ${token}` } })).json(); }
 export async function restoreBinItem(token: string, type: string, id: string): Promise<{ record: Record<string, unknown> }> { return (await apiFetch(`/admin/bin/${encodeURIComponent(type)}/${encodeURIComponent(id)}/restore`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })).json(); }
-export async function sendAiMentorMessage(token: string, message: string, sessionId?: string): Promise<{ sessionId: string; message: AiMentorMessage }> { return (await apiFetch('/ai-mentor/chat', { method: 'POST', body: JSON.stringify({ message, sessionId }), headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function getAiMentorStatus(token: string): Promise<AiMentorStatus> { return (await apiFetch('/ai-mentor/status', { headers: { Authorization: `Bearer ${token}` } })).json(); }
+export async function sendAiMentorMessage(token: string, message: string, sessionId?: string): Promise<{ sessionId: string; message: AiMentorMessage; dailyLimit?: number; promptsUsedToday?: number; promptsRemaining?: number }> { return (await apiFetch('/ai-mentor/chat', { method: 'POST', body: JSON.stringify({ message, sessionId }), headers: { Authorization: `Bearer ${token}` } })).json(); }
 export async function getAiMentorSession(token: string, sessionId: string): Promise<{ messages: AiMentorMessage[] }> { return (await apiFetch(`/ai-mentor/sessions/${encodeURIComponent(sessionId)}`, { headers: { Authorization: `Bearer ${token}` } })).json(); }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -119,6 +143,40 @@ export async function loginWithEmail(email: string, password: string): Promise<L
     throw new Error(payload.message ?? 'Unable to sign in.');
   }
   return response.json();
+}
+
+export async function verifySessionToken(token: string): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message ?? 'Session expired or invalid.');
+  }
+  return response.json();
+}
+
+export async function refreshSessionToken(token: string): Promise<LoginResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message ?? 'Failed to refresh session.');
+  }
+  return response.json();
+}
+
+export async function logoutApi(token?: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    // Best effort logout on backend
+  }
 }
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
@@ -1328,21 +1386,59 @@ export async function registerPushSubscription(
   token: string,
   subscription: PushSubscription,
 ): Promise<{ message: string }> {
-  const rawKey = subscription.getKey ? subscription.getKey('p256dh') : null;
-  const rawAuth = subscription.getKey ? subscription.getKey('auth') : null;
-  const p256dh = rawKey ? btoa(String.fromCharCode(...new Uint8Array(rawKey))) : '';
-  const auth = rawAuth ? btoa(String.fromCharCode(...new Uint8Array(rawAuth))) : '';
+  const subJson = subscription.toJSON();
+  const endpoint = subscription.endpoint || subJson.endpoint || '';
+  const keys = subJson.keys || {};
+  let p256dh = keys.p256dh;
+  let auth = keys.auth;
+
+  if (!p256dh || !auth) {
+    const rawKey = subscription.getKey ? subscription.getKey('p256dh') : null;
+    const rawAuth = subscription.getKey ? subscription.getKey('auth') : null;
+    p256dh = rawKey ? btoa(String.fromCharCode(...new Uint8Array(rawKey))) : '';
+    auth = rawAuth ? btoa(String.fromCharCode(...new Uint8Array(rawAuth))) : '';
+  }
 
   const res = await fetch(`${API_BASE_URL}/notifications/push-subscription`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({
-      endpoint: subscription.endpoint,
+      endpoint,
       keys: { p256dh, auth },
       userAgent: navigator.userAgent,
     }),
   });
   if (!res.ok) throw new Error('Failed to register push subscription');
+  return res.json();
+}
+
+export async function sendTestPushNotification(
+  token: string,
+  payload?: { title?: string; message?: string; link?: string; userId?: string; broadcast?: boolean },
+): Promise<{ success: boolean; message: string; summary?: any }> {
+  const res = await fetch(`${API_BASE_URL}/notifications/test-push`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload || {}),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Failed to dispatch test notification');
+  }
+  return res.json();
+}
+
+export async function getPushDiagnosticStatus(token: string): Promise<{
+  vapidConfigured: boolean;
+  pushEnabled: boolean;
+  registeredDevices: number;
+  totalSystemDevices?: number;
+  devices: Array<{ endpointSnippet: string; userAgent: string; createdAt?: string }>;
+}> {
+  const res = await fetch(`${API_BASE_URL}/notifications/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch notification diagnostic status');
   return res.json();
 }
 
@@ -1460,8 +1556,33 @@ export interface MenteeGrowthSummary {
     careerGoal: string;
     semesterGoal: string;
     shortTermGoals: ShortTermGoal[];
-    academic: Record<string, unknown> | null;
+    academic: Mentee360Profile['academic'] | null;
   };
+  routine?: Mentee360Profile['routine'] | null;
+  careerInterests?: Mentee360Profile['careerInterests'] | null;
+  mentor?: {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    designation?: string;
+  } | null;
+  calls?: Array<{
+    id: string;
+    date: string;
+    duration: number;
+    summary?: string;
+    aiSummary?: {
+      shortSummary?: string;
+      keyDiscussionPoints?: string[];
+      actionItems?: string[];
+      studentConcerns?: string[];
+    };
+    recordingUrl?: string;
+    transcript?: string;
+    reviewStatus?: string;
+  }>;
+  leaderboard?: LeaderboardData;
   cohortLeaderboard: {
     hasCohort: boolean;
     mentorName: string;
@@ -1487,12 +1608,102 @@ export interface MenteeGrowthSummary {
   }>;
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  menteeId: string;
+  name: string;
+  isMe: boolean;
+  currentStreak: number;
+  weeklyPoints: number;
+  weeklySubmissions: number;
+  monthlyPoints?: number;
+  monthlySubmissions?: number;
+  totalSubmissions: number;
+  totalXp: number;
+  isTopThree: boolean;
+  isAnonymous?: boolean;
+}
+
+export interface HistoricalPeriodOption {
+  type: 'weekly' | 'monthly';
+  key: string;
+  label: string;
+  startDate: string;
+  endDate: string;
+  offset: number;
+}
+
+export interface HistoricalPeriodsResponse {
+  weekly: HistoricalPeriodOption[];
+  monthly: HistoricalPeriodOption[];
+}
+
+export interface LeaderboardData {
+  period: {
+    type: 'weekly' | 'monthly' | 'alltime';
+    label: string;
+    startDate: string;
+    endDate: string;
+    timezone: string;
+    isHistorical?: boolean;
+    isFinalized?: boolean;
+    weekOffset?: number;
+    monthOffset?: number;
+  };
+  myRank: number;
+  myWeeklyPoints: number;
+  myMonthlyPoints?: number;
+  myLifetimeXp: number;
+  totalEligibleMentees: number;
+  entries: LeaderboardEntry[];
+  topThree: LeaderboardEntry[];
+  myEntry: LeaderboardEntry | null;
+  optedOut: boolean;
+  hasData?: boolean;
+  scoringRules: Array<{ rule: string; points: string; description: string }>;
+}
+
 export async function getMenteeGrowthSummary(params?: { weekOffset?: number; menteeId?: string }): Promise<MenteeGrowthSummary> {
   const query = new URLSearchParams();
   if (params?.weekOffset !== undefined) query.set('weekOffset', String(params.weekOffset));
   if (params?.menteeId) query.set('menteeId', params.menteeId);
   const qs = query.toString() ? `?${query.toString()}` : '';
   const res = await apiFetch(`/daily-performance/growth-summary${qs}`);
+  return res.json();
+}
+
+export async function getLeaderboard(params?: {
+  period?: 'weekly' | 'monthly' | 'alltime';
+  weekOffset?: number;
+  monthOffset?: number;
+  menteeId?: string;
+  timezone?: string;
+}): Promise<LeaderboardData> {
+  const query = new URLSearchParams();
+  if (params?.period) query.set('period', params.period);
+  if (params?.weekOffset !== undefined) query.set('weekOffset', String(params.weekOffset));
+  if (params?.monthOffset !== undefined) query.set('monthOffset', String(params.monthOffset));
+  if (params?.menteeId) query.set('menteeId', params.menteeId);
+  if (params?.timezone) query.set('timezone', params.timezone);
+  const qs = query.toString() ? `?${query.toString()}` : '';
+  const res = await apiFetch(`/daily-performance/leaderboard${qs}`);
+  return res.json();
+}
+
+export async function getLeaderboardPeriods(timezone?: string): Promise<HistoricalPeriodsResponse> {
+  const query = new URLSearchParams();
+  if (timezone) query.set('timezone', timezone);
+  const qs = query.toString() ? `?${query.toString()}` : '';
+  const res = await apiFetch(`/daily-performance/leaderboard-periods${qs}`);
+  return res.json();
+}
+
+export async function updateLeaderboardPrivacy(optOut: boolean): Promise<{ success: boolean; optedOut: boolean }> {
+  const res = await apiFetch('/daily-performance/leaderboard-privacy', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ optOut }),
+  });
   return res.json();
 }
 

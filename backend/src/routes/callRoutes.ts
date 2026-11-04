@@ -862,6 +862,9 @@ router.get('/:id/transcript', requireAuth, async (req: AuthRequest, res: Respons
       ipAddress: req.ip,
     });
 
+    const provider = call.transcription?.provider || '';
+    const isMock = Boolean(provider.toLowerCase().includes('mock'));
+
     return res.json({
       callId: String(call._id),
       transcript: call.transcription?.text || call.transcript || '',
@@ -869,6 +872,8 @@ router.get('/:id/transcript', requireAuth, async (req: AuthRequest, res: Respons
       language: call.transcription?.language ?? 'en',
       duration: call.transcription?.duration ?? call.duration,
       status: call.transcription?.status ?? 'PENDING',
+      provider: provider || undefined,
+      isMock,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to load transcript';

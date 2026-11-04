@@ -1,12 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import { Clock3 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export function MentorPendingApprovalPage() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
-  const handleSignOut = () => {
-    localStorage.removeItem('anfaal-token');
-    localStorage.removeItem('anfaal-user');
+  const handleSignOut = async () => {
+    await logout();
     navigate('/', { replace: true });
   };
 

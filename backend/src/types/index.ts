@@ -130,6 +130,10 @@ export interface MenteeDocument {
     }
   >;
   lastProfileUpdate?: Date;
+  preferences?: {
+    optOutLeaderboard?: boolean;
+    [key: string]: unknown;
+  };
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -270,6 +274,8 @@ export type NotificationType =
   | 'MENTOR_ASSIGNED'
   | 'MENTEE_ASSIGNED'
   | 'DAILY_REMINDER'
+  | 'MENTOR_FEEDBACK_RECEIVED'
+  | 'NEW_TASK_ASSIGNED'
   | 'SYSTEM_ALERT';
 
 export type NotificationCategory =
@@ -332,5 +338,26 @@ export interface DailyReminderSettingDocument {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export type AttendanceStatus = 'PRESENT' | 'ABSENT';
+
+export interface AttendanceDocument {
+  _id: string;
+  menteeId: string;
+  date: string; // 'YYYY-MM-DD'
+  month: string; // 'YYYY-MM'
+  status: AttendanceStatus;
+  source: string; // 'Daily Progress' | 'MANUAL' | 'MANUAL_CORRECTION' | 'WHATSAPP_CALL' | etc.
+  notes?: string;
+  isManual?: boolean;
+  manuallyCorrectedAt?: Date;
+  manuallyCorrectedBy?: string;
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date | null;
+}
+
 
 

@@ -44,20 +44,64 @@ function formatMinutes(min: number): string {
   return `${m} minutes`;
 }
 
-function getTodayString(): string {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+function getTodayReportingDate(): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(new Date());
+  } catch {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+}
+
+function formatDisplayDate(dateStr: string): string {
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day}/${month}/${year}`;
+  }
+  return dateStr;
 }
 
 export function DailyPerformanceFormPage() {
   const navigate = useNavigate();
-  const todayStr = getTodayString();
 
-  // Form states
-  const [selectedDate, setSelectedDate] = useState(todayStr);
+  // Locked authoritative reporting date (format: YYYY-MM-DD)
+  const [reportingDate, setReportingDate] = useState<string>(() => getTodayReportingDate());
+
+  // Periodically verify if the reporting date changed (e.g. across midnight boundary)
+  useEffect(() => {
+    const checkReportingDate = () => {
+      const nowReportingDate = getTodayReportingDate();
+      setReportingDate((prev) => (prev !== nowReportingDate ? nowReportingDate : prev));
+    };
+
+    const interval = setInterval(checkReportingDate, 30000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkReportingDate();
+      }
+    };
+
+    window.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', checkReportingDate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', checkReportingDate);
+    };
+  }, []);
+
   const [studyMinutes, setStudyMinutes] = useState<number>(120);
   const [customStudy, setCustomStudy] = useState(false);
   const [customStudyHours, setCustomStudyHours] = useState('');
@@ -94,9 +138,9 @@ export function DailyPerformanceFormPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
 
-  // Check if today already has a record on initial load
+  // Check if today already has a record on initial load or date change
   useEffect(() => {
-    getTodayPerformance(selectedDate)
+    getTodayPerformance(reportingDate)
       .then((res) => {
         if (res.record) {
           setCurrentRecord(res.record);
@@ -110,9 +154,9 @@ export function DailyPerformanceFormPage() {
         }
       })
       .catch((error: unknown) => {
-        setErrorMessage(error instanceof Error ? error.message : 'Unable to load today\'s progress.');
+        setErrorMessage(error instanceof Error ? error.message : "Unable to load today's progress.");
       });
-  }, [selectedDate]);
+  }, [reportingDate]);
 
   const populateForEditing = (record: DailyPerformanceRecord) => {
     if (!record) return;
@@ -136,7 +180,7 @@ export function DailyPerformanceFormPage() {
 
   const handleEditClick = async () => {
     try {
-      const res = await getTodayPerformance(selectedDate);
+      const res = await getTodayPerformance(reportingDate);
       if (res.record) {
         populateForEditing(res.record);
       } else {
@@ -156,7 +200,7 @@ export function DailyPerformanceFormPage() {
     setIsSubmitting(true);
 
     const payload = {
-      date: selectedDate,
+      date: reportingDate,
       studyMinutes: Number(studyMinutes),
       quran: {
         ruku: ruku ? Math.max(0, parseInt(ruku, 10) || 0) : 0,
@@ -295,7 +339,7 @@ export function DailyPerformanceFormPage() {
             </h3>
           </div>
           <p className="muted" style={{ margin: '6px 0 10px', fontSize: '0.92rem' }}>
-            You have already recorded an entry for {formatDateOnly(existingRecordDate ?? selectedDate)}. Would you like to update it?
+            You have already recorded an entry for {formatDateOnly(existingRecordDate ?? reportingDate)}. Would you like to update it?
           </p>
 
           {currentRecord && (
@@ -330,26 +374,29 @@ export function DailyPerformanceFormPage() {
       {/* The Form */}
       {(!alreadySubmittedToday || isEditing) && (
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
-          {/* Section A: Date */}
+          {/* Section A: Date (Non-editable, locked to current reporting date) */}
           <div className="daily-form-card">
             <div className="daily-card-header">
               <h3 className="daily-card-title">
                 <Calendar size={18} /> Date
               </h3>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <input
-                type="date"
-                className="input"
-                value={selectedDate}
-                max={todayStr}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                style={{ maxWidth: 220, height: 48, fontSize: '1rem', fontWeight: 600 }}
-              />
-              <span className="muted" style={{ fontSize: '0.85rem' }}>
-                {selectedDate === todayStr ? "(Today's date)" : '(Backdated entry)'}
-              </span>
+            <div className="daily-locked-date-row">
+              <div
+                className="daily-locked-date-badge-box"
+                role="status"
+                aria-label={`Reporting date: ${formatDisplayDate(reportingDate)}`}
+              >
+                <Calendar size={18} className="daily-locked-date-icon" />
+                <span className="daily-locked-date-value">
+                  {formatDisplayDate(reportingDate)}
+                </span>
+                <span className="daily-today-pill">Today's date</span>
+              </div>
             </div>
+            <p className="daily-locked-date-info">
+              You can record your progress for today only. Previous days can no longer be submitted.
+            </p>
           </div>
 
           {/* Section B: Study Hours */}
@@ -714,7 +761,7 @@ export function DailyPerformanceFormPage() {
             <div className="daily-submission-summary">
               <div className="daily-submission-summary-header">
                 <span className="daily-submission-summary-tag">Ready to record?</span>
-                <span className="daily-submission-summary-date">{formatDateOnly(selectedDate)}</span>
+                <span className="daily-submission-summary-date">{formatDateOnly(reportingDate)}</span>
               </div>
               <div className="daily-submission-pills">
                 <span className="daily-summary-pill">

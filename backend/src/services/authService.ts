@@ -7,6 +7,61 @@ export interface LoginPayload {
   password: string;
 }
 
+export function signAuthToken(payload: {
+  id: string;
+  email: string;
+  role: string;
+  menteeId?: string;
+  mentorApprovalStatus?: string;
+}): string {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) throw new Error('Authentication is not configured.');
+  return jwt.sign(payload, jwtSecret, { expiresIn: '7d' });
+}
+
+export async function getUserSession(userId: string) {
+  const user = await User.findById(userId);
+  if (!user || user.status !== 'active') {
+    return null;
+  }
+
+  let menteeId = user.menteeId;
+  if (user.role === 'MENTEE' && !menteeId) {
+    const { Mentee } = await import('../models/Mentee.js');
+    const menteeDoc = await Mentee.findOne({ userId: String(user._id) });
+    if (menteeDoc) {
+      menteeId = String(menteeDoc._id);
+    }
+  }
+
+  let mentorApprovalStatus: 'PENDING' | 'APPROVED' | 'REJECTED' | undefined;
+  if (user.role === 'MENTOR') {
+    const { Mentor } = await import('../models/Mentor.js');
+    const mentorDoc = await Mentor.findOne({ userId: String(user._id) }).lean();
+    mentorApprovalStatus = mentorDoc?.mentorApprovalStatus ?? 'APPROVED';
+  }
+
+  const token = signAuthToken({
+    id: String(user._id),
+    email: user.email,
+    role: user.role,
+    menteeId,
+    mentorApprovalStatus,
+  });
+
+  return {
+    token,
+    user: {
+      id: String(user._id),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      menteeId,
+      mentorApprovalStatus,
+    },
+  };
+}
+
 export async function loginUser({ email, password }: LoginPayload) {
   const input = (email || '').trim();
   let user = null;
@@ -95,20 +150,13 @@ export async function loginUser({ email, password }: LoginPayload) {
     mentorApprovalStatus = mentorDoc?.mentorApprovalStatus ?? 'APPROVED';
   }
 
-  const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret) throw new Error('Authentication is not configured.');
-
-  const token = jwt.sign(
-    {
-      id: String(user._id),
-      email: user.email,
-      role: user.role,
-      menteeId,
-      mentorApprovalStatus,
-    },
-    jwtSecret,
-    { expiresIn: '7d' },
-  );
+  const token = signAuthToken({
+    id: String(user._id),
+    email: user.email,
+    role: user.role,
+    menteeId,
+    mentorApprovalStatus,
+  });
 
   return {
     token,

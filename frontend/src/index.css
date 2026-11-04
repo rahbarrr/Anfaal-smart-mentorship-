@@ -2017,6 +2017,8 @@ tr:last-child td { border-bottom: none; }
   .chat-layout { grid-template-columns: 1fr; min-height: 0; }
   .chat-conversations { max-height: 360px; }
   .chat-thread { min-height: 480px; }
+  .ai-mentor-card { min-height: 400px; padding: 14px 12px; }
+  .ai-mentor-messages { min-height: 260px; }
 }
 @media (max-width: 420px) {
   .chat-new-row, .chat-composer { grid-template-columns: 1fr; }
@@ -2621,6 +2623,7 @@ tr:last-child td { border-bottom: none; }
 }
 .segment-mentor  { background: rgba(79,70,229,0.04); border-left-color: var(--primary); }
 .segment-mentee  { background: rgba(22,163,74,0.04); border-left-color: #16a34a; }
+.segment-unassigned { background: rgba(100,116,139,0.04); border-left-color: #94a3b8; }
 .segment-meta { display: flex; align-items: center; gap: 0.5rem; }
 .speaker-badge {
   font-size: 0.72rem;
@@ -2631,6 +2634,7 @@ tr:last-child td { border-bottom: none; }
 }
 .speaker-mentor { background: rgba(79,70,229,0.1); color: var(--primary); }
 .speaker-mentee { background: rgba(22,163,74,0.1); color: #16a34a; }
+.speaker-unknown { background: rgba(100,116,139,0.12); color: #64748b; }
 .segment-time { font-size: 0.75rem; color: var(--text-tertiary, #aaa); font-family: monospace; }
 .segment-text { font-size: 0.9rem; color: var(--text-primary); line-height: 1.6; margin: 0; }
 .transcript-plain { padding: 1.25rem; }
@@ -2797,7 +2801,7 @@ tr:last-child td { border-bottom: none; }
 ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 380px) {
   .main-panel {
-    padding: 10px 12px calc(80px + env(safe-area-inset-bottom, 12px));
+    padding: 10px 12px calc(90px + env(safe-area-inset-bottom, 12px));
   }
   .card-grid {
     grid-template-columns: 1fr !important;
@@ -2859,6 +2863,28 @@ tr:last-child td { border-bottom: none; }
   .mobile-card-meta,
   .mobile-card-actions {
     padding-left: 0 !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ULTRA SMALL MOBILE  ≤ 340px  (e.g., iPhone SE 1st gen 320px)
+═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 340px) {
+  .main-panel {
+    padding: 8px 8px calc(90px + env(safe-area-inset-bottom, 12px));
+  }
+  .bottom-nav {
+    padding: 4px 2px calc(4px + env(safe-area-inset-bottom, 0px));
+    gap: 1px;
+  }
+  .bottom-nav-item {
+    font-size: 0.54rem !important;
+    padding: 2px 0.5px !important;
+    min-height: 42px !important;
+  }
+  .bottom-nav-item svg {
+    width: 16px !important;
+    height: 16px !important;
   }
 }
 
@@ -3444,6 +3470,46 @@ tr:last-child td { border-bottom: none; }
     display: grid;
     place-items: center;
     flex-shrink: 0;
+  }
+
+  @media (max-width: 380px) {
+    .mobile-app-header {
+      padding: calc(6px + env(safe-area-inset-top, 0px)) 10px 6px;
+    }
+    .mobile-app-header-inner {
+      height: 40px;
+      gap: 6px;
+    }
+    .mobile-header-brand {
+      gap: 6px;
+    }
+    .mobile-header-brand .brand-mark {
+      width: 28px;
+      height: 28px;
+      font-size: 0.85rem;
+    }
+    .mobile-header-brand-text .brand-title {
+      font-size: 0.96rem;
+    }
+    .mobile-header-brand-text .brand-subtitle {
+      font-size: 0.62rem;
+    }
+    .mobile-header-actions {
+      gap: 5px;
+    }
+    .mobile-header-menu-btn {
+      padding: 2px 4px 2px 2px;
+      min-height: 32px;
+    }
+    .mobile-header-avatar {
+      width: 26px;
+      height: 26px;
+      font-size: 0.72rem;
+    }
+    .mobile-header-dots {
+      width: 14px;
+      height: 14px;
+    }
   }
 
   /* Replace topbar with mobile header on mobile */

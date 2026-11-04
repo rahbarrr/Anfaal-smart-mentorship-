@@ -12,6 +12,7 @@ import { ProfileSuggestion } from '../models/ProfileSuggestion.js';
 import { normalizeFieldKey } from '../services/profileExtractionService.js';
 import { logAuditEvent } from '../services/auditService.js';
 import { maskDeletedCallParts } from '../services/callVisibility.js';
+import { createNotification } from '../services/notificationService.js';
 
 const router = Router();
 
@@ -517,6 +518,19 @@ router.post('/:id/notes', requireAuth, async (req: AuthRequest, res: Response) =
     mentee.notes = [newNote, ...currentNotes];
     await mentee.save();
 
+    // Notify mentee about new mentor feedback asynchronously
+    if (mentee.userId) {
+      void createNotification({
+        userId: mentee.userId,
+        type: 'MENTOR_FEEDBACK_RECEIVED',
+        category: 'mentorshipActivity',
+        title: 'New Mentor Feedback',
+        message: 'Your mentor has shared feedback on your recent progress. Check it out!',
+        link: '/mentee/profile',
+        metadata: { menteeId: String(mentee._id), noteId: newNote.id },
+      });
+    }
+
     return res.status(201).json({ message: 'Note added successfully.', notes: mentee.notes, note: newNote });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to add note';
@@ -625,6 +639,19 @@ router.patch('/:id/360', requireAuth, async (req: AuthRequest, res: Response) =>
     mentee.markModified('profileProvenance');
 
     await mentee.save();
+
+    // If mentor or admin assigned new short-term goals or challenges, notify mentee
+    if (req.user?.role !== 'MENTEE' && mentee.userId && (goals?.shortTermGoals || challenges)) {
+      void createNotification({
+        userId: mentee.userId,
+        type: 'NEW_TASK_ASSIGNED',
+        category: 'mentorshipActivity',
+        title: 'New Assignment Received',
+        message: 'Your mentor has assigned you a new task. Open Anfaal for details.',
+        link: '/mentee/profile',
+        metadata: { menteeId: String(mentee._id) },
+      });
+    }
 
     logAuditEvent({
       userId: req.user!.id,

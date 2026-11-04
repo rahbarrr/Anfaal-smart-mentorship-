@@ -21,24 +21,16 @@ import {
   markAllNotificationsAsRead,
   getNotificationPreferences,
   updateNotificationPreferences,
-  getVapidPublicKey,
-  registerPushSubscription,
-  unregisterPushSubscription,
+  sendTestPushNotification,
   type InAppNotification,
   type NotificationPreferences,
 } from '../lib/api';
+import {
+  isPushSupported,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from '../pwa/pwaNotifications';
 import { InstallAppButton } from '../pwa/InstallAppButton';
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
 
 function formatRelativeTime(dateString: string): string {
   try {
@@ -108,10 +100,11 @@ export function NotificationCenter() {
     callUpdates: true,
     systemNotifications: true,
   });
-  const [pushSupported, setPushSupported] = useState(false);
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission>('default');
   const [pushLoading, setPushLoading] = useState(false);
   const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
+  const [testPushLoading, setTestPushLoading] = useState(false);
+  const [testPushResult, setTestPushResult] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -121,12 +114,6 @@ export function NotificationCenter() {
 
   // Check Web Push support & initial permission
   useEffect(() => {
-    const isSupported =
-      typeof window !== 'undefined' &&
-      'Notification' in window &&
-      'serviceWorker' in navigator &&
-      'PushManager' in window;
-    setPushSupported(isSupported);
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setBrowserPermission(Notification.permission);
     }
@@ -250,7 +237,7 @@ export function NotificationCenter() {
 
   // Push Permission & Subscription workflow
   const handleEnablePush = async () => {
-    if (!pushSupported) {
+    if (!isPushSupported()) {
       setPushStatusMessage('Push notifications are not supported on this browser or platform.');
       return;
     }
@@ -259,37 +246,18 @@ export function NotificationCenter() {
     setPushStatusMessage(null);
 
     try {
-      const perm = await Notification.requestPermission();
-      setBrowserPermission(perm);
-
-      if (perm !== 'granted') {
-        setPushStatusMessage('Notifications permission was declined or blocked.');
+      const token = getToken();
+      if (!token) {
+        setPushStatusMessage('Please sign in to enable notifications.');
         setPushLoading(false);
         return;
       }
 
-      // Get VAPID public key
-      const { publicKey } = await getVapidPublicKey();
-      if (!publicKey) {
-        throw new Error('VAPID public key unavailable');
-      }
-
-      const swReg = await navigator.serviceWorker.ready;
-      let subscription = await swReg.pushManager.getSubscription();
-
-      if (!subscription) {
-        subscription = await swReg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
-        });
-      }
-
-      const token = getToken();
-      if (token && subscription) {
-        await registerPushSubscription(token, subscription);
-        await updateNotificationPreferences(token, { pushEnabled: true });
+      const res = await subscribeToPush(token);
+      setBrowserPermission(Notification.permission);
+      setPushStatusMessage(res.message);
+      if (res.success) {
         setPreferences((p) => ({ ...p, pushEnabled: true }));
-        setPushStatusMessage('Push notifications successfully enabled!');
       }
     } catch (err: any) {
       console.error('Push registration error:', err);
@@ -303,18 +271,8 @@ export function NotificationCenter() {
     setPushLoading(true);
     setPushStatusMessage(null);
     try {
-      const swReg = await navigator.serviceWorker.ready;
-      const subscription = await swReg.pushManager.getSubscription();
       const token = getToken();
-      if (subscription) {
-        await subscription.unsubscribe();
-        if (token) {
-          await unregisterPushSubscription(token, subscription.endpoint);
-        }
-      }
-      if (token) {
-        await updateNotificationPreferences(token, { pushEnabled: false });
-      }
+      await unsubscribeFromPush(token || undefined);
       setPreferences((p) => ({ ...p, pushEnabled: false }));
       setPushStatusMessage('Push notifications turned off.');
     } catch (err: any) {
@@ -322,6 +280,30 @@ export function NotificationCenter() {
       setPushStatusMessage('Failed to disable push notifications');
     } finally {
       setPushLoading(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setTestPushLoading(true);
+    setTestPushResult(null);
+    try {
+      const token = getToken();
+      if (!token) {
+        setTestPushResult('Please sign in first.');
+        return;
+      }
+      const res = await sendTestPushNotification(token, {
+        title: 'Anfaal Test Notification',
+        message: 'Background push notifications are working correctly!',
+        link: '/',
+      });
+      setTestPushResult(res.message);
+      void loadNotifications();
+      void fetchUnreadCount();
+    } catch (err: any) {
+      setTestPushResult(err?.message || 'Failed to dispatch test notification.');
+    } finally {
+      setTestPushLoading(false);
     }
   };
 
@@ -573,6 +555,39 @@ export function NotificationCenter() {
                       {pushStatusMessage}
                     </p>
                   )}
+
+                  {/* Test Push Trigger */}
+                  <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary w-full text-xs"
+                      disabled={testPushLoading}
+                      onClick={handleSendTestPush}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        padding: '0.5rem 0.75rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Bell size={13} />
+                      {testPushLoading ? 'Sending Test…' : 'Send Test Notification to This Device'}
+                    </button>
+                    {testPushResult && (
+                      <p
+                        className="text-xs font-medium mt-1.5"
+                        style={{
+                          color: testPushResult.toLowerCase().includes('fail') || testPushResult.toLowerCase().includes('no active') ? 'var(--danger)' : 'var(--primary)',
+                          margin: '0.35rem 0 0 0',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {testPushResult}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Categories Section */}

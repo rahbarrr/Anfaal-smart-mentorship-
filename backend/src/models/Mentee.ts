@@ -19,6 +19,7 @@ const menteeSchema = new Schema<MenteeDocument>(
     notes: [{ type: Schema.Types.Mixed }],
     profileProvenance: { type: Schema.Types.Mixed, default: {} },
     lastProfileUpdate: { type: Date },
+    preferences: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true },
 );
