@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Bell, Check, Megaphone, Pin, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Bell, Check, Megaphone, Pin, Plus, ArrowLeft } from 'lucide-react';
 import { createAnnouncement, getAnnouncements, markAnnouncementRead, getToken } from '@/lib/api';
 
 type Announcement = {
@@ -17,7 +18,10 @@ type Announcement = {
 };
 
 export function AnnouncementsView() {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const router = useRouter();
+  const [userRole, setUserRole] = useState<string | undefined>(undefined);
+  const isAdmin = userRole === 'ADMIN';
+  const isMentor = userRole === 'MENTOR';
   const [items, setItems] = useState<Announcement[]>([]);
   const [showComposer, setShowComposer] = useState(false);
   const [title, setTitle] = useState('');
@@ -31,7 +35,7 @@ export function AnnouncementsView() {
       const stored = localStorage.getItem('anfaal-user');
       if (stored) {
         const user = JSON.parse(stored) as { role?: string };
-        setIsAdmin(user.role === 'ADMIN');
+        setUserRole(user.role);
       }
     } catch {
       // ignore
@@ -76,15 +80,27 @@ export function AnnouncementsView() {
   };
 
   return (
-    <div style={{ display: 'grid', gap: 18, maxWidth: 900 }}>
+    <div style={{ display: 'grid', gap: 18, maxWidth: 900, minWidth: 0, width: '100%', paddingBottom: 60 }}>
+      {/* Back button */}
+      <div>
+        <button
+          type="button"
+          className="btn-secondary"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.88rem', minHeight: 38 }}
+          onClick={() => router.push(isAdmin ? '/admin' : isMentor ? '/mentor' : '/mentee')}
+        >
+          <ArrowLeft size={15} /> Back to Dashboard
+        </button>
+      </div>
+
       <div
         className="page-heading"
-        style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}
+        style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}
       >
         <div>
           <div className="eyebrow">Updates</div>
-          <h1 style={{ margin: '4px 0 0' }}>Announcements</h1>
-          <p className="muted">Important notices for the Anfaal mentorship community.</p>
+          <h1 style={{ margin: '4px 0 0', fontSize: 'clamp(1.4rem, 4vw, 1.8rem)' }}>Announcements</h1>
+          <p className="muted" style={{ fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)' }}>Important notices for the Anfaal mentorship community.</p>
         </div>
         {isAdmin && (
           <button className="btn-primary" onClick={() => setShowComposer((value) => !value)}>

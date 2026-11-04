@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getDashboardSummary } from '@/lib/api';
+import { getDashboardSummary, sendTestPushNotification, getPushDiagnosticStatus } from '@/lib/api';
 import {
   AlertTriangle,
   Users,
@@ -13,8 +13,16 @@ import {
   Clock,
   Sparkles,
   ArrowRight,
+  Bell,
+  Smartphone,
+  Send,
+  Radio,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { formatDateTime, formatDateOnly, formatSubmissionTimestamps } from '@/lib/dateTime';
+import { isPushSupported, getNotificationPermission, subscribeToPush } from '@/pwa/pwaNotifications';
 
 type AttentionItem = {
   type: string;
@@ -106,6 +114,78 @@ export default function AdminDashboardPage() {
   const [data, setData] = useState<DashboardData>(fallback);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+
+  // ─── PWA & Push Diagnostics State ──────────────────────────────────────────
+  const [pushDiag, setPushDiag] = useState<{
+    vapidConfigured: boolean;
+    pushEnabled: boolean;
+    registeredDevices: number;
+    totalSystemDevices?: number;
+    devices: Array<{ endpointSnippet: string; userAgent: string; createdAt?: string }>;
+  } | null>(null);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushFeedback, setPushFeedback] = useState<{ success: boolean; message: string; summary?: any } | null>(null);
+
+  const fetchPushDiag = useCallback(async () => {
+    const token = localStorage.getItem('anfaal-token');
+    if (!token) return;
+    try {
+      const status = await getPushDiagnosticStatus(token);
+      setPushDiag(status);
+    } catch {
+      // ignore background poll failure
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPushDiag();
+  }, [fetchPushDiag]);
+
+  const handleTestPush = async (broadcast: boolean) => {
+    const token = localStorage.getItem('anfaal-token');
+    if (!token) return;
+    setPushLoading(true);
+    setPushFeedback(null);
+    try {
+      const res = await sendTestPushNotification(token, {
+        title: 'Anfaal Test Notification',
+        message: 'Background push notifications are working correctly!',
+        link: '/',
+        broadcast,
+      });
+      setPushFeedback(res);
+      await fetchPushDiag();
+    } catch (err: any) {
+      setPushFeedback({
+        success: false,
+        message: err?.message || 'Failed to dispatch test notification.',
+      });
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleRegisterDevice = async () => {
+    const token = localStorage.getItem('anfaal-token');
+    if (!token) return;
+    setPushLoading(true);
+    setPushFeedback(null);
+    try {
+      const res = await subscribeToPush(token);
+      setPushFeedback({
+        success: res.success,
+        message: res.message,
+      });
+      await fetchPushDiag();
+    } catch (err: any) {
+      setPushFeedback({
+        success: false,
+        message: err?.message || 'Error subscribing device to push.',
+      });
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('anfaal-token');
@@ -202,6 +282,144 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── Web Push & Android PWA Diagnostics Card ──────────────────────── */}
+      <div className="summary-card" style={{ borderLeft: '4px solid var(--primary)' }}>
+        <div className="summary-header" style={{ marginBottom: 14 }}>
+          <div>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '1.05rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+              <Bell size={18} color="var(--primary)" /> Web Push & Android Background Notification Diagnostics
+            </h3>
+            <p className="muted" style={{ fontSize: '0.8rem' }}>
+              Real-time push delivery verification across open, minimized, closed, and locked device states
+            </p>
+          </div>
+          <button
+            className="btn-outline btn-sm"
+            onClick={fetchPushDiag}
+            disabled={pushLoading}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.78rem' }}
+          >
+            <RefreshCw size={13} className={pushLoading ? 'spin' : ''} /> Refresh Status
+          </button>
+        </div>
+
+        {/* Live Diagnostics Telemetry Pills */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+          <div style={{ padding: '6px 12px', borderRadius: 8, background: 'var(--surface-muted)', border: '1px solid var(--border)', fontSize: '0.8rem' }}>
+            <strong>Push API:</strong> {isPushSupported() ? <span style={{ color: 'var(--success, #16a34a)' }}>Supported</span> : <span style={{ color: 'var(--destructive, #dc2626)' }}>Not Supported</span>}
+          </div>
+          <div style={{ padding: '6px 12px', borderRadius: 8, background: 'var(--surface-muted)', border: '1px solid var(--border)', fontSize: '0.8rem' }}>
+            <strong>Browser Permission:</strong>{' '}
+            <span style={{ color: getNotificationPermission() === 'granted' ? 'var(--success, #16a34a)' : 'var(--warning, #ca8a04)' }}>
+              {getNotificationPermission()}
+            </span>
+          </div>
+          <div style={{ padding: '6px 12px', borderRadius: 8, background: 'var(--surface-muted)', border: '1px solid var(--border)', fontSize: '0.8rem' }}>
+            <strong>VAPID Backend:</strong> {pushDiag?.vapidConfigured ? <span style={{ color: 'var(--success, #16a34a)' }}>Configured & Active</span> : <span style={{ color: 'var(--warning, #ca8a04)' }}>Checking...</span>}
+          </div>
+          <div style={{ padding: '6px 12px', borderRadius: 8, background: 'var(--surface-muted)', border: '1px solid var(--border)', fontSize: '0.8rem' }}>
+            <strong>Admin Devices:</strong> <span style={{ fontWeight: 700 }}>{pushDiag?.registeredDevices ?? 0}</span>
+          </div>
+          <div style={{ padding: '6px 12px', borderRadius: 8, background: 'var(--surface-muted)', border: '1px solid var(--border)', fontSize: '0.8rem' }}>
+            <strong>Total System Subscriptions:</strong> <span style={{ fontWeight: 700 }}>{pushDiag?.totalSystemDevices ?? 0}</span>
+          </div>
+        </div>
+
+        {/* Diagnostic Actions */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+          <button
+            className="btn-primary btn-sm"
+            onClick={() => handleTestPush(false)}
+            disabled={pushLoading}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 38 }}
+          >
+            <Send size={14} /> Send Test Push to My Device
+          </button>
+          <button
+            className="btn-outline btn-sm"
+            onClick={() => handleTestPush(true)}
+            disabled={pushLoading}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 38 }}
+          >
+            <Radio size={14} /> Broadcast Test Push to All Devices
+          </button>
+          {getNotificationPermission() !== 'granted' && (
+            <button
+              className="btn-outline btn-sm"
+              onClick={handleRegisterDevice}
+              disabled={pushLoading}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 38 }}
+            >
+              <Smartphone size={14} /> Enable & Register This Device
+            </button>
+          )}
+        </div>
+
+        {/* Live Feedback / Result Display */}
+        {pushFeedback && (
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 8,
+              border: `1px solid ${pushFeedback.success ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+              background: pushFeedback.success ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+              fontSize: '0.85rem',
+              marginBottom: 14,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
+              {pushFeedback.success ? <CheckCircle size={16} color="#16a34a" /> : <XCircle size={16} color="#dc2626" />}
+              <span>{pushFeedback.message}</span>
+            </div>
+            {pushFeedback.summary && pushFeedback.summary.results?.length > 0 && (
+              <div style={{ marginTop: 8, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                <strong>Delivery Telemetry:</strong>
+                <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                  {pushFeedback.summary.results.map((r: any, idx: number) => (
+                    <li key={idx}>
+                      Endpoint: {r.endpoint} — Status: {r.status} {r.success ? '✓ (Delivered to provider)' : `✗ (${r.error})`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Registered Devices List */}
+        {pushDiag && pushDiag.devices && pushDiag.devices.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 8 }}>
+            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>
+              Registered Device Endpoints for Current User:
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {pushDiag.devices.map((d, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    background: 'var(--surface-muted)',
+                    fontSize: '0.74rem',
+                    fontFamily: 'monospace',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                  }}
+                >
+                  <span style={{ color: 'var(--text-primary)' }}>{d.endpointSnippet}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    {d.userAgent.includes('Android') ? '📱 Android Chrome' : d.userAgent.slice(0, 30)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* ── Dual Grid: Recent Calls & Recent Mentee Progress ──────────────── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))', gap: 20 }}>

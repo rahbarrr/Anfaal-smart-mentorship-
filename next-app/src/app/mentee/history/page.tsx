@@ -58,11 +58,11 @@ export default function MenteePerformanceHistoryPage() {
   return (
     <div className="mentee-history-page" style={{ display: 'grid', gap: 20, paddingBottom: 60 }}>
       {/* Back button & page header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <button
           type="button"
           className="btn-secondary"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.88rem' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.88rem', minHeight: 40 }}
           onClick={() => router.push('/mentee')}
         >
           <ArrowLeft size={15} /> Back to Dashboard
@@ -71,7 +71,7 @@ export default function MenteePerformanceHistoryPage() {
         <button
           type="button"
           className="btn-primary"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 40 }}
           onClick={() => router.push('/mentee/daily')}
         >
           <Plus size={16} /> Record Today's Progress
@@ -81,7 +81,7 @@ export default function MenteePerformanceHistoryPage() {
       <div className="page-header" style={{ marginBottom: 0 }}>
         <div>
           <div className="eyebrow">Tracking & Consistency</div>
-          <h2 className="page-title" style={{ fontSize: '1.8rem' }}>Performance History</h2>
+          <h2 className="page-title" style={{ fontSize: 'clamp(1.3rem, 4vw, 1.8rem)' }}>Performance History</h2>
         </div>
       </div>
 
@@ -89,7 +89,7 @@ export default function MenteePerformanceHistoryPage() {
       <div
         className="summary-card"
         style={{
-          padding: '14px 18px',
+          padding: '12px 16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -97,48 +97,55 @@ export default function MenteePerformanceHistoryPage() {
           gap: 12,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <Filter size={16} color="var(--primary)" />
-          <span style={{ fontSize: '0.88rem', fontWeight: 700 }}>Timeframe:</span>
-          {(['all', 'weekly', 'monthly', 'custom'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setFilterMode(mode)}
-              style={{
-                background: filterMode === mode ? 'var(--primary)' : '#fff',
-                color: filterMode === mode ? '#fff' : 'var(--text-primary)',
-                border: '1px solid',
-                borderColor: filterMode === mode ? 'var(--primary)' : 'var(--border)',
-                padding: '6px 14px',
-                borderRadius: 16,
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                textTransform: 'capitalize',
-              }}
-            >
-              {mode === 'all' ? 'All Time' : mode === 'weekly' ? 'Last 7 Days' : mode === 'monthly' ? 'Last 30 Days' : 'Custom Range'}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%', maxWidth: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Filter size={16} color="var(--primary)" />
+            <span style={{ fontSize: '0.88rem', fontWeight: 700 }}>Timeframe:</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {(['all', 'weekly', 'monthly', 'custom'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setFilterMode(mode)}
+                style={{
+                  background: filterMode === mode ? 'var(--primary)' : '#fff',
+                  color: filterMode === mode ? '#fff' : 'var(--text-primary)',
+                  border: '1px solid',
+                  borderColor: filterMode === mode ? 'var(--primary)' : 'var(--border)',
+                  padding: '6px 12px',
+                  borderRadius: 16,
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textTransform: 'capitalize',
+                  minHeight: 34,
+                }}
+              >
+                {mode === 'all' ? 'All Time' : mode === 'weekly' ? 'Last 7 Days' : mode === 'monthly' ? 'Last 30 Days' : 'Custom'}
+              </button>
+            ))}
+          </div>
         </div>
 
         {filterMode === 'custom' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%', marginTop: 4 }}>
             <input
               type="date"
               className="input"
               value={customFrom}
               onChange={(e) => setCustomFrom(e.target.value)}
-              style={{ height: 38, fontSize: '0.85rem', maxWidth: 150 }}
+              style={{ height: 38, fontSize: '0.85rem', flex: '1 1 120px', minWidth: 0, maxWidth: '100%' }}
+              aria-label="Filter from date"
             />
-            <span className="muted" style={{ fontSize: '0.85rem' }}>to</span>
+            <span className="muted" style={{ fontSize: '0.85rem', flexShrink: 0 }}>to</span>
             <input
               type="date"
               className="input"
               value={customTo}
               onChange={(e) => setCustomTo(e.target.value)}
-              style={{ height: 38, fontSize: '0.85rem', maxWidth: 150 }}
+              style={{ height: 38, fontSize: '0.85rem', flex: '1 1 120px', minWidth: 0, maxWidth: '100%' }}
+              aria-label="Filter to date"
             />
           </div>
         )}
@@ -262,9 +269,9 @@ export default function MenteePerformanceHistoryPage() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
                   gap: 8,
-                  padding: '10px 12px',
+                  padding: '10px 8px',
                   background: 'var(--surface-muted)',
                   borderRadius: 12,
                   textAlign: 'center',
@@ -282,7 +289,7 @@ export default function MenteePerformanceHistoryPage() {
                   <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--text-secondary)', fontWeight: 700 }}>
                     Quran
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)', marginTop: 2 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-primary)', marginTop: 2 }}>
                     {r.quran?.ruku ?? 0}R · {r.quran?.pages ?? 0}p
                   </div>
                 </div>
@@ -297,7 +304,7 @@ export default function MenteePerformanceHistoryPage() {
               </div>
 
               {r.dailyReflection && (
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.45, padding: '8px 10px', background: '#fff', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.45, padding: '8px 10px', background: '#fff', borderRadius: 8, border: '1px solid var(--border)', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
                   "{r.dailyReflection}"
                 </div>
               )}

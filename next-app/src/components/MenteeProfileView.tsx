@@ -115,10 +115,23 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status-badge ${cls}`}>{status}</span>;
 }
 
-export function MenteeProfileView() {
+export function MenteeProfileView({ menteeId: propMenteeId }: { menteeId?: string } = {}) {
   const params = useParams();
-  const menteeId = (params?.menteeId as string) || '';
   const router = useRouter();
+
+  const user = (() => {
+    try {
+      if (typeof window === 'undefined') return null;
+      const u = localStorage.getItem('anfaal-user');
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const isAdmin = user?.role === 'ADMIN';
+  const isMentee = user?.role === 'MENTEE';
+  const menteeId = propMenteeId || (params?.menteeId as string) || user?.menteeId || (isMentee ? user?.id : '') || '';
+  const token = typeof window !== 'undefined' ? (localStorage.getItem('anfaal-token') || '') : '';
 
   // Core mentee & calls data
   const [mentee, setMentee] = useState<Mentee360Profile | null>(null);
@@ -160,18 +173,6 @@ export function MenteeProfileView() {
   const [perfDeleteTarget, setPerfDeleteTarget] = useState<any | 'BULK' | null>(null);
   const [isPerfDeleting, setIsPerfDeleting] = useState(false);
   const selectAllPerfRef = useRef<HTMLInputElement | null>(null);
-
-  const user = (() => {
-    try {
-      if (typeof window === 'undefined') return null;
-      const u = localStorage.getItem('anfaal-user');
-      return u ? JSON.parse(u) : null;
-    } catch {
-      return null;
-    }
-  })();
-  const isAdmin = user?.role === 'ADMIN';
-  const token = typeof window !== 'undefined' ? (localStorage.getItem('anfaal-token') || '') : '';
 
   // Supportive Intelligence (AI Insights)
   const [aiInsights, setAiInsights] = useState<AiInsightsResult | null>(null);
@@ -540,9 +541,9 @@ export function MenteeProfileView() {
           type="button"
           className="btn-ghost"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', padding: '6px 10px', color: 'var(--text-secondary)' }}
-          onClick={() => router.push(isAdmin ? '/admin/mentees' : '/mentor/mentees')}
+          onClick={() => router.push(isAdmin ? '/admin/mentees' : isMentee ? '/mentee' : '/mentor/mentees')}
         >
-          <ArrowLeft size={15} /> Back to Mentees
+          <ArrowLeft size={15} /> {isMentee ? 'Back to Dashboard' : 'Back to Mentees'}
         </button>
       </div>
 

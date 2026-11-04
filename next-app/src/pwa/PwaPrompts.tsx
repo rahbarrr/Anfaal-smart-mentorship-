@@ -1,38 +1,71 @@
 'use client';
 
 import { useCallback, useState, useEffect } from 'react';
-import { Download, RefreshCw, Share, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Download, RefreshCw, Share, X, Bell } from 'lucide-react';
 import { usePwaInstall } from './PwaContext';
+import {
+  registerServiceWorker,
+  syncPushSubscription,
+  subscribeToPush,
+  isPushSupported,
+  getNotificationPermission,
+} from './pwaNotifications';
 
 const INSTALL_DISMISSED_KEY = 'anfaal-pwa-install-dismissed-at';
+const PUSH_PROMPT_DISMISSED_KEY = 'anfaal-pwa-push-dismissed-at';
 const DISMISS_COOLDOWN_MS = 1000 * 60 * 60 * 24 * 30; // don't re-ask for 30 days
 const UPDATE_CHECK_INTERVAL_MS = 1000 * 60 * 30; // look for a new deployment every 30 min
 
-function wasRecentlyDismissed(): boolean {
+function wasRecentlyDismissed(key: string): boolean {
   try {
-    const at = Number(localStorage.getItem(INSTALL_DISMISSED_KEY) || 0);
+    const at = Number(localStorage.getItem(key) || 0);
     return at > 0 && Date.now() - at < DISMISS_COOLDOWN_MS;
   } catch {
     return false;
   }
 }
 
-function rememberDismissal() {
+function rememberDismissal(key: string) {
   try {
-    localStorage.setItem(INSTALL_DISMISSED_KEY, String(Date.now()));
+    localStorage.setItem(key, String(Date.now()));
   } catch {
     /* storage unavailable: dismissal just won't persist */
   }
 }
 
 export function PwaPrompts() {
+  const router = useRouter();
+
   const [needRefresh, setNeedRefresh] = useState(false);
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
 
+  const { isInstalled, canInstallNatively, platform, triggerInstall } = usePwaInstall();
+  const [mounted, setMounted] = useState(false);
+  const [toastDismissed, setToastDismissed] = useState<boolean>(true);
+  const [pushDismissed, setPushDismissed] = useState<boolean>(true);
+  const [pushSubscribing, setPushSubscribing] = useState<boolean>(false);
+  const [permissionState, setPermissionState] = useState<NotificationPermission>('default');
+
+  // 1. Service Worker & Push Subscription Lifecycle
   useEffect(() => {
+    setMounted(true);
+    setToastDismissed(wasRecentlyDismissed(INSTALL_DISMISSED_KEY));
+    setPushDismissed(wasRecentlyDismissed(PUSH_PROMPT_DISMISSED_KEY));
+    setPermissionState(getNotificationPermission());
+
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
 
-    navigator.serviceWorker.register('/sw-push.js').then((registration) => {
+    const token = localStorage.getItem('anfaal-token');
+
+    // Explicitly guarantee service worker registration and background push listener attachment
+    void registerServiceWorker().then((registration) => {
+      if (!registration) return;
+
+      if (token && getNotificationPermission() === 'granted') {
+        void syncPushSubscription(token);
+      }
+
       // Listen for updates
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing;
@@ -64,7 +97,20 @@ export function PwaPrompts() {
     }).catch((err) => {
       console.warn('[PWA] Service worker registration:', err);
     });
-  }, []);
+
+    // Listen for notification click postMessage from service worker
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'NOTIFICATION_CLICK' && event.data?.url) {
+        router.push(event.data.url);
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleSwMessage);
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+    };
+  }, [router]);
 
   const updateServiceWorker = (reloadPage = true) => {
     if (waitingWorker) {
@@ -75,18 +121,14 @@ export function PwaPrompts() {
     }
   };
 
-  const [mounted, setMounted] = useState(false);
-  const { isInstalled, canInstallNatively, platform, triggerInstall } = usePwaInstall();
-  const [toastDismissed, setToastDismissed] = useState<boolean>(true);
-
-  useEffect(() => {
-    setMounted(true);
-    setToastDismissed(wasRecentlyDismissed());
+  const dismissToast = useCallback(() => {
+    rememberDismissal(INSTALL_DISMISSED_KEY);
+    setToastDismissed(true);
   }, []);
 
-  const dismissToast = useCallback(() => {
-    rememberDismissal();
-    setToastDismissed(true);
+  const dismissPushToast = useCallback(() => {
+    rememberDismissal(PUSH_PROMPT_DISMISSED_KEY);
+    setPushDismissed(true);
   }, []);
 
   const handleInstallClick = useCallback(async () => {
@@ -94,10 +136,32 @@ export function PwaPrompts() {
     await triggerInstall();
   }, [triggerInstall]);
 
+  const handleEnablePushClick = useCallback(async () => {
+    const token = localStorage.getItem('anfaal-token');
+    if (!token) return;
+
+    setPushSubscribing(true);
+    try {
+      const res = await subscribeToPush(token);
+      setPermissionState(getNotificationPermission());
+      if (res.success) {
+        setPushDismissed(true);
+      }
+    } finally {
+      setPushSubscribing(false);
+    }
+  }, []);
+
   const showInstallToast = !isInstalled && !toastDismissed && !needRefresh && (canInstallNatively || platform === 'ios');
+  const showPushToast =
+    !needRefresh &&
+    !pushDismissed &&
+    isPushSupported() &&
+    permissionState === 'default' &&
+    typeof window !== 'undefined' &&
+    Boolean(localStorage.getItem('anfaal-token'));
 
-  if (!mounted || (!needRefresh && !showInstallToast)) return null;
-
+  if (!mounted || (!needRefresh && !showInstallToast && !showPushToast)) return null;
 
   return (
     <div className="pwa-toast-region" role="region" aria-label="App notifications">
@@ -117,6 +181,34 @@ export function PwaPrompts() {
               className="pwa-btn pwa-btn-ghost"
               aria-label="Dismiss update notice"
               onClick={() => setNeedRefresh(false)}
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showPushToast && (
+        <div className="pwa-toast" role="status" aria-live="polite">
+          <Bell size={18} className="pwa-toast-icon text-primary" aria-hidden="true" />
+          <div className="pwa-toast-body">
+            <strong>Enable instant notifications</strong>
+            <span>Get alerted immediately about daily check-ins, reminders, and mentor responses.</span>
+          </div>
+          <div className="pwa-toast-actions">
+            <button
+              type="button"
+              className="pwa-btn pwa-btn-primary"
+              onClick={handleEnablePushClick}
+              disabled={pushSubscribing}
+            >
+              {pushSubscribing ? 'Enabling…' : 'Enable'}
+            </button>
+            <button
+              type="button"
+              className="pwa-btn pwa-btn-ghost"
+              aria-label="Dismiss notification prompt"
+              onClick={dismissPushToast}
             >
               <X size={16} aria-hidden="true" />
             </button>

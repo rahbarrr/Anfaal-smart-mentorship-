@@ -23,24 +23,17 @@ import {
   markAllNotificationsAsRead,
   getNotificationPreferences,
   updateNotificationPreferences,
-  getVapidPublicKey,
-  registerPushSubscription,
-  unregisterPushSubscription,
+  sendTestPushNotification,
+  getToken,
   type InAppNotification,
   type NotificationPreferences,
-} from '../lib/api';
-import { InstallAppButton } from '../pwa/InstallAppButton';
-
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
+} from '@/lib/api';
+import {
+  isPushSupported,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from '@/pwa/pwaNotifications';
+import { InstallAppButton } from '@/pwa/InstallAppButton';
 
 function formatRelativeTime(dateString: string): string {
   try {
@@ -110,25 +103,16 @@ export function NotificationCenter() {
     callUpdates: true,
     systemNotifications: true,
   });
-  const [pushSupported, setPushSupported] = useState(false);
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission>('default');
   const [pushLoading, setPushLoading] = useState(false);
   const [pushStatusMessage, setPushStatusMessage] = useState<string | null>(null);
+  const [testPushLoading, setTestPushLoading] = useState(false);
+  const [testPushResult, setTestPushResult] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const getToken = useCallback(() => {
-    return typeof window !== 'undefined' ? (localStorage.getItem('anfaal-token') || '') : '';
-  }, []);
-
   // Check Web Push support & initial permission
   useEffect(() => {
-    const isSupported =
-      typeof window !== 'undefined' &&
-      'Notification' in window &&
-      'serviceWorker' in navigator &&
-      'PushManager' in window;
-    setPushSupported(isSupported);
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setBrowserPermission(Notification.permission);
     }
@@ -144,7 +128,7 @@ export function NotificationCenter() {
     } catch {
       // ignore background polling failure
     }
-  }, [getToken]);
+  }, []);
 
   useEffect(() => {
     fetchUnreadCount();
@@ -167,7 +151,10 @@ export function NotificationCenter() {
     if (!token) return;
     setLoading(true);
     try {
-      const data = await getNotifications(token, false, 40);
+      const data = await getNotifications(token, {
+        limit: 30,
+        unreadOnly: activeTab === 'unread',
+      });
       setNotifications(data.notifications);
       setUnreadCount(data.unreadCount);
     } catch (err) {
@@ -175,84 +162,85 @@ export function NotificationCenter() {
     } finally {
       setLoading(false);
     }
-  }, [getToken]);
+  }, [activeTab]);
 
   useEffect(() => {
-    if (isOpen) {
-      loadNotifications();
+    if (isOpen && view === 'list') {
+      void loadNotifications();
     }
-  }, [isOpen, loadNotifications]);
+  }, [isOpen, view, activeTab, loadNotifications]);
 
-  // Load preferences when settings view is active
+  // Fetch preferences when settings view is opened
   useEffect(() => {
     if (isOpen && view === 'settings') {
       const token = getToken();
       if (!token) return;
       getNotificationPreferences(token)
-        .then((res) => {
-          if (res?.preferences) setPreferences(res.preferences);
-        })
-        .catch(() => undefined);
+        .then((data) => setPreferences((data as any).preferences ?? data))
+        .catch((err) => console.error('Failed to load notification preferences:', err));
     }
-  }, [isOpen, view, getToken]);
+  }, [isOpen, view]);
 
-  // Outside click & ESC listeners for closing popover
+  // Close dropdown on outside click
   useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsOpen(false);
-      }
-    };
     if (isOpen) {
-      document.addEventListener('mousedown', handleOutsideClick);
-      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('mousedown', handleClickOutside);
     }
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
+  // Mark single notification as read
   const handleMarkAsRead = async (notification: InAppNotification) => {
+    if (notification.read) return;
     const token = getToken();
-    if (!notification.read && token) {
-      try {
-        await markNotificationAsRead(token, notification.id);
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
-        );
-        setUnreadCount((c) => Math.max(0, c - 1));
-      } catch (err) {
-        console.error('Failed to mark read:', err);
-      }
-    }
+    if (!token) return;
 
-    if (notification.link) {
-      setIsOpen(false);
-      router.push(notification.link);
+    // Optimistic update
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n)),
+    );
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+
+    try {
+      await markNotificationAsRead(token, notification.id);
+    } catch {
+      // Revert on failure
+      void loadNotifications();
     }
   };
 
+  // Mark all as read
   const handleMarkAllRead = async () => {
     const token = getToken();
-    if (!token || unreadCount === 0) return;
+    if (!token) return;
+
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+
     try {
       await markAllNotificationsAsRead(token);
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-      setUnreadCount(0);
-    } catch (err) {
-      console.error('Failed to mark all as read:', err);
+    } catch {
+      void loadNotifications();
+    }
+  };
+
+  // Handle clicking on a notification item
+  const handleItemClick = (notification: InAppNotification) => {
+    void handleMarkAsRead(notification);
+    setIsOpen(false);
+    if (notification.link) {
+      router.push(notification.link);
     }
   };
 
   // Push Permission & Subscription workflow
   const handleEnablePush = async () => {
-    if (!pushSupported) {
+    if (!isPushSupported()) {
       setPushStatusMessage('Push notifications are not supported on this browser or platform.');
       return;
     }
@@ -261,41 +249,23 @@ export function NotificationCenter() {
     setPushStatusMessage(null);
 
     try {
-      const perm = await Notification.requestPermission();
-      setBrowserPermission(perm);
-
-      if (perm !== 'granted') {
-        setPushStatusMessage('Notifications permission was declined or blocked.');
+      const token = getToken();
+      if (!token) {
+        setPushStatusMessage('Please sign in to enable notifications.');
         setPushLoading(false);
         return;
       }
 
-      // Get VAPID public key
-      const { publicKey } = await getVapidPublicKey();
-      if (!publicKey) {
-        throw new Error('VAPID public key unavailable');
-      }
-
-      const swReg = await navigator.serviceWorker.ready;
-      let subscription = await swReg.pushManager.getSubscription();
-
-      if (!subscription) {
-        subscription = await swReg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(publicKey) as unknown as BufferSource,
-        });
-      }
-
-      const token = getToken();
-      if (token && subscription) {
-        await registerPushSubscription(token, subscription);
-        await updateNotificationPreferences(token, { pushEnabled: true });
+      const res = await subscribeToPush(token);
+      setBrowserPermission(Notification.permission);
+      setPushStatusMessage(res.message);
+      if (res.success) {
         setPreferences((p) => ({ ...p, pushEnabled: true }));
-        setPushStatusMessage('Push notifications successfully enabled!');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Push registration error:', err);
-      setPushStatusMessage(err?.message || 'Failed to enable push notifications');
+      const message = err instanceof Error ? err.message : 'Failed to enable push notifications';
+      setPushStatusMessage(message);
     } finally {
       setPushLoading(false);
     }
@@ -305,25 +275,40 @@ export function NotificationCenter() {
     setPushLoading(true);
     setPushStatusMessage(null);
     try {
-      const swReg = await navigator.serviceWorker.ready;
-      const subscription = await swReg.pushManager.getSubscription();
       const token = getToken();
-      if (subscription) {
-        await subscription.unsubscribe();
-        if (token) {
-          await unregisterPushSubscription(token, subscription.endpoint);
-        }
-      }
-      if (token) {
-        await updateNotificationPreferences(token, { pushEnabled: false });
-      }
+      await unsubscribeFromPush(token || undefined);
       setPreferences((p) => ({ ...p, pushEnabled: false }));
       setPushStatusMessage('Push notifications turned off.');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Push unregister error:', err);
       setPushStatusMessage('Failed to disable push notifications');
     } finally {
       setPushLoading(false);
+    }
+  };
+
+  const handleSendTestPush = async () => {
+    setTestPushLoading(true);
+    setTestPushResult(null);
+    try {
+      const token = getToken();
+      if (!token) {
+        setTestPushResult('Please sign in first.');
+        return;
+      }
+      const res = await sendTestPushNotification(token, {
+        title: 'Anfaal Test Notification',
+        message: 'Background push notifications are working correctly!',
+        link: '/',
+      });
+      setTestPushResult(res.message);
+      void loadNotifications();
+      void fetchUnreadCount();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to dispatch test notification.';
+      setTestPushResult(message);
+    } finally {
+      setTestPushLoading(false);
     }
   };
 
@@ -422,16 +407,17 @@ export function NotificationCenter() {
                 )}
                 <button
                   type="button"
-                  className="notification-header-icon-btn notification-close-btn"
+                  className="notification-header-icon-btn"
                   onClick={() => setIsOpen(false)}
-                  aria-label="Close notifications"
+                  title="Close"
+                  aria-label="Close"
                 >
                   <X size={18} />
                 </button>
               </div>
             </div>
 
-            {/* View: Notification List */}
+            {/* View: List */}
             {view === 'list' && (
               <>
                 {/* Tabs */}
@@ -448,53 +434,46 @@ export function NotificationCenter() {
                     className={`notification-tab ${activeTab === 'unread' ? 'active' : ''}`}
                     onClick={() => setActiveTab('unread')}
                   >
-                    Unread ({unreadCount})
+                    Unread {unreadCount > 0 && `(${unreadCount})`}
                   </button>
                 </div>
 
-                {/* Notifications Scroll Body */}
-                <div className="notification-list-body">
-                  {loading && notifications.length === 0 ? (
-                    <div className="notification-empty-state">
-                      <div className="notification-spinner" />
+                {/* Notifications List */}
+                <div className="notification-list-scroll">
+                  {loading ? (
+                    <div className="notification-loading-state">
+                      <div className="loading-spinner" />
                       <span>Loading notifications…</span>
                     </div>
                   ) : filteredNotifications.length === 0 ? (
                     <div className="notification-empty-state">
-                      <div className="notification-empty-icon">
-                        <Bell size={24} />
-                      </div>
-                      <p className="font-semibold text-gray-800">
-                        {activeTab === 'unread' ? 'No unread notifications' : 'No notifications yet'}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        We'll alert you here when there are call updates, mentor responses, or important events.
+                      <Bell size={32} className="text-muted-foreground opacity-40 mb-2" />
+                      <p className="text-sm font-medium text-gray-600">No notifications yet</p>
+                      <p className="text-xs text-muted-foreground">
+                        {activeTab === 'unread'
+                          ? "You're all caught up! No unread notifications."
+                          : "We'll let you know when important updates arrive."}
                       </p>
                     </div>
                   ) : (
-                    <div className="notification-items">
+                    <div className="notification-cards-wrapper">
                       {filteredNotifications.map((item) => (
                         <div
                           key={item.id}
-                          className={`notification-card ${!item.read ? 'is-unread' : 'is-read'}`}
-                          onClick={() => handleMarkAsRead(item)}
+                          className={`notification-card ${!item.read ? 'unread' : 'read'}`}
+                          onClick={() => handleItemClick(item)}
                           role="button"
                           tabIndex={0}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault();
-                              handleMarkAsRead(item);
-                            }
+                            if (e.key === 'Enter' || e.key === ' ') handleItemClick(item);
                           }}
                         >
                           <div className="notification-card-icon">
                             {getNotificationIcon(item.type)}
                           </div>
                           <div className="notification-card-content">
-                            <div className="notification-card-head">
-                              <span className={`notification-card-title ${!item.read ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>
-                                {item.title}
-                              </span>
+                            <div className="notification-card-header">
+                              <span className="notification-card-title">{item.title}</span>
                               {!item.read && <span className="notification-unread-dot" />}
                             </div>
                             <p className="notification-card-message">{item.message}</p>
@@ -575,6 +554,39 @@ export function NotificationCenter() {
                       {pushStatusMessage}
                     </p>
                   )}
+
+                  {/* Test Push Trigger */}
+                  <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+                    <button
+                      type="button"
+                      className="btn-secondary w-full text-xs"
+                      disabled={testPushLoading}
+                      onClick={handleSendTestPush}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        padding: '0.5rem 0.75rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Bell size={13} />
+                      {testPushLoading ? 'Sending Test…' : 'Send Test Notification to This Device'}
+                    </button>
+                    {testPushResult && (
+                      <p
+                        className="text-xs font-medium mt-1.5"
+                        style={{
+                          color: testPushResult.toLowerCase().includes('fail') || testPushResult.toLowerCase().includes('no active') ? 'var(--danger)' : 'var(--primary)',
+                          margin: '0.35rem 0 0 0',
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        {testPushResult}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Categories Section */}
@@ -585,68 +597,72 @@ export function NotificationCenter() {
                   <div className="settings-toggle-list">
                     <label className="settings-toggle-row">
                       <div className="settings-toggle-info">
-                        <span className="settings-toggle-label">Call updates & summaries</span>
-                        <span className="settings-toggle-desc">Processing complete, summary & transcript available</span>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={preferences.callUpdates}
-                        onChange={() => handleTogglePreference('callUpdates')}
-                        className="settings-checkbox"
-                      />
-                    </label>
-
-                    <label className="settings-toggle-row">
-                      <div className="settings-toggle-info">
-                        <span className="settings-toggle-label">Daily progress & habits</span>
-                        <span className="settings-toggle-desc">Reminders, daily submissions & goal logs</span>
+                        <span className="settings-toggle-title">Daily Response Reminders</span>
+                        <span className="settings-toggle-desc">
+                          Get notified when your daily progress report is due
+                        </span>
                       </div>
                       <input
                         type="checkbox"
                         checked={preferences.dailyReminders}
                         onChange={() => handleTogglePreference('dailyReminders')}
-                        className="settings-checkbox"
+                        className="toggle-checkbox"
                       />
                     </label>
 
                     <label className="settings-toggle-row">
                       <div className="settings-toggle-info">
-                        <span className="settings-toggle-label">Mentorship activity</span>
-                        <span className="settings-toggle-desc">New pairings, approvals & mentor updates</span>
+                        <span className="settings-toggle-title">Call Updates</span>
+                        <span className="settings-toggle-desc">
+                          Summaries, action points and recordings of calls
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={preferences.callUpdates}
+                        onChange={() => handleTogglePreference('callUpdates')}
+                        className="toggle-checkbox"
+                      />
+                    </label>
+
+                    <label className="settings-toggle-row">
+                      <div className="settings-toggle-info">
+                        <span className="settings-toggle-title">Mentorship Activity</span>
+                        <span className="settings-toggle-desc">
+                          Assignments, registrations and approvals
+                        </span>
                       </div>
                       <input
                         type="checkbox"
                         checked={preferences.mentorshipActivity}
                         onChange={() => handleTogglePreference('mentorshipActivity')}
-                        className="settings-checkbox"
+                        className="toggle-checkbox"
                       />
                     </label>
 
                     <label className="settings-toggle-row">
                       <div className="settings-toggle-info">
-                        <span className="settings-toggle-label">System announcements</span>
-                        <span className="settings-toggle-desc">Platform alerts and administrative updates</span>
+                        <span className="settings-toggle-title">System Announcements</span>
+                        <span className="settings-toggle-desc">
+                          Important platform updates and notices
+                        </span>
                       </div>
                       <input
                         type="checkbox"
                         checked={preferences.systemNotifications}
                         onChange={() => handleTogglePreference('systemNotifications')}
-                        className="settings-checkbox"
+                        className="toggle-checkbox"
                       />
                     </label>
                   </div>
                 </div>
 
-                {/* Application Section */}
-                <div className="notification-settings-section" style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-                  <h4 className="font-semibold text-sm text-gray-900 mb-2">
-                    Application & Offline
-                  </h4>
-                  <InstallAppButton
-                    variant="card"
-                    onAfterClick={() => setIsOpen(false)}
-                    style={{ margin: 0 }}
-                  />
+                {/* Install App Link */}
+                <div className="notification-settings-section border-t pt-3">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    For the most reliable notification alerts, install Anfaal on your home screen.
+                  </p>
+                  <InstallAppButton variant="secondary" />
                 </div>
               </div>
             )}

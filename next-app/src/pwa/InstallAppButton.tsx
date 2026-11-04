@@ -5,7 +5,7 @@ import { Download, CheckCircle2 } from 'lucide-react';
 import { usePwaInstall } from './PwaContext';
 
 export interface InstallAppButtonProps {
-  variant?: 'sidebar' | 'card' | 'inline';
+  variant?: 'sidebar' | 'card' | 'inline' | 'secondary' | 'primary';
   className?: string;
   style?: React.CSSProperties;
   onAfterClick?: () => void;
@@ -92,12 +92,12 @@ export function InstallAppButton({
     );
   }
 
-  if (variant === 'inline') {
+  if (variant === 'inline' || variant === 'secondary' || variant === 'primary') {
     return (
       <button
         type="button"
         onClick={handleClick}
-        className={`btn-secondary ${className}`}
+        className={`${variant === 'primary' ? 'btn-primary' : 'btn-secondary'} ${className}`}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
